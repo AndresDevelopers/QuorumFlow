@@ -1,0 +1,47 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check for authentication
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Allow public read access to members collection
+    match /c_miembros/{memberId} {
+      allow read: if true; // Allow public read access
+      allow write: if isAuthenticated(); // Require auth for writes
+    }
+
+    // Allow public read access to other collections as needed
+    match /c_familias/{familyId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /c_actividades/{activityId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /c_conversos/{convertId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /c_bautismos/{baptismId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /c_cumpleanos/{birthdayId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Default rule for any other collections
+    match /{collection=**} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}
