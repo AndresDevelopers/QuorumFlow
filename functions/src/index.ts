@@ -1,0 +1,641 @@
+
+import * as functions from "firebase-functions";
+import * as admin from "firebase-admin";
+import { getYear, startOfYear, endOfYear, format, addDays, isSameDay } from "date-fns";
+import { es } from "date-fns/locale";
+import PizZip from "pizzip";
+import Docxtemplater from "docxtemplater";
+import * as webpush from "web-push";
+import ImageModule from "docxtemplater-image-module-free";
+import axios from "axios";
+
+admin.initializeApp();
+
+const firestore = admin.firestore();
+const storage = admin.storage();
+
+if (functions.config().vapid) {
+    webpush.setVapidDetails(
+        "mailto:example@yourdomain.org",
+        functions.config().vapid.public_key,
+        functions.config().vapid.private_key
+    );
+}
+
+interface Activity {
+    id: string;
+    title: string;
+    date: admin.firestore.Timestamp;
+    description: string;
+    time?: string;
+    imageUrls?: string[];
+    additionalText?: string;
+}
+
+interface Baptism {
+    id: string;
+    name: string;
+    date: admin.firestore.Timestamp;
+    source: "Manual" | "Automático";
+}
+
+interface AnnualReportAnswers {
+    p1?: string;
+    p2?: string;
+    p3?: string;
+    p4?: string;
+    p5?: string;
+    p6?: string;
+}
+
+interface Service {
+    id: string;
+    title: string;
+    date: admin.firestore.Timestamp;
+    time?: string;
+}
+
+interface Birthday {
+    id: string;
+    name: string;
+    birthDate: admin.firestore.Timestamp;
+}
+
+interface Family {
+    name: string;
+    isUrgent: boolean;
+}
+
+interface Companionship {
+    id: string;
+    families: Family[];
+}
+
+export const cleanupProfilePictures = functions.storage.object().onFinalize(async (object: any) => {
+    const filePath = object.name;
+    const contentType = object.contentType;
+
+    if (!contentType?.startsWith("image/") || !filePath?.startsWith("profile_pictures/users/")) {
+        functions.logger.log("Not a profile picture, skipping cleanup.");
+        return null;
+    }
+
+    const parts = filePath.split("/");
+    const userId = parts[2];
+    const bucket = admin.storage().bucket(object.bucket);
+    const directory = `profile_pictures/users/${userId}`;
+
+    const [files] = await bucket.getFiles({ prefix: directory });
+
+    const deletePromises = files.map(file => {
+        if (file.name !== filePath) {
+            functions.logger.log(`Deleting old profile picture: ${file.name}`);
+            return file.delete();
+        }
+        return null;
+    });
+
+    await Promise.all(deletePromises);
+    return null;
+});
+
+export const generateCompleteReport = functions.https.onCall(async (data: any, context: any) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError(
+            "unauthenticated",
+            "The function must be called while authenticated."
+        );
+    }
+
+    const year = data.year || getYear(new Date());
+    const includeAllActivities = data.includeAllActivities || false;
+
+    try {
+        const start = startOfYear(new Date(year, 0, 1));
+        const end = endOfYear(new Date(year, 11, 31));
+        const startTimestamp = admin.firestore.Timestamp.fromDate(start);
+        const endTimestamp = admin.firestore.Timestamp.fromDate(end);
+
+        // Obtener todas las colecciones necesarias
+        const [
+            activitiesSnapshot,
+            baptismsSnapshot,
+            futureMembersSnapshot,
+            convertsSnapshot,
+            membersSnapshot,
+            reportAnswersDoc
+        ] = await Promise.all([
+            firestore.collection("c_actividades").orderBy("date", "desc").get(),
+            firestore.collection("c_bautismos")
+                .where("date", ">=", startTimestamp)
+                .where("date", "<=", endTimestamp)
+                .get(),
+            firestore.collection("c_futuros_miembros")
+                .where("baptismDate", ">=", startTimestamp)
+                .where("baptismDate", "<=", endTimestamp)
+                .get(),
+            firestore.collection("c_nuevos_conversos")
+                .where("baptismDate", ">=", startTimestamp)
+                .where("baptismDate", "<=", endTimestamp)
+                .get(),
+            firestore.collection("c_miembros")
+                .where("baptismDate", ">=", startTimestamp)
+                .where("baptismDate", "<=", endTimestamp)
+                .get(),
+            firestore.collection("c_reporte_anual").doc(String(year)).get()
+        ]);
+
+        // Procesar datos
+        const allActivities = activitiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity));
+        const activitiesToProcess = includeAllActivities ? allActivities : allActivities.filter(a => a.date.toDate() >= start && a.date.toDate() <= end);
+
+        // Procesar bautismos
+        const baptisms = [
+            ...futureMembersSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return { id: doc.id, name: data.name, date: data.baptismDate, source: "Futuro Miembro" };
+            }),
+            ...convertsSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return { id: doc.id, name: data.name, date: data.baptismDate, source: "Nuevo Converso" };
+            }),
+            ...baptismsSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return { id: doc.id, name: data.name, date: data.date, source: "Manual" };
+            }),
+            ...membersSnapshot.docs.map(doc => {
+                const data = doc.data();
+                return { id: doc.id, name: `${data.firstName} ${data.lastName}`, date: data.baptismDate, source: "Automático" };
+            })
+        ].sort((a, b) => b.date.toMillis() - a.date.toMillis()) as any;
+
+        const answers = (reportAnswersDoc.data() || {}) as AnnualReportAnswers;
+
+        // Calcular estadísticas generales
+        const totalActivities = activitiesToProcess.length;
+        const totalBaptisms = baptisms.length;
+        const currentYearActivities = allActivities.filter(a => a.date.toDate() >= start && a.date.toDate() <= end);
+
+        // Agrupar actividades por tipo de información
+        const activitiesByMonth = activitiesToProcess.reduce((acc: any, activity) => {
+            const month = format(activity.date.toDate(), "MMMM yyyy", { locale: es });
+            if (!acc[month]) acc[month] = [];
+            acc[month].push(activity);
+            return acc;
+        }, {});
+
+        const monthlyActivities = Object.entries(activitiesByMonth)
+            .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+            .map(([month, activities]: [string, any]) => ({
+                month,
+                count: activities.length,
+                activities: activities.map((a: Activity) => ({
+                    title: a.title,
+                    date: format(a.date.toDate(), "dd 'de' MMMM", { locale: es }),
+                    fullDate: format(a.date.toDate(), "dd 'de' MMMM 'de' yyyy", { locale: es }),
+                    time: a.time || "",
+                    description: a.description,
+                    additionalText: a.additionalText || "",
+                    hasImages: !!(a.imageUrls && a.imageUrls.length > 0),
+                    imageCount: a.imageUrls ? a.imageUrls.length : 0
+                }))
+            }));
+
+        // Preparar bautismos con formato detallado
+        const detailedBaptisms = baptisms.map((b: any) => ({
+            nombre: b.name,
+            fecha: format(b.date.toDate(), "dd 'de' MMMM 'de' yyyy", { locale: es }),
+            fecha_corta: format(b.date.toDate(), "dd/MM/yyyy", { locale: es }),
+            dia_semana: format(b.date.toDate(), "EEEE", { locale: es }),
+            origen: b.source,
+            mes: format(b.date.toDate(), "MMMM", { locale: es })
+        }));
+
+        // Preparar actividades para el formato de lista
+        const activitiesData = await Promise.all(activitiesToProcess.map(async a => {
+            const dateStr = format(a.date.toDate(), "dd/MM/yyyy", { locale: es });
+            const timeStr = a.time ? ` ${a.time}` : "";
+            
+            let fullDescription = a.description;
+            if (a.additionalText) {
+                fullDescription += `\n\nTexto Adicional: ${a.additionalText}`;
+            }
+
+            const images = a.imageUrls ? a.imageUrls.map(url => ({ image: url })) : [];
+
+            return {
+                title: a.title,
+                date: `${dateStr}${timeStr}`,
+                fullDate: format(a.date.toDate(), "dd 'de' MMMM 'de' yyyy", { locale: es }),
+                description: fullDescription,
+                images: images,
+            };
+        }));
+
+        const baptismsText = detailedBaptisms.map((b: any) => `${b.nombre} (${b.fecha})`).join("\n");
+
+        // Obtener template
+        const bucket = storage.bucket();
+        const file = bucket.file("template/reporte.docx");
+        const [templateBuffer] = await file.download();
+
+        const imageModule = new ImageModule({
+            centered: true,
+            getImage: async (tagValue: string, tagName: string) => {
+                try {
+                    // Si es una URL de Firebase Storage o cualquier URL externa
+                    if (tagValue.startsWith('http://') || tagValue.startsWith('https://')) {
+                        const response = await axios.get(tagValue, {
+                            responseType: "arraybuffer",
+                            headers: {
+                                'Accept': 'image/*'
+                            }
+                        });
+                        return Buffer.from(response.data);
+                    }
+                    // Si no es una URL, retornar buffer vacío
+                    return Buffer.alloc(0);
+                } catch (error) {
+                    functions.logger.error(`Error downloading image from ${tagValue}:`, error);
+                    // Retornar un buffer vacío en caso de error para no romper el documento
+                    return Buffer.alloc(0);
+                }
+            },
+            getSize: (img: Buffer, tagValue: string, tagName: string): [number, number] => {
+                // Tamaño fijo para las imágenes en el documento
+                // Ancho máximo de 450px, alto proporcional máximo de 300px
+                return [450, 300];
+            },
+        });
+
+        const zip = new PizZip(templateBuffer);
+        const doc = new Docxtemplater(zip, {
+            paragraphLoop: true,
+            linebreaks: true,
+            modules: [imageModule],
+        });
+
+        // Preparar resumen ejecutivo
+        const summary = {
+            total_actividades_ano: currentYearActivities.length,
+            total_bautismos_ano: baptisms.length,
+            total_actividades_registradas: allActivities.length,
+            actividades_incluidas: activitiesToProcess.length,
+            periodo_cubierto: `${format(start, "d 'de' MMMM", { locale: es })} al ${format(end, "d 'de' MMMM 'de' yyyy", { locale: es })}`,
+            meses_con_actividades: Object.keys(activitiesByMonth).length,
+            distribucion_bautismos: baptisms.reduce((acc: any, b: any) => {
+                if (!acc[b.source]) acc[b.source] = 0;
+                acc[b.source]++;
+                return acc;
+            }, {})
+        };
+
+        // Renderizar documento completo
+        doc.render({
+            anho_reporte: year,
+            fecha_reporte: format(new Date(), "d 'de' MMMM 'de' yyyy", { locale: es }),
+            fecha_generacion: format(new Date(), "d 'de' MMMM 'de' yyyy 'a las' HH:mm", { locale: es }),
+            periodo_informe: summary.periodo_cubierto,
+            
+            // Resumen ejecutivo
+            resumen_ejecutivo: summary,
+            
+            // Respuestas del informe anual
+            respuesta_p1: answers.p1 || "",
+            respuesta_p2: answers.p2 || "",
+            respuesta_p3: answers.p3 || "",
+            respuesta_p4: answers.p4 || "",
+            respuesta_p5: answers.p5 || "",
+            respuesta_p6: answers.p6 || "",
+            
+            // Listados completos
+            lista_actividades: activitiesData,
+            lista_bautismos: baptismsText,
+            
+            // Estadísticas
+            total_actividades: totalActivities,
+            total_bautismos: totalBaptisms,
+            total_actividades_ano_actual: currentYearActivities.length,
+            total_actividades_totales: allActivities.length,
+            incluye_todas_actividades: includeAllActivities ? "Sí" : "No (solo del año actual)",
+            
+            // Datos agrupados
+            actividades_por_mes: monthlyActivities,
+            resumen_bautismos: detailedBaptisms,
+            
+            // Información adicional
+            distribucion_bautismos_por_fuente: Object.entries(summary.distribucion_bautismos).map(([fuente, cantidad]) => ({
+                fuente,
+                cantidad
+            })),
+            
+            // Datos para tablas
+            tabla_actividades: activitiesToProcess.map(a => ({
+                titulo: a.title,
+                fecha: format(a.date.toDate(), "dd/MM/yyyy", { locale: es }),
+                descripcion: a.description.substring(0, 100) + (a.description.length > 100 ? "..." : ""),
+                tiene_imagenes: a.imageUrls && a.imageUrls.length > 0 ? "Sí" : "No"
+            })),
+            
+            tabla_bautismos: detailedBaptisms
+        });
+
+        const buffer = doc.getZip().generate({ type: "nodebuffer" });
+
+        return {
+            fileContents: buffer.toString("base64"),
+        };
+    } catch (error) {
+        functions.logger.error("Error generating complete report:", error);
+        throw new functions.https.HttpsError(
+            "internal",
+            "Error generating complete report: " + error
+        );
+    }
+});
+
+export const generateReport = functions.https.onCall(async (data: any, context: any) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError(
+            "unauthenticated",
+            "The function must be called while authenticated."
+        );
+    }
+
+    const year = data.year || getYear(new Date());
+    const includeAllActivities = data.includeAllActivities || false;
+
+    try {
+        const start = startOfYear(new Date(year, 0, 1));
+        const end = endOfYear(new Date(year, 11, 31));
+        const startTimestamp = admin.firestore.Timestamp.fromDate(start);
+        const endTimestamp = admin.firestore.Timestamp.fromDate(end);
+
+        const activitiesSnapshot = await firestore.collection("c_actividades").orderBy("date", "desc").get();
+        const allActivities = activitiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity));
+        
+        const currentYearActivities = allActivities.filter(a => a.date.toDate() >= start && a.date.toDate() <= end);
+
+        const fmSnapshot = await firestore.collection("c_futuros_miembros")
+            .where("baptismDate", ">=", startTimestamp)
+            .where("baptismDate", "<=", endTimestamp)
+            .get();
+        const fromFutureMembers = fmSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return { id: doc.id, name: data.name, date: data.baptismDate, source: "Automático" } as Baptism;
+        });
+
+        const bSnapshot = await firestore.collection("c_bautismos")
+            .where("date", ">=", startTimestamp)
+            .where("date", "<=", endTimestamp)
+            .get();
+        const fromManual = bSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return { id: doc.id, name: data.name, date: data.date, source: "Manual" } as Baptism;
+        });
+        const baptisms = [...fromFutureMembers, ...fromManual].sort((a, b) => b.date.toMillis() - a.date.toMillis());
+
+        const reportAnswersDoc = await firestore.collection("c_reporte_anual").doc(String(year)).get();
+        const answers = (reportAnswersDoc.data() || {}) as AnnualReportAnswers;
+
+        const bucket = storage.bucket();
+        const file = bucket.file("template/reporte.docx");
+        const [templateBuffer] = await file.download();
+
+        const imageModule = new ImageModule({
+            centered: true,
+            getImage: async (tagValue: string, tagName: string) => {
+                try {
+                    // Si es una URL de Firebase Storage o cualquier URL externa
+                    if (tagValue.startsWith('http://') || tagValue.startsWith('https://')) {
+                        const response = await axios.get(tagValue, {
+                            responseType: "arraybuffer",
+                            headers: {
+                                'Accept': 'image/*'
+                            }
+                        });
+                        return Buffer.from(response.data);
+                    }
+                    // Si no es una URL, retornar buffer vacío
+                    return Buffer.alloc(0);
+                } catch (error) {
+                    functions.logger.error(`Error downloading image from ${tagValue}:`, error);
+                    // Retornar un buffer vacío en caso de error para no romper el documento
+                    return Buffer.alloc(0);
+                }
+            },
+            getSize: (img: Buffer, tagValue: string, tagName: string): [number, number] => {
+                // Tamaño fijo para las imágenes en el documento
+                // Ancho máximo de 450px, alto proporcional máximo de 300px
+                return [450, 300];
+            },
+        });
+
+        const zip = new PizZip(templateBuffer);
+        const doc = new Docxtemplater(zip, {
+            paragraphLoop: true,
+            linebreaks: true,
+            modules: [imageModule],
+        });
+
+        const activitiesToProcess = includeAllActivities ? allActivities : currentYearActivities;
+
+        const activitiesData = await Promise.all(activitiesToProcess.map(async a => {
+            const dateStr = format(a.date.toDate(), "dd/MM/yyyy", { locale: es });
+            const timeStr = a.time ? ` ${a.time}` : "";
+            
+            let fullDescription = a.description;
+            if (a.additionalText) {
+                fullDescription += `\n\nTexto Adicional: ${a.additionalText}`;
+            }
+
+            const images = a.imageUrls ? a.imageUrls.map(url => ({ image: url })) : [];
+
+            return {
+                title: a.title,
+                date: `${dateStr}${timeStr}`,
+                description: fullDescription,
+                images: images,
+            };
+        }));
+        
+        const baptismsText = baptisms.map(b => `${b.name} (${format(b.date.toDate(), "P", { locale: es })})`).join("\n");
+
+        // Obtener estadísticas generales
+        const totalActivities = activitiesToProcess.length;
+        const totalBaptisms = baptisms.length;
+
+        
+        // Obtener actividades por mes
+        const activitiesByMonth = activitiesToProcess.reduce((acc: any, activity) => {
+            const month = format(activity.date.toDate(), "MMMM yyyy", { locale: es });
+            if (!acc[month]) acc[month] = [];
+            acc[month].push(activity);
+            return acc;
+        }, {});
+
+        // Preparar datos para el template
+        const monthlyActivities = Object.entries(activitiesByMonth).map(([month, activities]: [string, any]) => ({
+            month,
+            activities: activities.map((a: Activity) => ({
+                title: a.title,
+                date: format(a.date.toDate(), "dd/MM/yyyy", { locale: es }),
+                time: a.time || "",
+                description: a.description,
+                additionalText: a.additionalText || ""
+            }))
+        }));
+
+        doc.render({
+            anho_reporte: year,
+            fecha_reporte: format(new Date(), "d MMMM yyyy", { locale: es }),
+            respuesta_p1: answers.p1 || "",
+            respuesta_p2: answers.p2 || "",
+            respuesta_p3: answers.p3 || "",
+            respuesta_p4: answers.p4 || "",
+            respuesta_p5: answers.p5 || "",
+            respuesta_p6: answers.p6 || "",
+            lista_actividades: activitiesData,
+            lista_bautismos: baptismsText,
+            total_actividades: totalActivities,
+            total_bautismos: totalBaptisms,
+            actividades_por_mes: monthlyActivities,
+            resumen_bautismos: baptisms.map(b => ({
+                nombre: b.name,
+                fecha: format(b.date.toDate(), "dd 'de' MMMM 'de' yyyy", { locale: es }),
+                origen: b.source
+            })),
+            fecha_generacion: format(new Date(), "d 'de' MMMM 'de' yyyy 'a las' HH:mm", { locale: es })
+        });
+
+        const buffer = doc.getZip().generate({
+            type: "nodebuffer",
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+
+        return { fileContents: buffer.toString("base64") };
+    } catch (error) {
+        functions.logger.error("Error generating report:", error);
+        if (error instanceof Error) {
+            throw new functions.https.HttpsError("internal", error.message, error);
+        }
+        throw new functions.https.HttpsError("internal", "An unknown error occurred.");
+    }
+});
+
+
+export const notifications = functions.pubsub.schedule("every day 09:00").onRun(async (context: any) => {
+    functions.logger.log("Checking for notifications to send...");
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const fourteenDaysFromNow = addDays(today, 14);
+    const sevenDaysFromNow = addDays(today, 7);
+    const oneDayFromNow = addDays(today, 1);
+
+    const notificationsToSend: { title: string, body: string }[] = [];
+
+    const servicesSnapshot = await firestore.collection("c_servicios").get();
+    servicesSnapshot.forEach((doc) => {
+        const service = doc.data() as Service;
+        const serviceDate = service.date.toDate();
+        const timeString = service.time ? ` a las ${service.time}` : "";
+
+        if (isSameDay(serviceDate, sevenDaysFromNow)) {
+            notificationsToSend.push({
+                title: "Recordatorio de Servicio",
+                body: `El servicio "${service.title}" está programado para la próxima semana.`,
+            });
+        }
+        if (isSameDay(serviceDate, oneDayFromNow)) {
+            notificationsToSend.push({
+                title: "Recordatorio de Servicio",
+                body: `¡El servicio "${service.title}" es mañana${timeString}!`,
+            });
+        }
+    });
+
+    const ministeringSnapshot = await firestore.collection("c_ministracion").get();
+    ministeringSnapshot.forEach((doc) => {
+        const companionship = doc.data() as Companionship;
+        companionship.families.forEach((family) => {
+            if (family.isUrgent) {
+                notificationsToSend.push({
+                    title: "Necesidad Urgente",
+                    body: `Recordatorio: La familia ${family.name} tiene una necesidad urgente que requiere atención.`,
+                });
+            }
+        });
+    });
+
+    const birthdaysSnapshot = await firestore.collection("c_cumpleanos").get();
+    birthdaysSnapshot.forEach((doc) => {
+        const birthday = doc.data() as Birthday;
+        const birthDate = birthday.birthDate.toDate();
+        const nextBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+        
+        if (isSameDay(nextBirthday, fourteenDaysFromNow)) {
+            notificationsToSend.push({
+                title: "Próximo Cumpleaños",
+                body: `En 2 semanas es el cumpleaños de ${birthday.name}.`
+            });
+        }
+        if (isSameDay(nextBirthday, today)) {
+             notificationsToSend.push({
+                title: "¡Feliz Cumpleaños!",
+                body: `Hoy es el cumpleaños de ${birthday.name}. ¡No olvides felicitarle!`
+            });
+        }
+    });
+
+    if (notificationsToSend.length === 0) {
+        functions.logger.log("No notifications to send today.");
+        return null;
+    }
+
+    const subscriptionsSnapshot = await firestore.collection("c_push_subscriptions").get();
+    if (subscriptionsSnapshot.empty) {
+        functions.logger.log("No users subscribed to notifications.");
+        return null;
+    }
+
+    const sendPromises: Promise<any>[] = [];
+    const notificationSavePromises: Promise<any>[] = [];
+
+    subscriptionsSnapshot.forEach((subDoc) => {
+        const subData = subDoc.data();
+        const subscription = subData.subscription;
+        const userId = subData.userId;
+
+        notificationsToSend.forEach((notification) => {
+            const payload = JSON.stringify(notification);
+            
+            sendPromises.push(
+                webpush.sendNotification(subscription, payload)
+                    .catch((err) => {
+                        if (err.statusCode === 404 || err.statusCode === 410) {
+                             functions.logger.warn(`Subscription for user ${userId} is invalid. Consider removing it.`);
+                        } else {
+                            functions.logger.error("Error sending notification", err);
+                        }
+                        return null;
+                    })
+            );
+
+             notificationSavePromises.push(
+                firestore.collection("c_notifications").add({
+                    userId: userId,
+                    title: notification.title,
+                    body: notification.body,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    isRead: false
+                })
+             );
+        });
+    });
+
+    await Promise.all([...sendPromises, ...notificationSavePromises]);
+    functions.logger.log(`Sent ${notificationsToSend.length} types of notifications to ${subscriptionsSnapshot.size} users.`);
+    return null;
+});

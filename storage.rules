@@ -1,0 +1,25 @@
+
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Reglas para todos los archivos en el bucket
+    match /{allPaths=**} {
+      
+      // PERMISOS DE LECTURA
+      // Permite la lectura a cualquier usuario (público).
+      // Esto es generalmente seguro y necesario para que las imágenes se muestren
+      // en la aplicación sin que cada usuario necesite permisos individuales.
+      allow read;
+
+      // PERMISOS DE ESCRITURA (Crear, Actualizar, Eliminar)
+      // Solo permite la escritura si se cumplen TODAS las siguientes condiciones:
+      // 1. El usuario debe estar autenticado (request.auth != null).
+      // 2. El tamaño del archivo debe ser menor a 20 MB.
+      // 3. El tipo de contenido del archivo debe ser una imagen (ej: 'image/jpeg', 'image/png').
+      allow write: if request.auth != null && 
+                      request.resource.size < 20 * 1024 * 1024 &&
+                      request.resource.contentType.matches('image/.*');
+    }
+  }
+}
