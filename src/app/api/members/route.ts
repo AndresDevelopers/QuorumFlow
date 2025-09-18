@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server';
-<<<<<<< HEAD
-import { getDocs, query, orderBy, where, Timestamp, collection } from 'firebase/firestore';
+import { getDocs, query, orderBy, where, collection } from 'firebase/firestore';
 import { unstable_cache, revalidateTag } from 'next/cache';
-=======
-import { unstable_cache, revalidateTag } from 'next/cache';
-import { membersCollection } from '@/lib/collections-server';
->>>>>>> 3fed7c8ae3c214fac94ad69ebc54c530434ccaf1
 import { Member, MemberStatus } from '@/lib/types';
 import { createMember } from '@/lib/members-data';
 
@@ -21,20 +16,12 @@ async function initializeFirebaseForServer() {
 
 const getMembersCached = unstable_cache(
   async (status?: MemberStatus) => {
-<<<<<<< HEAD
     const db = await initializeFirebaseForServer();
     const membersCollection = collection(db, 'c_miembros');
     
     const constraints = status ? [where('status', '==', status), orderBy('lastName')] : [orderBy('lastName')];
     const q = query(membersCollection, ...constraints);
     const querySnapshot = await getDocs(q);
-=======
-    let q = membersCollection.orderBy('lastName');
-    if (status) {
-      q = q.where('status', '==', status);
-    }
-    const querySnapshot = await q.get();
->>>>>>> 3fed7c8ae3c214fac94ad69ebc54c530434ccaf1
 
     const members: Member[] = [];
     querySnapshot.forEach((doc: any) => {
@@ -62,7 +49,6 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') as MemberStatus | null;
 
-<<<<<<< HEAD
   try {
     // In development, always fetch fresh data without cache
     if (process.env.NODE_ENV !== 'production') {
@@ -96,19 +82,6 @@ export async function GET(request: Request) {
       const members: Member[] = [];
       querySnapshot.forEach((doc) => {
         console.log(`📄 Processing document: ${doc.id}`);
-=======
-  // Only use cache in production
-  if (process.env.NODE_ENV !== 'production') {
-    try {
-      let q = membersCollection.orderBy('lastName');
-      if (status) {
-        q = q.where('status', '==', status);
-      }
-      const querySnapshot = await q.get();
-
-      const members: Member[] = [];
-      querySnapshot.forEach((doc: any) => {
->>>>>>> 3fed7c8ae3c214fac94ad69ebc54c530434ccaf1
         const memberData = doc.data();
         console.log(`📋 Document data keys: ${Object.keys(memberData).join(', ')}`);
         
