@@ -99,6 +99,9 @@ const sentryBuildOptions = {
   // Reference: https://docs.sentry.io/platforms/javascript/guides/nextjs/migration/
 };
 
-const configWithSentry = withSentryConfig(nextConfig, sentryBuildOptions);
+// Only use Sentry if all required environment variables are set
+const configWithSentry = process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT
+  ? withSentryConfig(nextConfig, sentryBuildOptions)
+  : nextConfig;
 
 export default withPWA(configWithSentry);
