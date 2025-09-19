@@ -152,7 +152,7 @@ const ConsejoPage: React.FC = () => {
   return (
     <div style={{ padding: '20px' }}>
       <h1>Consejo</h1>
-      
+
       <AnnotationManager
         title="Anotaciones"
         description="Notas y recordatorios para el consejo del quórum."

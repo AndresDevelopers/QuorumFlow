@@ -1,6 +1,8 @@
 
 'use client'
 
+export const dynamic = 'force-dynamic';
+
 import { getDocs, query, orderBy, where, Timestamp, doc, updateDoc, getDoc, deleteDoc, collection } from 'firebase/firestore';
 import { membersCollection, futureMembersCollection, ministeringCollection, annotationsCollection, servicesCollection, activitiesCollection, convertsCollection } from '@/lib/collections';
 import type { Member, FutureMember, Companionship, Family, Annotation, Service, Activity, Convert } from '@/lib/types';
