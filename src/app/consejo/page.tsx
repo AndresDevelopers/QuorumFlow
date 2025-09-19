@@ -5,8 +5,10 @@ import { convertsCollection, membersCollection, annotationsCollection } from '@/
 import { Convert, Annotation } from '@/lib/types';
 import { subMonths } from 'date-fns';
 import { AnnotationManager } from '@/components/shared/annotation-manager';
+import { useAuth } from '@/contexts/auth-context';
 
 const ConsejoPage: React.FC = () => {
+  const { user } = useAuth();
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [newConverts, setNewConverts] = useState<Convert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,17 +54,25 @@ const ConsejoPage: React.FC = () => {
         const memberIds = convertsFromCollection
           .map(convert => convert.memberId)
           .filter(id => id) as string[];
+        const membersMap = new Map<string, any>();
         if (memberIds.length > 0) {
-          const membersSnapshot = await getDocs(query(membersCollection, where('__name__', 'in', memberIds)));
-          const membersMap = new Map<string, any>();
-          membersSnapshot.docs.forEach(doc => {
-            membersMap.set(doc.id, doc.data());
-          });
+          // Dividir memberIds en chunks de 10 para evitar límite de Firestore
+          const chunks = [];
+          for (let i = 0; i < memberIds.length; i += 10) {
+            chunks.push(memberIds.slice(i, i + 10));
+          }
+          for (const chunk of chunks) {
+            const membersSnapshot = await getDocs(query(membersCollection, where('__name__', 'in', chunk)));
+            membersSnapshot.docs.forEach(doc => {
+              membersMap.set(doc.id, doc.data());
+            });
+          }
           convertsFromCollection = convertsFromCollection.map(convert => {
             if (convert.memberId && membersMap.has(convert.memberId)) {
               const memberData = membersMap.get(convert.memberId);
               return {
                 ...convert,
+                name: convert.name || `${memberData.firstName || ''} ${memberData.lastName || ''}`.trim(),
                 photoURL: convert.photoURL || memberData.photoURL
               };
             }
@@ -121,12 +131,15 @@ const ConsejoPage: React.FC = () => {
   }, []);
 
   const handleAddAnnotation = async (description: string) => {
+    if (!user) return;
+
     await addDoc(annotationsCollection, {
       text: description,
       source: 'council',
       isCouncilAction: false,
       isResolved: false,
       createdAt: serverTimestamp(),
+      userId: user.uid,
     });
     await fetchAnnotations();
   };
@@ -149,12 +162,14 @@ const ConsejoPage: React.FC = () => {
         items={annotations.map(ann => ({
           id: ann.id,
           description: ann.text,
-          createdAt: ann.createdAt
+          createdAt: ann.createdAt,
+          userId: ann.userId
         }))}
         loading={annotationsLoading}
         onAdd={handleAddAnnotation}
         onDelete={handleDeleteAnnotation}
         emptyMessage="No hay anotaciones."
+        currentUserId={user?.uid}
       />
 
       <section style={{ marginTop: '40px' }}>

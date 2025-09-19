@@ -72,25 +72,25 @@ async function getAnnotations(source: 'dashboard' | 'council', forCouncil: boole
     }
 }
 
-async function getCouncilMembers(): Promise<Convert[]> {
+async function getCouncilMembers(): Promise<Member[]> {
   const twoYearsAgo = subYears(new Date(), 2);
   const twentyFourHoursAgo = subHours(new Date(), 24);
 
   const snapshot = await getDocs(query(membersCollection, orderBy('baptismDate', 'desc')));
-  
-  const councilList = snapshot.docs
-    .map(doc => ({ id: doc.id, ...doc.data() } as Convert))
-    .filter(convert => {
-        const baptismDate = convert.baptismDate.toDate();
-        if (baptismDate < twoYearsAgo) return false;
 
-        const isPending = !convert.councilCompleted;
-        const wasCompletedRecently = convert.councilCompleted && convert.councilCompletedAt && convert.councilCompletedAt.toDate() > twentyFourHoursAgo;
-        
+  const councilList = snapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() } as Member))
+    .filter(member => {
+        const baptismDate = member.baptismDate?.toDate();
+        if (!baptismDate || baptismDate < twoYearsAgo) return false;
+
+        const isPending = !member.councilCompleted;
+        const wasCompletedRecently = member.councilCompleted && member.councilCompletedAt && member.councilCompletedAt.toDate() > twentyFourHoursAgo;
+
         return isPending || wasCompletedRecently;
-    }); 
-  
-  return councilList as Convert[];
+    });
+
+  return councilList;
 }
 
 async function getUpcomingBaptisms(): Promise<FutureMember[]> {
@@ -192,7 +192,7 @@ async function getUpcomingActivities(): Promise<Activity[]> {
 
 export default function CouncilPage() {
   const { user, loading: authLoading } = useAuth();
-  const [councilConverts, setCouncilConverts] = useState<Convert[]>([]);
+  const [councilConverts, setCouncilConverts] = useState<Member[]>([]);
   const [upcomingBaptisms, setUpcomingBaptisms] = useState<FutureMember[]>([]);
   const [urgentNeeds, setUrgentNeeds] = useState<UrgentFamily[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -225,8 +225,8 @@ export default function CouncilPage() {
         setUpcomingActivities(activities);
 
         const initialObservations: Record<string, string> = {};
-        converts.forEach((c: Convert) => {
-            initialObservations[c.id] = c.observation || '';
+        converts.forEach((c: Member) => {
+            initialObservations[c.id] = c.lessActiveObservation || '';
         });
         setObservationInputs(initialObservations);
     } catch (error) {
@@ -284,30 +284,30 @@ export default function CouncilPage() {
     }
   }
 
-  const handleSaveObservation = async (convertId: string) => {
-    const observation = observationInputs[convertId];
+  const handleSaveObservation = async (memberId: string) => {
+    const observation = observationInputs[memberId];
     try {
-        const convertRef = doc(convertsCollection, convertId);
-        await updateDoc(convertRef, { observation });
+        const memberRef = doc(membersCollection, memberId);
+        await updateDoc(memberRef, { lessActiveObservation: observation });
         toast({ title: 'Éxito', description: 'Observación guardada.' });
         fetchAllData();
     } catch (error) {
-        logger.error({ error, convertId, message: 'Error saving observation' });
+        logger.error({ error, memberId, message: 'Error saving observation' });
         toast({ title: 'Error', description: 'No se pudo guardar la observación.', variant: 'destructive' });
     }
   };
 
-  const handleMarkCouncilCompleted = async (convertId: string) => {
+  const handleMarkCouncilCompleted = async (memberId: string) => {
       try {
-        const convertRef = doc(convertsCollection, convertId);
-        await updateDoc(convertRef, { 
+        const memberRef = doc(membersCollection, memberId);
+        await updateDoc(memberRef, {
             councilCompleted: true,
             councilCompletedAt: Timestamp.now()
         });
-        toast({ title: 'Éxito', description: 'Seguimiento de converso marcado como completado.' });
+        toast({ title: 'Éxito', description: 'Seguimiento de miembro marcado como completado.' });
         fetchAllData();
       } catch (error) {
-        logger.error({ error, convertId, message: 'Error marking council as completed' });
+        logger.error({ error, memberId, message: 'Error marking council as completed' });
         toast({ title: 'Error', description: 'No se pudo marcar como completado.', variant: 'destructive' });
       }
   }
@@ -371,7 +371,7 @@ export default function CouncilPage() {
     <div className="space-y-8">
       <Card>
         <CardContent className="pt-6">
-            <VoiceAnnotations 
+            <VoiceAnnotations
                 title="Anotaciones para el Consejo"
                 description="Notas del quórum y puntos marcados para seguimiento en el consejo."
                 source="council"
@@ -382,6 +382,7 @@ export default function CouncilPage() {
                 showCouncilView={true}
                 onResolveAnnotation={handleResolveAnnotation}
                 onDeleteAnnotation={handleDeleteAnnotation}
+                currentUserId={user?.uid}
             />
         </CardContent>
       </Card>
@@ -492,7 +493,6 @@ export default function CouncilPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Foto</TableHead>
-                    <TableHead>Nombre</TableHead>
                     <TableHead>Bautismo</TableHead>
                     <TableHead className="w-[40%]">Observación</TableHead>
                     <TableHead className="text-right">Acción</TableHead>
@@ -505,7 +505,7 @@ export default function CouncilPage() {
                         {item.photoURL ? (
                           <img
                             src={item.photoURL}
-                            alt={`Foto de ${item.name}`}
+                            alt={`Foto de ${item.firstName} ${item.lastName}`}
                             className="w-10 h-10 rounded-full object-cover"
                           />
                         ) : (
@@ -514,9 +514,11 @@ export default function CouncilPage() {
                           </div>
                         )}
                       </TableCell>
-                      <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>
-                        {item.baptismDate ? format(item.baptismDate.toDate(), 'd LLLL yyyy', { locale: es }) : 'N/A'}
+                        <div className="flex flex-col items-start gap-1">
+                          <span className="text-xs font-medium text-foreground">{item.firstName} {item.lastName}</span>
+                          <span>{item.baptismDate ? format(item.baptismDate.toDate(), 'd LLLL yyyy', { locale: es }) : 'N/A'}</span>
+                        </div>
                       </TableCell>
                       <TableCell>
                           <div className="flex items-center gap-2">
@@ -527,7 +529,7 @@ export default function CouncilPage() {
                                   rows={1}
                                   disabled={item.councilCompleted}
                               />
-                              {observationInputs[item.id] !== (item.observation || '') && (
+                              {observationInputs[item.id] !== (item.lessActiveObservation || '') && (
                                   <Button size="sm" variant="outline" onClick={() => handleSaveObservation(item.id)}>
                                       <Save className="h-4 w-4" />
                                   </Button>
@@ -560,7 +562,7 @@ export default function CouncilPage() {
                          {item.photoURL ? (
                            <img
                              src={item.photoURL}
-                             alt={`Foto de ${item.name}`}
+                             alt={`Foto de ${item.firstName} ${item.lastName}`}
                              className="w-12 h-12 rounded-full object-cover"
                            />
                          ) : (
@@ -569,7 +571,7 @@ export default function CouncilPage() {
                            </div>
                          )}
                          <div>
-                           <p className="font-bold">{item.name}</p>
+                           <p className="font-bold text-foreground">{item.firstName} {item.lastName}</p>
                            <p className="text-sm text-muted-foreground">
                              Bautismo: {item.baptismDate ? format(item.baptismDate.toDate(), 'd LLL yyyy', { locale: es }) : 'N/A'}
                            </p>
@@ -595,7 +597,7 @@ export default function CouncilPage() {
                                 rows={2}
                                 disabled={item.councilCompleted}
                             />
-                            {observationInputs[item.id] !== (item.observation || '') && (
+                            {observationInputs[item.id] !== (item.lessActiveObservation || '') && (
                                 <Button size="icon" variant="outline" onClick={() => handleSaveObservation(item.id)}>
                                     <Save className="h-4 w-4" />
                                 </Button>

@@ -13,11 +13,34 @@ import {
   orderBy,
   Timestamp,
   QueryConstraint,
+  getFirestore,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { firestore as db, storage } from './firebase';
-import { membersCollection } from './collections';
+import { initializeApp, getApps } from 'firebase/app';
+import { ref, uploadBytes, getDownloadURL, deleteObject, getStorage } from 'firebase/storage';
+import { firebaseConfig } from '@/firebaseConfig';
 import type { Member, MemberStatus } from './types';
+
+// Function to get Firestore instance, initializing if necessary
+function getFirestoreInstance() {
+  let app;
+  if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApps()[0];
+  }
+  return getFirestore(app);
+}
+
+// Function to get Storage instance, initializing if necessary
+function getStorageInstance() {
+  let app;
+  if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApps()[0];
+  }
+  return getStorage(app);
+}
 
 // Create a new member
 export async function createMember(memberData: Omit<Member, 'id'>): Promise<string> {
@@ -27,10 +50,9 @@ export async function createMember(memberData: Omit<Member, 'id'>): Promise<stri
       throw new Error('First name and last name are required');
     }
 
-    // Ensure firestore is available
-    if (!membersCollection) {
-      throw new Error('Firestore not initialized');
-    }
+    // Get firestore instance
+    const db = getFirestoreInstance();
+    const membersCollection = collection(db, 'c_miembros');
 
     // Clean the data before saving - remove undefined values
     const cleanData: any = {
@@ -89,7 +111,7 @@ export async function createMember(memberData: Omit<Member, 'id'>): Promise<stri
     return docRef.id;
   } catch (error) {
     console.error('Error creating member:', error);
-    
+
     // Provide more specific error messages
     if (error instanceof Error) {
       if (error.message.includes('permission-denied')) {
@@ -103,7 +125,7 @@ export async function createMember(memberData: Omit<Member, 'id'>): Promise<stri
       }
       throw new Error(`Error al crear miembro: ${error.message}`);
     }
-    
+
     throw new Error('Error desconocido al crear miembro');
   }
 }
@@ -115,29 +137,45 @@ export async function updateMember(
 ): Promise<void> {
   try {
     console.log('Starting updateMember with:', { memberId, memberData });
-    
+
     if (!memberId) {
       throw new Error('ID de miembro no proporcionado');
     }
 
     // Validar datos requeridos
-    if (!memberData.firstName?.trim() && memberData.firstName !== undefined) {
+    console.log('Validating required fields:', {
+      firstName: memberData.firstName,
+      lastName: memberData.lastName,
+      firstNameType: typeof memberData.firstName,
+      lastNameType: typeof memberData.lastName
+    });
+
+    if (memberData.firstName !== undefined && !memberData.firstName?.trim()) {
       throw new Error('El nombre es requerido');
     }
-    if (!memberData.lastName?.trim() && memberData.lastName !== undefined) {
+    if (memberData.lastName !== undefined && !memberData.lastName?.trim()) {
       throw new Error('El apellido es requerido');
     }
+    console.log('Validating status:', {
+      status: memberData.status,
+      statusType: typeof memberData.status,
+      validStatuses: ['active', 'less_active', 'inactive']
+    });
+
     if (memberData.status && !['active', 'less_active', 'inactive'].includes(memberData.status)) {
-      throw new Error('Estado de miembro no válido');
+      throw new Error(`Estado de miembro no válido: ${memberData.status}`);
     }
 
+    // Get firestore instance - use client SDK for now, will be updated to admin SDK
+    const db = getFirestoreInstance();
+    const membersCollection = collection(db, 'c_miembros');
     const memberRef = doc(membersCollection, memberId);
     const currentMemberDoc = await getDoc(memberRef);
-    
+
     if (!currentMemberDoc.exists()) {
       throw new Error('Miembro no encontrado');
     }
-    
+
     const currentData = currentMemberDoc.data() as Member;
     console.log('Current member data:', currentData);
 
@@ -166,7 +204,7 @@ export async function updateMember(
       ordinances: memberData.ordinances,
       ministeringTeachers: memberData.ministeringTeachers
     };
-    
+
     // Manejar lastActiveDate e inactiveSince según el estado
     if (memberData.status === 'active') {
       optionalFields.lastActiveDate = Timestamp.now();
@@ -176,7 +214,9 @@ export async function updateMember(
     }
 
     // Procesar cada campo opcional
+    console.log('Processing optional fields:', optionalFields);
     Object.entries(optionalFields).forEach(([field, value]) => {
+      console.log(`Processing field ${field}:`, { value, type: typeof value, isDate: value instanceof Date });
       if (value !== undefined) {
         if (value === null || value === '') {
           cleanData[field] = null;
@@ -194,19 +234,21 @@ export async function updateMember(
     });
 
     console.log('Updating member with clean data:', cleanData);
-    
+    console.log('Clean data keys:', Object.keys(cleanData));
+    console.log('Clean data length:', Object.keys(cleanData).length);
+
     // Validar que haya datos para actualizar
     if (Object.keys(cleanData).length <= 1) { // Solo updatedAt
-      console.log('No hay datos para actualizar');
+      console.log('No hay datos para actualizar - returning early');
       return;
     }
-    
+
     // Realizar la actualización
     await updateDoc(memberRef, cleanData);
     console.log('Member updated successfully');
   } catch (error) {
     console.error('Error updating member:', error);
-    
+
     // Provide more specific error messages
     if (error instanceof Error) {
       if (error.message.includes('permission-denied')) {
@@ -220,7 +262,7 @@ export async function updateMember(
       }
       throw new Error(`Error al actualizar miembro: ${error.message}`);
     }
-    
+
     throw new Error('Error desconocido al actualizar miembro');
   }
 }
@@ -228,9 +270,9 @@ export async function updateMember(
 // Get less active members for council page
 export async function getLessActiveMembers(): Promise<Member[]> {
   try {
-    if (!membersCollection) {
-      throw new Error('Firestore not initialized');
-    }
+    // Get firestore instance
+    const db = getFirestoreInstance();
+    const membersCollection = collection(db, 'c_miembros');
 
     const q = query(
       membersCollection,
@@ -267,7 +309,7 @@ export async function getLessActiveMembers(): Promise<Member[]> {
     return members;
   } catch (error) {
     console.error('Error getting less active members:', error);
-    
+
     if (error instanceof Error) {
       if (error.message.includes('permission-denied')) {
         throw new Error('No tienes permisos para acceder a los miembros.');
@@ -276,7 +318,7 @@ export async function getLessActiveMembers(): Promise<Member[]> {
       }
       throw new Error(`Error al obtener miembros menos activos: ${error.message}`);
     }
-    
+
     throw new Error('Error desconocido al obtener miembros menos activos');
   }
 }
@@ -284,20 +326,20 @@ export async function getLessActiveMembers(): Promise<Member[]> {
 // Delete a member
 export async function deleteMember(memberId: string): Promise<void> {
   try {
-    if (!membersCollection) {
-      throw new Error('Firestore not initialized');
-    }
-
+    // Get firestore instance
+    const db = getFirestoreInstance();
+    const membersCollection = collection(db, 'c_miembros');
     const memberRef = doc(membersCollection, memberId);
-    
+
     // Get member data to delete photo if exists
     const memberDoc = await getDoc(memberRef);
     if (memberDoc.exists()) {
       const memberData = memberDoc.data() as Member;
-      
+
       // Delete photo from storage if it exists
       if (memberData.photoURL) {
         try {
+          const storage = getStorageInstance();
           const photoRef = ref(storage, memberData.photoURL);
           await deleteObject(photoRef);
         } catch (photoError) {
@@ -306,13 +348,13 @@ export async function deleteMember(memberId: string): Promise<void> {
         }
       }
     }
-    
+
     // Delete the member document
     await deleteDoc(memberRef);
     console.log('Member deleted successfully');
   } catch (error) {
     console.error('Error deleting member:', error);
-    
+
     if (error instanceof Error) {
       if (error.message.includes('permission-denied')) {
         throw new Error('No tienes permisos para eliminar miembros.');
@@ -323,7 +365,7 @@ export async function deleteMember(memberId: string): Promise<void> {
       }
       throw new Error(`Error al eliminar miembro: ${error.message}`);
     }
-    
+
     throw new Error('Error desconocido al eliminar miembro');
   }
 }
@@ -331,17 +373,17 @@ export async function deleteMember(memberId: string): Promise<void> {
 // Get members by status
 export async function getMembersByStatus(status?: MemberStatus): Promise<Member[]> {
   try {
-    if (!membersCollection) {
-      throw new Error('Firestore not initialized');
-    }
+    // Get firestore instance
+    const db = getFirestoreInstance();
+    const membersCollection = collection(db, 'c_miembros');
 
     const constraints: QueryConstraint[] = [];
-    
+
     // Add status filter if provided
     if (status) {
       constraints.push(where('status', '==', status));
     }
-    
+
     // Always order by last name
     constraints.push(orderBy('lastName', 'asc'));
 
@@ -375,7 +417,7 @@ export async function getMembersByStatus(status?: MemberStatus): Promise<Member[
     return members;
   } catch (error) {
     console.error('Error getting members by status:', error);
-    
+
     if (error instanceof Error) {
       if (error.message.includes('permission-denied')) {
         throw new Error('No tienes permisos para acceder a los miembros.');
@@ -384,7 +426,7 @@ export async function getMembersByStatus(status?: MemberStatus): Promise<Member[
       }
       throw new Error(`Error al obtener miembros: ${error.message}`);
     }
-    
+
     throw new Error('Error desconocido al obtener miembros');
   }
 }
@@ -392,17 +434,17 @@ export async function getMembersByStatus(status?: MemberStatus): Promise<Member[
 // Get members for selector component
 export async function getMembersForSelector(includeInactive = false): Promise<Member[]> {
   try {
-    if (!membersCollection) {
-      throw new Error('Firestore not initialized');
-    }
+    // Get firestore instance
+    const db = getFirestoreInstance();
+    const membersCollection = collection(db, 'c_miembros');
 
     const constraints: QueryConstraint[] = [];
-    
+
     // Filter by status if not including inactive members
     if (!includeInactive) {
       constraints.push(where('status', 'in', ['active', 'less_active']));
     }
-    
+
     // Always order by last name
     constraints.push(orderBy('lastName', 'asc'));
 
@@ -436,7 +478,7 @@ export async function getMembersForSelector(includeInactive = false): Promise<Me
     return members;
   } catch (error) {
     console.error('Error getting members for selector:', error);
-    
+
     if (error instanceof Error) {
       if (error.message.includes('permission-denied')) {
         throw new Error('No tienes permisos para acceder a los miembros.');
@@ -445,7 +487,7 @@ export async function getMembersForSelector(includeInactive = false): Promise<Me
       }
       throw new Error(`Error al obtener miembros: ${error.message}`);
     }
-    
+
     throw new Error('Error desconocido al obtener miembros');
   }
 }
@@ -453,29 +495,27 @@ export async function getMembersForSelector(includeInactive = false): Promise<Me
 // Upload member photo to storage
 export async function uploadMemberPhoto(file: File, userId: string): Promise<string> {
   try {
-    if (!storage) {
-      throw new Error('Storage not initialized');
-    }
+    const storage = getStorageInstance();
 
     // Create a unique filename with timestamp
     const timestamp = new Date().getTime();
     const fileExt = file.name.split('.').pop();
     const fileName = `members/${userId}-${timestamp}.${fileExt}`;
-    
+
     // Create a reference to the file
     const storageRef = ref(storage, fileName);
-    
+
     // Upload the file
     const snapshot = await uploadBytes(storageRef, file);
-    
+
     // Get the download URL
     const downloadURL = await getDownloadURL(snapshot.ref);
-    
+
     console.log('File uploaded successfully:', downloadURL);
     return downloadURL;
   } catch (error) {
     console.error('Error uploading member photo:', error);
-    
+
     if (error instanceof Error) {
       if (error.message.includes('permission-denied')) {
         throw new Error('No tienes permisos para subir archivos.');
@@ -486,7 +526,7 @@ export async function uploadMemberPhoto(file: File, userId: string): Promise<str
       }
       throw new Error(`Error al subir la foto: ${error.message}`);
     }
-    
+
     throw new Error('Error desconocido al subir la foto');
   }
 }
@@ -494,19 +534,17 @@ export async function uploadMemberPhoto(file: File, userId: string): Promise<str
 // Upload multiple baptism photos to storage
 export async function uploadBaptismPhotos(files: File[], userId: string): Promise<string[]> {
   try {
-    if (!storage) {
-      throw new Error('Storage not initialized');
-    }
+    const storage = getStorageInstance();
 
     const uploadPromises = files.map(async (file, index) => {
       const timestamp = new Date().getTime();
       const fileExt = file.name.split('.').pop();
       const fileName = `baptism_photos/${userId}-${timestamp}-${index}.${fileExt}`;
-      
+
       const storageRef = ref(storage, fileName);
       const snapshot = await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(snapshot.ref);
-      
+
       return downloadURL;
     });
 
@@ -515,7 +553,7 @@ export async function uploadBaptismPhotos(files: File[], userId: string): Promis
     return downloadURLs;
   } catch (error) {
     console.error('Error uploading baptism photos:', error);
-    
+
     if (error instanceof Error) {
       if (error.message.includes('permission-denied')) {
         throw new Error('No tienes permisos para subir archivos.');
@@ -526,7 +564,7 @@ export async function uploadBaptismPhotos(files: File[], userId: string): Promis
       }
       throw new Error(`Error al subir las fotos de bautismo: ${error.message}`);
     }
-    
+
     throw new Error('Error desconocido al subir las fotos de bautismo');
   }
 }
@@ -534,10 +572,9 @@ export async function uploadBaptismPhotos(files: File[], userId: string): Promis
 // Get a specific member by ID
 export async function getMemberById(memberId: string): Promise<Member | null> {
   try {
-    if (!membersCollection) {
-      throw new Error('Firestore not initialized');
-    }
-
+    // Get firestore instance
+    const db = getFirestoreInstance();
+    const membersCollection = collection(db, 'c_miembros');
     const memberRef = doc(membersCollection, memberId);
     const memberDoc = await getDoc(memberRef);
 
@@ -586,9 +623,9 @@ export async function getMemberById(memberId: string): Promise<Member | null> {
 // Search for members by exact first name and last name (case insensitive)
 export async function searchMembersByName(firstName: string, lastName: string): Promise<Member[]> {
   try {
-    if (!membersCollection) {
-      throw new Error('Firestore not initialized');
-    }
+    // Get firestore instance
+    const db = getFirestoreInstance();
+    const membersCollection = collection(db, 'c_miembros');
 
     if (!firstName?.trim() || !lastName?.trim()) {
       return [];

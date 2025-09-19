@@ -64,6 +64,7 @@ interface VoiceAnnotationsProps {
   showCouncilView?: boolean;
   onResolveAnnotation?: (id: string) => void;
   onDeleteAnnotation?: (id: string) => void;
+  currentUserId?: string;
 }
 
 export function VoiceAnnotations({
@@ -77,6 +78,7 @@ export function VoiceAnnotations({
   showCouncilView = false,
   onResolveAnnotation,
   onDeleteAnnotation,
+  currentUserId,
 }: VoiceAnnotationsProps) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -123,11 +125,15 @@ export function VoiceAnnotations({
     recognition.onerror = (event: any) => {
       console.error('Error en reconocimiento de voz', event.error);
       setIsRecording(false);
-      toast({ 
-        title: 'Error', 
-        description: 'Error en el reconocimiento de voz.', 
-        variant: 'destructive' 
-      });
+
+      // Don't show error toast for "aborted" errors as they are normal behavior
+      if (event.error !== 'aborted') {
+        toast({
+          title: 'Error',
+          description: 'Error en el reconocimiento de voz.',
+          variant: 'destructive'
+        });
+      }
     };
     
     recognitionRef.current = recognition;
@@ -135,8 +141,13 @@ export function VoiceAnnotations({
   };
 
   const stopRecording = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
+    if (recognitionRef.current && isRecording) {
+      try {
+        recognitionRef.current.stop();
+      } catch (error) {
+        // Ignore errors when stopping recognition that may already be stopped
+        console.warn('Error stopping recognition:', error);
+      }
     }
   };
 
@@ -170,15 +181,21 @@ export function VoiceAnnotations({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
+      if (recognitionRef.current && isRecording) {
+        try {
+          recognitionRef.current.stop();
+        } catch (error) {
+          // Ignore cleanup errors
+          console.warn('Error stopping recognition on cleanup:', error);
+        }
       }
     };
-  }, []);
+  }, [isRecording]);
 
   const handleAddAnnotation = async () => {
     if (newAnnotation.trim() === '') return;
-    
+    if (!currentUserId) return;
+
     try {
       await addDoc(annotationsCollection, {
         text: newAnnotation.trim(),
@@ -186,6 +203,7 @@ export function VoiceAnnotations({
         isCouncilAction: false,
         isResolved: false,
         createdAt: serverTimestamp(),
+        userId: currentUserId,
       });
       
       setNewAnnotation('');
@@ -372,10 +390,10 @@ export function VoiceAnnotations({
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    {onDeleteAnnotation && (
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
+                    {onDeleteAnnotation && currentUserId && (item.userId === currentUserId || !item.userId) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleDeleteTrigger(item)}
                         title="Eliminar anotación"
                       >

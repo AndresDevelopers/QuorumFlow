@@ -55,6 +55,7 @@ export type Annotation = {
     isResolved: boolean;
     source: 'dashboard' | 'council' | 'family-search' | 'missionary-work';
     createdAt: Timestamp;
+    userId: string;
 }
 
 export type Birthday = {
@@ -103,6 +104,7 @@ export type MissionaryAssignment = {
     time?: string;
     isCompleted: boolean;
     createdAt: Timestamp;
+    userId: string;
 }
 
 export type Investigator = {

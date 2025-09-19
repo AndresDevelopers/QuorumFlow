@@ -38,6 +38,7 @@ interface AnnotationItem {
     description: string;
     isCompleted?: boolean;
     createdAt?: any;
+    userId?: string;
 }
 
 interface AnnotationManagerProps {
@@ -53,6 +54,7 @@ interface AnnotationManagerProps {
     onToggle?: (id: string, status: boolean) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
     emptyMessage?: string;
+    currentUserId?: string;
 }
 
 export function AnnotationManager({
@@ -68,6 +70,7 @@ export function AnnotationManager({
     onToggle,
     onDelete,
     emptyMessage = 'No hay elementos.',
+    currentUserId,
 }: AnnotationManagerProps) {
     const { toast } = useToast();
     const [isDialogOpen, setDialogOpen] = useState(false);
@@ -105,11 +108,15 @@ export function AnnotationManager({
         recognition.onerror = (event: any) => {
             console.error('Error en reconocimiento de voz', event.error);
             setIsRecording(false);
-            toast({
-                title: 'Error',
-                description: 'Error en el reconocimiento de voz.',
-                variant: 'destructive',
-            });
+
+            // Don't show error toast for "aborted" errors as they are normal behavior
+            if (event.error !== 'aborted') {
+                toast({
+                    title: 'Error',
+                    description: 'Error en el reconocimiento de voz.',
+                    variant: 'destructive',
+                });
+            }
         };
 
         recognitionRef.current = recognition;
@@ -117,8 +124,13 @@ export function AnnotationManager({
     };
 
     const stopRecording = () => {
-        if (recognitionRef.current) {
-            recognitionRef.current.stop();
+        if (recognitionRef.current && isRecording) {
+            try {
+                recognitionRef.current.stop();
+            } catch (error) {
+                // Ignore errors when stopping recognition that may already be stopped
+                console.warn('Error stopping recognition:', error);
+            }
         }
     };
 
@@ -150,11 +162,16 @@ export function AnnotationManager({
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            if (recognitionRef.current) {
-                recognitionRef.current.stop();
+            if (recognitionRef.current && isRecording) {
+                try {
+                    recognitionRef.current.stop();
+                } catch (error) {
+                    // Ignore cleanup errors
+                    console.warn('Error stopping recognition on cleanup:', error);
+                }
             }
         };
-    }, []);
+    }, [isRecording]);
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -323,14 +340,16 @@ export function AnnotationManager({
                                         {item.description}
                                     </Label>
                                 </div>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setDeleteItem(item)}
-                                    disabled={isPending}
-                                >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
+                                {currentUserId && (item.userId === currentUserId || !item.userId) && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setDeleteItem(item)}
+                                        disabled={isPending}
+                                    >
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                )}
                             </li>
                         ))}
                     </ul>

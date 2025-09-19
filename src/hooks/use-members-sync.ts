@@ -9,6 +9,7 @@ interface UseMembersSyncOptions {
   autoRefreshInterval?: number; // in milliseconds, default 5 minutes
   enableAutoRefresh?: boolean;
   enableCrossBrowserSync?: boolean;
+  enableInitialFetch?: boolean; // Whether to fetch data on mount
 }
 
 interface UseMembersSyncReturn {
@@ -23,8 +24,9 @@ interface UseMembersSyncReturn {
 export function useMembersSync(options: UseMembersSyncOptions = {}): UseMembersSyncReturn {
   const {
     autoRefreshInterval = 5 * 60 * 1000, // 5 minutes
-    enableAutoRefresh = true,
-    enableCrossBrowserSync = true,
+    enableAutoRefresh = false, // Disabled by default
+    enableCrossBrowserSync = false, // Disabled by default
+    enableInitialFetch = false, // Disabled by default
   } = options;
 
   const { user, loading: authLoading } = useAuth();
@@ -192,10 +194,12 @@ export function useMembersSync(options: UseMembersSyncOptions = {}): UseMembersS
     }
   }, [authLoading, user, toast, enableCrossBrowserSync]);
 
-  // Initial fetch
+  // Initial fetch - only when explicitly enabled
   useEffect(() => {
-    fetchMembers();
-  }, [fetchMembers]);
+    if (enableInitialFetch) {
+      fetchMembers();
+    }
+  }, [enableInitialFetch, fetchMembers]);
 
   // Cross-browser sync listeners
   useEffect(() => {
@@ -226,9 +230,9 @@ export function useMembersSync(options: UseMembersSyncOptions = {}): UseMembersS
 
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        // Page became visible, check for updates
-        console.log('👁️ Page became visible, checking for updates');
-        fetchMembers();
+        // Page became visible - sync disabled by default
+        console.log('👁️ Page became visible, but auto-sync is disabled');
+        // fetchMembers(); // Disabled
       }
     };
 

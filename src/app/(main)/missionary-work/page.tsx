@@ -261,16 +261,21 @@ function AssignmentsTab({
   assignments,
   loading,
   onRefresh,
+  user,
 }: {
   assignments: MissionaryAssignment[];
   loading: boolean;
   onRefresh: () => void;
+  user: any;
 }) {
   const handleAddAssignment = async (description: string) => {
+    if (!user) return;
+
     await addDoc(missionaryAssignmentsCollection, {
       description,
       isCompleted: false,
       createdAt: serverTimestamp(),
+      userId: user.uid,
     });
     onRefresh();
   };
@@ -299,7 +304,8 @@ function AssignmentsTab({
             id: assignment.id,
             description: assignment.description,
             isCompleted: assignment.isCompleted,
-            createdAt: assignment.createdAt
+            createdAt: assignment.createdAt,
+            userId: assignment.userId
           }))}
           loading={loading}
           showCheckbox={true}
@@ -307,6 +313,7 @@ function AssignmentsTab({
           onToggle={handleToggleAssignment}
           onDelete={handleDeleteAssignment}
           emptyMessage="No hay asignaciones."
+          currentUserId={user?.uid}
         />
       </CardContent>
     </Card>
@@ -1266,6 +1273,7 @@ export default function MissionaryWorkPage() {
             assignments={assignments}
             loading={loading}
             onRefresh={fetchData}
+            user={user}
           />
         </TabsContent>
         <TabsContent value="investigators">
@@ -1294,7 +1302,7 @@ export default function MissionaryWorkPage() {
         </TabsContent>
       </Tabs>
 
-      <VoiceAnnotations 
+      <VoiceAnnotations
         title="Anotaciones de Obra Misional"
         description="Notas y recordatorios sobre los esfuerzos misionales del quórum con reconocimiento de voz."
         source="missionary-work"
@@ -1303,6 +1311,7 @@ export default function MissionaryWorkPage() {
         onAnnotationAdded={fetchAnnotations}
         onAnnotationToggled={fetchAnnotations}
         onDeleteAnnotation={handleDeleteAnnotation}
+        currentUserId={user?.uid}
       />
 
       <Card>

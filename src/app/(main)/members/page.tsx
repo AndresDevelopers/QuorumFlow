@@ -84,7 +84,9 @@ const statusConfig = {
 export default function MembersPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { members, loading, syncStatus, lastSyncTime, fetchMembers, clearCache } = useMembersSync();
+  const { members, loading, syncStatus, lastSyncTime, fetchMembers, clearCache } = useMembersSync({
+    enableInitialFetch: true, // Enable initial fetch for members page
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<MemberStatus | 'all'>('all');
   const [baptismFilter, setBaptismFilter] = useState<'all' | 'baptized' | 'not_baptized'>('all');

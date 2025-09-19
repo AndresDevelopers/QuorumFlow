@@ -314,7 +314,7 @@ export default function FamilySearchPage() {
 
 
              {/* Anotaciones */}
-            <VoiceAnnotations 
+            <VoiceAnnotations
                 title="Anotaciones de FamilySearch"
                 description="Notas y recordatorios sobre la obra de historia familiar con reconocimiento de voz."
                 source="family-search"
@@ -323,6 +323,7 @@ export default function FamilySearchPage() {
                 onAnnotationAdded={fetchAnnotations}
                 onAnnotationToggled={fetchAnnotations}
                 onDeleteAnnotation={handleDeleteAnnotation}
+                currentUserId={user?.uid}
             />
             
             {/* FAQ */}

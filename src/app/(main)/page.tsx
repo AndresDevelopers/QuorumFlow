@@ -1,6 +1,7 @@
 
 'use client';
 
+import Link from 'next/link';
 import {
   BookUser,
   FileText,
@@ -164,99 +165,114 @@ function DashboardPage() {
   return (
     <div className="flex flex-1 flex-col gap-4 md:gap-8">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {loading ? <StatCardSkeleton/> : <StatCard
-          title={t("Total Converts")}
-          value={String(convertsCount)}
-          icon={<HeartHandshake className="h-4 w-4 text-muted-foreground" />}
-          description={t("in the last 18 months")}
-        />}
-         {loading ? <StatCardSkeleton/> : <StatCard
-          title={t("Future Members")}
-          value={String(futureMembersCount)}
-          icon={<BookUser className="h-4 w-4 text-muted-foreground" />}
-          description={t("with baptism date set")}
-        />}
-         {loading ? <StatCardSkeleton/> : <StatCard
-          title={t("Reports Submitted")}
-          value={`${ministeringReportRate}%`}
-          icon={<FileText className="h-4 w-4 text-muted-foreground" />}
-          description={t("of ministering visits completed")}
-        />}
-         {loading ? <StatCardSkeleton/> : <StatCard
-          title={t("Council Actions")}
-          value={String(councilActionsCount)}
-          icon={<Gavel className="h-4 w-4 text-muted-foreground" />}
-          description={t("Active action items")}
-        />}
+        {loading ? <StatCardSkeleton/> : <Link href="/converts">
+          <StatCard
+            title={t("Total Converts")}
+            value={String(convertsCount)}
+            icon={<HeartHandshake className="h-4 w-4 text-muted-foreground" />}
+            description={t("in the last 18 months")}
+          />
+        </Link>}
+         {loading ? <StatCardSkeleton/> : <Link href="/future-members">
+          <StatCard
+            title={t("Future Members")}
+            value={String(futureMembersCount)}
+            icon={<BookUser className="h-4 w-4 text-muted-foreground" />}
+            description={t("with baptism date set")}
+          />
+        </Link>}
+         {loading ? <StatCardSkeleton/> : <Link href="/reports">
+          <StatCard
+            title={t("Reports Submitted")}
+            value={`${ministeringReportRate}%`}
+            icon={<FileText className="h-4 w-4 text-muted-foreground" />}
+            description={t("of ministering visits completed")}
+          />
+        </Link>}
+         {loading ? <StatCardSkeleton/> : <Link href="/council">
+          <StatCard
+            title={t("Council Actions")}
+            value={String(councilActionsCount)}
+            icon={<Gavel className="h-4 w-4 text-muted-foreground" />}
+            description={t("Active action items")}
+          />
+        </Link>}
       </div>
       <div className="grid gap-4 md:gap-8 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("Activity Overview")}</CardTitle>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <OverviewChart data={chartData} loading={loadingChart} />
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("Members by Status")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loadingMembers ? (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <div className="h-4 bg-gray-200 rounded w-20"></div>
-                  <div className="h-4 bg-gray-200 rounded w-8"></div>
+        <Link href="/reports">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("Activity Overview")}</CardTitle>
+            </CardHeader>
+            <CardContent className="pl-2">
+              <OverviewChart data={chartData} loading={loadingChart} />
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/members">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("Members by Status")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingMembers ? (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div className="h-4 bg-gray-200 rounded w-20"></div>
+                    <div className="h-4 bg-gray-200 rounded w-8"></div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="h-4 bg-gray-200 rounded w-24"></div>
+                    <div className="h-4 bg-gray-200 rounded w-8"></div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="h-4 bg-gray-200 rounded w-16"></div>
+                    <div className="h-4 bg-gray-200 rounded w-8"></div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <div className="h-4 bg-gray-200 rounded w-24"></div>
-                  <div className="h-4 bg-gray-200 rounded w-8"></div>
+              ) : membersData ? (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-green-600">{t("Active Members")}</span>
+                    <span className="text-sm font-bold">{membersData.active.length}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-yellow-600">{t("Less Active Members")}</span>
+                    <span className="text-sm font-bold">{membersData.lessActive.length}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-red-600">{t("Inactive Members")}</span>
+                    <span className="text-sm font-bold">{membersData.inactive.length}</span>
+                  </div>
+                  <hr className="my-2" />
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-semibold">{t("Total Members")}</span>
+                    <span className="text-sm font-bold">{membersData.total}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <div className="h-4 bg-gray-200 rounded w-16"></div>
-                  <div className="h-4 bg-gray-200 rounded w-8"></div>
-                </div>
-              </div>
-            ) : membersData ? (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-green-600">{t("Active Members")}</span>
-                  <span className="text-sm font-bold">{membersData.active.length}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-yellow-600">{t("Less Active Members")}</span>
-                  <span className="text-sm font-bold">{membersData.lessActive.length}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-red-600">{t("Inactive Members")}</span>
-                  <span className="text-sm font-bold">{membersData.inactive.length}</span>
-                </div>
-                <hr className="my-2" />
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-semibold">{t("Total Members")}</span>
-                  <span className="text-sm font-bold">{membersData.total}</span>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">{t("No member data available")}</p>
-            )}
-          </CardContent>
-        </Card>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t("No member data available")}</p>
+              )}
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
        <div className="grid gap-4">
-        <VoiceAnnotations 
-            title="Anotaciones del Quórum"
-            description="Añade notas rápidas o recordatorios para el quórum. Marca las que necesiten seguimiento en el consejo."
-            source="dashboard"
-            annotations={annotations}
-            isLoading={loadingAnnotations}
-            onAnnotationAdded={fetchAnnotations}
-            onAnnotationToggled={fetchAnnotations}
-            onDeleteAnnotation={handleDeleteAnnotation}
-         />
+        <Link href="/council">
+          <VoiceAnnotations
+              title="Anotaciones del Quórum"
+              description="Añade notas rápidas o recordatorios para el quórum. Marca las que necesiten seguimiento en el consejo."
+              source="dashboard"
+              annotations={annotations}
+              isLoading={loadingAnnotations}
+              onAnnotationAdded={fetchAnnotations}
+              onAnnotationToggled={fetchAnnotations}
+              onDeleteAnnotation={handleDeleteAnnotation}
+              currentUserId={user?.uid}
+           />
+        </Link>
       </div>
     </div>
   );

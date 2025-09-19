@@ -442,8 +442,17 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
   };
 
   const onSubmit = async (values: MemberFormValues) => {
+    console.log('🚀 Starting member submission:', {
+      isEditing: !!member,
+      memberId: member?.id,
+      values,
+      user: user?.uid
+    });
 
-    if (!user) return;
+    if (!user) {
+      console.error('❌ No user authenticated');
+      return;
+    }
 
     // Verificar si hay duplicados sin resolver
     if (duplicateMembers.length > 0 && !allowContinueWithDuplicate) {
@@ -528,34 +537,44 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         values.baptismDate >= twoYearsAgo;
       
       // Verificar si hay cambios en la fecha de bautismo
-      const previousBaptismYear = member?.baptismDate?.toDate().getFullYear();
+      const previousBaptismDate = member?.baptismDate?.toDate ? member.baptismDate.toDate() :
+                                  member?.baptismDate instanceof Date ? member.baptismDate : null;
+      const previousBaptismYear = previousBaptismDate?.getFullYear();
       const newBaptismYear = values.baptismDate?.getFullYear();
       const baptismYearChanged = previousBaptismYear !== newBaptismYear;
       const baptismDateRemoved = member?.baptismDate && !values.baptismDate;
 
-      // Preparar datos del miembro para actualizar
+      // Preparar datos del miembro para actualizar (datos serializables)
       console.log('💾 Preparing member data for update:', {
         status: values.status,
         statusType: typeof values.status,
         allValues: values
       });
-      const memberData: Partial<Omit<Member, 'id' | 'createdAt' | 'createdBy'>> = {
+      const memberData = {
         firstName: values.firstName.trim(),
         lastName: values.lastName.trim(),
         status: values.status,
-        updatedAt: Timestamp.now(),
         // Manejar campos opcionales: usar el valor del formulario si está presente, sino undefined para limpiar
         phoneNumber: values.phoneNumber?.trim() ? values.phoneNumber.trim() : undefined,
-        birthDate: values.birthDate ? Timestamp.fromDate(values.birthDate) : undefined,
-        baptismDate: values.baptismDate ? Timestamp.fromDate(values.baptismDate) : undefined,
+        birthDate: values.birthDate ? values.birthDate.toISOString() : undefined,
+        baptismDate: values.baptismDate ? values.baptismDate.toISOString() : undefined,
         photoURL: photoURL as any,
         baptismPhotos: baptismPhotoURLs,
         ordinances: values.ordinances || [],
         ministeringTeachers: values.ministeringTeachers || [],
-        // Manejar campos de actividad según el estado
-        lastActiveDate: values.status === 'active' ? Timestamp.now() : member?.lastActiveDate,
-        inactiveSince: values.status === 'active' ? undefined : (member?.inactiveSince || Timestamp.now()),
       };
+
+      console.log('📤 Final member data to send:', memberData);
+      console.log('📅 Date conversions:', {
+        birthDate: {
+          original: values.birthDate,
+          isoString: values.birthDate ? values.birthDate.toISOString() : undefined
+        },
+        baptismDate: {
+          original: values.baptismDate,
+          isoString: values.baptismDate ? values.baptismDate.toISOString() : undefined
+        }
+      });
 
       // Si es un bautismo reciente, crear registro en conversos y bautismos
       let convertDocRef = null;
@@ -617,7 +636,13 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to update member');
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('API Error response:', {
+            status: response.status,
+            statusText: response.statusText,
+            errorData
+          });
+          throw new Error(`Failed to update member: ${errorData.details || errorData.error || response.statusText}`);
         }
 
         toast({
@@ -649,7 +674,13 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to create member');
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('API Error response:', {
+            status: response.status,
+            statusText: response.statusText,
+            errorData
+          });
+          throw new Error(`Failed to create member: ${errorData.details || errorData.error || response.statusText}`);
         }
 
         const { id: newMemberId } = await response.json();

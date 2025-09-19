@@ -28,7 +28,17 @@ export function ChangelogDialog({ children }: { children: React.ReactNode }) {
         <ScrollArea className="max-h-[70vh] sm:max-h-none">
           <div className="grid gap-4 py-4">
             <div>
-              <h3 className="font-semibold">v 1.1.3 (Actual)</h3>
+              <h3 className="font-semibold">v 1.1.4 (Actual)</h3>
+              <ul className="list-disc list-inside text-sm text-muted-foreground">
+                <li>Corregido problema donde los datos no se guardaban al crear o editar miembros en la página de Miembros.</li>
+                <li>Optimizada la sincronización en la página de Miembros para que solo ocurra al agregar, editar o eliminar miembros, en lugar de cada recarga de página.</li>
+                <li>En la página de Consejo, en la sección de Seguimiento de Conversos, ahora se muestra el nombre del miembro junto a su foto y encima del texto de Bautismo.</li>
+                <li>Las secciones del Dashboard ahora son clicables y redirigen a las páginas correspondientes que muestran los datos.</li>
+                <li>En la página de Consejo, en la sección de Anotaciones, solo se pueden editar o eliminar las notas creadas por el usuario autenticado.</li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold">v 1.1.3</h3>
               <ul className="list-disc list-inside text-sm text-muted-foreground">
                 <li>Implementado componente reutilizable de anotaciones con reconocimiento de voz automático para facilitar el mantenimiento y consistencia en toda la aplicación.</li>
                 <li>Las anotaciones en Dashboard, Consejo y FamilySearch ahora incluyen reconocimiento de voz automático al abrir el diálogo, similar a la funcionalidad de Obra Misional.</li>
