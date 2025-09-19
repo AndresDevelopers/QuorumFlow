@@ -99,8 +99,15 @@ const sentryBuildOptions = {
   // Reference: https://docs.sentry.io/platforms/javascript/guides/nextjs/migration/
 };
 
-// Only use Sentry if all required environment variables are set
-const configWithSentry = process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT
+// Only use Sentry if all required environment variables are set and not placeholder values
+const isSentryConfigured = process.env.SENTRY_AUTH_TOKEN &&
+  process.env.SENTRY_ORG &&
+  process.env.SENTRY_PROJECT &&
+  process.env.SENTRY_ORG !== 'tu-org-slug' &&
+  process.env.SENTRY_PROJECT !== 'tu-project-slug' &&
+  !process.env.SENTRY_AUTH_TOKEN.startsWith('your-sentry-auth-token');
+
+const configWithSentry = isSentryConfigured
   ? withSentryConfig(nextConfig, sentryBuildOptions)
   : nextConfig;
 
