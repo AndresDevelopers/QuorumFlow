@@ -260,7 +260,6 @@ function DashboardPage() {
       </div>
 
        <div className="grid gap-4">
-        <Link href="/council">
           <VoiceAnnotations
               title="Anotaciones del Quórum"
               description="Añade notas rápidas o recordatorios para el quórum. Marca las que necesiten seguimiento en el consejo."
@@ -272,7 +271,6 @@ function DashboardPage() {
               onDeleteAnnotation={handleDeleteAnnotation}
               currentUserId={user?.uid}
            />
-        </Link>
       </div>
     </div>
   );

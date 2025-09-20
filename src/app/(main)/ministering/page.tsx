@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState, useTransition, useCallback } from 'react';
+import { useEffect, useState, useTransition, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { getDocs, query, orderBy, deleteDoc, doc, writeBatch, getDoc, setDoc, collection } from 'firebase/firestore';
 import { ministeringCollection, ministeringHistoryCollection } from '@/lib/collections';
@@ -61,6 +61,8 @@ async function getCompanionships(): Promise<Companionship[]> {
   );
 }
 
+const PAGE_SIZE = 10;
+
 
 function StatCard({ title, value, previousValue, icon, t }: { title: string, value: string, previousValue?: string, icon: React.ReactNode, t: (key: string) => string }) {
     const currentValue = parseFloat(value);
@@ -105,6 +107,14 @@ export default function MinisteringPage() {
   const [lastMonthCompletion, setLastMonthCompletion] = useState<number | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [memberMap, setMemberMap] = useState<Map<string, string>>(new Map());
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
+  const visibleCompanionships = useMemo(
+    () => companionships.slice(0, visibleCount),
+    [companionships, visibleCount],
+  );
+
+  const totalCompanionships = companionships.length;
 
   function StatusBadge({ companionship }: { companionship: Companionship }) {
       const isAnyFamilyUrgent = companionship.families.some(f => f.isUrgent);
@@ -211,7 +221,7 @@ export default function MinisteringPage() {
     } finally {
         setLoading(false);
     }
-  }, [toast]);
+  }, [toast, t]);
 
 
   useEffect(() => {
@@ -219,17 +229,74 @@ export default function MinisteringPage() {
     loadData();
   }, [authLoading, user, loadData]);
 
+  useEffect(() => {
+    if (companionships.length === 0) {
+      setVisibleCount(0);
+      return;
+    }
+    setVisibleCount((prev) => {
+      const next = Math.max(prev, PAGE_SIZE);
+      return Math.min(next, companionships.length);
+    });
+  }, [companionships]);
+
+  useEffect(() => {
+    const node = loadMoreTriggerRef.current;
+    if (!node) return;
+    if (loading || isResetting) return;
+    if (visibleCount >= companionships.length) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setVisibleCount((prev) => {
+        const next = Math.min(prev + PAGE_SIZE, companionships.length);
+        return next === prev ? prev : next;
+      });
+      return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          setVisibleCount((prev) => {
+            const next = Math.min(prev + PAGE_SIZE, companionships.length);
+            return next === prev ? prev : next;
+          });
+        }
+      });
+    }, { rootMargin: '0px 0px 200px 0px' });
+
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, [loading, isResetting, visibleCount, companionships.length]);
+
   return (
     <div className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-1">
-            {loading ? <Skeleton className="h-28 w-full" /> : (
-                <StatCard
-                    title={t('ministering.thisMonth')}
-                    value={overallCompletion.toFixed(0)}
-                    previousValue={lastMonthCompletion?.toFixed(0)}
-                    icon={<History className="h-4 w-4 text-muted-foreground" />}
-                    t={t}
-                />
+        <div className="grid gap-4 md:grid-cols-2">
+            {loading ? (
+                <>
+                    <Skeleton className="h-28 w-full" />
+                    <Skeleton className="h-28 w-full" />
+                </>
+            ) : (
+                <>
+                    <StatCard
+                        title={t('ministering.thisMonth')}
+                        value={overallCompletion.toFixed(0)}
+                        previousValue={lastMonthCompletion?.toFixed(0)}
+                        icon={<History className="h-4 w-4 text-muted-foreground" />}
+                        t={t}
+                    />
+                    <Card>
+                        <CardHeader className="space-y-1 pb-2">
+                            <CardTitle className="text-sm font-medium">{t('ministering.companionships')}</CardTitle>
+                            <CardDescription>{t('ministering.totalCompanionshipsDescription')}</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{totalCompanionships}</div>
+                        </CardContent>
+                    </Card>
+                </>
             )}
         </div>
         <Card>
@@ -262,7 +329,7 @@ export default function MinisteringPage() {
                                 <TableCell className="text-right"><Skeleton className="h-8 w-24" /></TableCell>
                             </TableRow>
                         ))
-                    ) : companionships.map((item) => (
+                    ) : visibleCompanionships.map((item) => (
                     <TableRow key={item.id} className={item.families.some(f => f.isUrgent) ? 'bg-destructive/10' : ''}>
                         <TableCell className="font-medium">
                           {item.companions.map((c, i) => (
@@ -311,7 +378,7 @@ export default function MinisteringPage() {
             <div className="md:hidden space-y-4">
                 {loading || isResetting ? (
                     Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-48 w-full" />)
-                ) : companionships.map((item) => (
+                ) : visibleCompanionships.map((item) => (
                      <Card key={item.id} className={item.families.some(f => f.isUrgent) ? 'border-destructive' : ''}>
                         <CardHeader>
                             <div className="flex justify-between items-start">
@@ -363,6 +430,8 @@ export default function MinisteringPage() {
                     </Card>
                 ))}
             </div>
+
+            <div ref={loadMoreTriggerRef} className="h-1" aria-hidden="true" />
 
             {!loading && companionships.length === 0 && (
                 <div className="text-center p-8 text-muted-foreground">
