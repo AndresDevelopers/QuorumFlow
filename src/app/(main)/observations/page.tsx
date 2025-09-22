@@ -357,15 +357,24 @@ export default function ObservationsPage() {
 
 
 
-  useEffect(() => {
-
-    fetchMembers();
-
-    fetchCompanionships();
-
-    loadHealthConcerns();
-
-  }, [fetchMembers, fetchCompanionships, loadHealthConcerns]);
+  useEffect(() => {
+
+
+
+    fetchMembers();
+
+
+
+    fetchCompanionships();
+
+
+
+    loadHealthConcerns();
+
+
+
+  }, [fetchMembers, fetchCompanionships, loadHealthConcerns]);
+
 
 
 
@@ -3651,7 +3660,7 @@ export default function ObservationsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Agregar persona con problemas de salud</DialogTitle>
             <DialogDescription>

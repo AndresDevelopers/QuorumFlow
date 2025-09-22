@@ -119,6 +119,16 @@ export default function MinisteringPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [memberMap, setMemberMap] = useState<Map<string, string>>(new Map());
   const [districts, setDistricts] = useState<MinisteringDistrict[]>([]);
+  const companionshipDistrictMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    districts.forEach(district => {
+      district.companionshipIds.forEach(id => {
+        if (!map.has(id)) map.set(id, []);
+        map.get(id)!.push(district.name);
+      });
+    });
+    return map;
+  }, [districts]);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
   const visibleCompanionships = useMemo(
@@ -216,9 +226,9 @@ export default function MinisteringPage() {
         if (districtsList.length === 0) {
           // Create default 3 districts
           const defaultDistricts = [
-            { name: t('ministering.districtDefaultName').replace('{number}', '1'), companionshipIds: [], leaderId: null, leaderName: null },
-            { name: t('ministering.districtDefaultName').replace('{number}', '2'), companionshipIds: [], leaderId: null, leaderName: null },
-            { name: t('ministering.districtDefaultName').replace('{number}', '3'), companionshipIds: [], leaderId: null, leaderName: null },
+            { name: 'Distrito 1', companionshipIds: [], leaderId: null, leaderName: null },
+            { name: 'Distrito 2', companionshipIds: [], leaderId: null, leaderName: null },
+            { name: 'Distrito 3', companionshipIds: [], leaderId: null, leaderName: null },
           ];
           const batch = writeBatch(doc(ministeringDistrictsCollection).firestore);
           for (const district of defaultDistricts) {
@@ -227,8 +237,25 @@ export default function MinisteringPage() {
           }
           await batch.commit();
           districtsList = await getDistricts(); // Re-fetch after creation
+        } else {
+          // Rename districts to sequential names: Distrito 1, Distrito 2, etc.
+          districtsList.sort((a, b) => a.name.localeCompare(b.name));
+          const batch = writeBatch(doc(ministeringDistrictsCollection).firestore);
+          let needsUpdate = false;
+          districtsList.forEach((district, index) => {
+            const newName = t('ministering.districtDefaultName').replace('{number}', (index + 1).toString());
+            if (district.name !== newName) {
+              batch.update(doc(ministeringDistrictsCollection, district.id), { name: newName, updatedAt: serverTimestamp() });
+              district.name = newName;
+              needsUpdate = true;
+            }
+          });
+          if (needsUpdate) {
+            await batch.commit();
+          }
         }
         setDistricts(districtsList);
+
         const now = new Date();
         
         // --- Monthly Reset and History Logic ---
@@ -457,6 +484,7 @@ export default function MinisteringPage() {
                     <TableHead>{t('ministering.companions')}</TableHead>
                     <TableHead>{t('ministering.assignedFamilies')}</TableHead>
                     <TableHead>{t('ministering.status')}</TableHead>
+                    <TableHead>Distrito</TableHead>
                     <TableHead className="w-[150px]">{t('ministering.progress')}</TableHead>
                     <TableHead className="text-right">
                         {t('ministering.actions')}
@@ -470,7 +498,8 @@ export default function MinisteringPage() {
                                 <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                                 <TableCell><Skeleton className="h-5 w-48" /></TableCell>
                                 <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
-                                 <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                                <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                                <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                                 <TableCell className="text-right"><Skeleton className="h-8 w-24" /></TableCell>
                             </TableRow>
                         ))
@@ -498,6 +527,9 @@ export default function MinisteringPage() {
                         </TableCell>
                         <TableCell>
                           <StatusBadge companionship={item} />
+                        </TableCell>
+                        <TableCell>
+                          {companionshipDistrictMap.get(item.id)?.join(', ') || 'No asignado'}
                         </TableCell>
                         <TableCell>
                            <div className="flex items-center gap-2">
@@ -563,6 +595,10 @@ export default function MinisteringPage() {
                                   {i < item.families.length - 1 && <hr className="my-1" />}
                                 </div>
                               ))}
+                           </div>
+                           <div>
+                               <p className="font-semibold text-muted-foreground">Distrito</p>
+                               <p>{companionshipDistrictMap.get(item.id)?.join(', ') || 'No asignado'}</p>
                            </div>
                            <div>
                                <p className="font-semibold text-muted-foreground">{t('ministering.progress')}</p>
