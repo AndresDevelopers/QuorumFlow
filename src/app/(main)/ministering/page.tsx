@@ -3,9 +3,9 @@
 
 import { useEffect, useState, useTransition, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { getDocs, query, orderBy, deleteDoc, doc, writeBatch, getDoc, setDoc, collection } from 'firebase/firestore';
-import { ministeringCollection, ministeringHistoryCollection } from '@/lib/collections';
-import type { Companionship, Member } from '@/lib/types';
+import { getDocs, query, orderBy, deleteDoc, doc, writeBatch, getDoc, setDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { ministeringCollection, ministeringDistrictsCollection, ministeringHistoryCollection } from '@/lib/collections';
+import type { Companionship, Member, MinisteringDistrict } from '@/lib/types';
 import { getMembersByStatus } from '@/lib/members-data';
 import { useToast } from '@/hooks/use-toast';
 import logger from '@/lib/logger';
@@ -37,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { PlusCircle, History, Settings, ArrowDown, ArrowUp, Minus } from 'lucide-react';
+import { PlusCircle, History, Settings, ArrowDown, ArrowUp, Minus, Loader2, Users, User } from 'lucide-react';
 import { isSameMonth, subMonths, format, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -45,6 +45,9 @@ import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 
 function getCompanionshipCompletion(companionship: Companionship): number {
     const totalFamilies = companionship.families.length;
@@ -58,6 +61,14 @@ async function getCompanionships(): Promise<Companionship[]> {
   const snapshot = await getDocs(q);
   return snapshot.docs.map(
     (doc) => ({ id: doc.id, ...doc.data() } as Companionship)
+  );
+}
+
+async function getDistricts(): Promise<MinisteringDistrict[]> {
+  const q = query(ministeringDistrictsCollection, orderBy('name'));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(
+    (doc) => ({ id: doc.id, ...doc.data() } as MinisteringDistrict)
   );
 }
 
@@ -107,6 +118,7 @@ export default function MinisteringPage() {
   const [lastMonthCompletion, setLastMonthCompletion] = useState<number | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [memberMap, setMemberMap] = useState<Map<string, string>>(new Map());
+  const [districts, setDistricts] = useState<MinisteringDistrict[]>([]);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
   const visibleCompanionships = useMemo(
@@ -154,6 +166,38 @@ export default function MinisteringPage() {
     }
     return `/members?search=${encodeURIComponent(searchName)}`;
   };
+  const updateDistrict = async (districtId: string, updates: Partial<MinisteringDistrict>) => {
+    try {
+      await setDoc(doc(ministeringDistrictsCollection, districtId), {
+        ...updates,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      setDistricts(prev => prev.map(d => d.id === districtId ? { ...d, ...updates } : d));
+      toast({ title: 'Éxito', description: 'Distrito actualizado correctamente' });
+    } catch (error) {
+      logger.error({ error, message: "Failed to update district" });
+      toast({ title: 'Error', description: 'Error al actualizar el distrito', variant: "destructive" });
+    }
+  };
+
+  const assignCompanionshipToDistrict = async (districtId: string, companionshipId: string) => {
+    const district = districts.find(d => d.id === districtId);
+    if (!district) return;
+
+    const newCompanionshipIds = [...district.companionshipIds];
+    if (newCompanionshipIds.includes(companionshipId)) {
+      newCompanionshipIds.splice(newCompanionshipIds.indexOf(companionshipId), 1);
+    } else {
+      newCompanionshipIds.push(companionshipId);
+    }
+
+    await updateDistrict(districtId, { companionshipIds: newCompanionshipIds });
+  };
+
+  const assignLeaderToDistrict = async (districtId: string, leaderId: string | null) => {
+    const leaderName = leaderId ? members.find(m => m.id === leaderId)?.firstName + ' ' + members.find(m => m.id === leaderId)?.lastName : null;
+    await updateDistrict(districtId, { leaderId, leaderName });
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -167,6 +211,24 @@ export default function MinisteringPage() {
           map.set(fullName, member.id);
         });
         setMemberMap(map);
+        // Load districts
+        let districtsList = await getDistricts();
+        if (districtsList.length === 0) {
+          // Create default 3 districts
+          const defaultDistricts = [
+            { name: t('ministering.districtDefaultName').replace('{number}', '1'), companionshipIds: [], leaderId: null, leaderName: null },
+            { name: t('ministering.districtDefaultName').replace('{number}', '2'), companionshipIds: [], leaderId: null, leaderName: null },
+            { name: t('ministering.districtDefaultName').replace('{number}', '3'), companionshipIds: [], leaderId: null, leaderName: null },
+          ];
+          const batch = writeBatch(doc(ministeringDistrictsCollection).firestore);
+          for (const district of defaultDistricts) {
+            const docRef = doc(ministeringDistrictsCollection);
+            batch.set(docRef, { ...district, updatedAt: serverTimestamp() });
+          }
+          await batch.commit();
+          districtsList = await getDistricts(); // Re-fetch after creation
+        }
+        setDistricts(districtsList);
         const now = new Date();
         
         // --- Monthly Reset and History Logic ---
@@ -299,6 +361,89 @@ export default function MinisteringPage() {
                 </>
             )}
         </div>
+        <Card>
+          <CardHeader>
+              <CardTitle className="text-lg">Distritos de Ministración</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              {loading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-32 w-full" />
+                ))
+              ) : districts.map((district) => (
+                <Card key={district.id}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      {district.name}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="text-sm">
+                      <p className="font-medium">Compañerismos: {district.companionshipIds.length}</p>
+                      <p className="font-medium">Líder: {district.leaderName || 'No asignado'}</p>
+                    </div>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="w-full">
+                          <Settings className="mr-2 h-4 w-4" />
+                          Gestionar
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Gestionar {district.name}</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-sm font-medium">Seleccionar compañerismos</label>
+                            <div className="mt-2 space-y-2 max-h-40 overflow-y-auto">
+                              {companionships.map(comp => (
+                                <div key={comp.id} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`comp-${comp.id}`}
+                                    checked={district.companionshipIds.includes(comp.id)}
+                                    onCheckedChange={(checked) => assignCompanionshipToDistrict(district.id, comp.id)}
+                                  />
+                                  <label htmlFor={`comp-${comp.id}`} className="text-sm">
+                                    {comp.companions.join(', ')}
+                                  </label>
+                                </div>
+                              ))}
+                              {companionships.length === 0 && (
+                                <p className="text-sm text-muted-foreground">No hay compañerismos disponibles</p>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium">Líder del distrito</label>
+                            <Select
+                              value={district.leaderId || 'none'}
+                              onValueChange={(value) => assignLeaderToDistrict(district.id, value === 'none' ? null : value)}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue placeholder="Seleccionar líder" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">No asignado</SelectItem>
+                                {members.map(member => (
+                                  <SelectItem key={member.id} value={member.id}>
+                                    {member.firstName} {member.lastName}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader>
               <CardTitle className="text-lg">{t('ministering.companionshipDetails')}</CardTitle>

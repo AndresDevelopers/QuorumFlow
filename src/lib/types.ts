@@ -14,6 +14,15 @@ export type Companionship = {
   families: Family[];
 };
 
+export type MinisteringDistrict = {
+  id: string;
+  name: string;
+  companionshipIds: string[];
+  leaderId?: string | null;
+  leaderName?: string | null;
+  updatedAt?: Timestamp;
+};
+
 export type Convert = {
   id: string;
   name: string;
@@ -143,6 +152,21 @@ export type Service = {
     imageUrls?: string[];
 }
 
+export type HealthConcern = {
+    id: string;
+    firstName: string;
+    lastName: string;
+    helperIds: string[];
+    helperNames: string[];
+    address: string;
+    observation: string;
+    photoURL?: string;
+    photoPath?: string;
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
+    createdBy: string;
+};
+
 export type AnnualReportAnswers = {
     p1: string;
     p2: string;
@@ -215,3 +239,4 @@ export type Member = {
     lessActiveObservation?: string;
     lessActiveCompletedAt?: Timestamp;
 }
+
