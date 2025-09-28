@@ -188,6 +188,9 @@ src/
 - Mantener actualizadas las traducciones en ambos idiomas
 - Incluir tests para nuevas funcionalidades
 
+### Cumplimiento de Estándares Personalizados
+- Consultar la [Matriz de Cumplimiento](docs/COMPLIANCE.md) para conocer el estado de cada regla personalizada, brechas detectadas y próximos pasos priorizados.
+
 ## 📞 Soporte y Comunidad
 
 ### ¿Necesitas Ayuda?
