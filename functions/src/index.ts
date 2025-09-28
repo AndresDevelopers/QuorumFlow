@@ -1,5 +1,5 @@
 
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import { getYear, startOfYear, endOfYear, format, addDays, isSameDay } from "date-fns";
 import { es } from "date-fns/locale";
@@ -14,11 +14,11 @@ admin.initializeApp();
 const firestore = admin.firestore();
 const storage = admin.storage();
 
-if (functions.config().vapid) {
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     webpush.setVapidDetails(
-        "mailto:example@yourdomain.org",
-        functions.config().vapid.public_key,
-        functions.config().vapid.private_key
+        process.env.VAPID_SUBJECT_EMAIL || "mailto:example@yourdomain.org",
+        process.env.VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
     );
 }
 

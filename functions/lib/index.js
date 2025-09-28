@@ -37,7 +37,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.notifications = exports.generateReport = exports.generateCompleteReport = exports.cleanupProfilePictures = void 0;
-const functions = __importStar(require("firebase-functions"));
+const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const date_fns_1 = require("date-fns");
 const locale_1 = require("date-fns/locale");
@@ -49,8 +49,8 @@ const axios_1 = __importDefault(require("axios"));
 admin.initializeApp();
 const firestore = admin.firestore();
 const storage = admin.storage();
-if (functions.config().vapid) {
-    webpush.setVapidDetails("mailto:example@yourdomain.org", functions.config().vapid.public_key, functions.config().vapid.private_key);
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(process.env.VAPID_SUBJECT_EMAIL || "mailto:example@yourdomain.org", process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
 }
 const MAX_DOC_IMAGE_WIDTH = 450;
 const MAX_DOC_IMAGE_HEIGHT = 300;
