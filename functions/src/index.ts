@@ -30,6 +30,9 @@ interface Activity {
     time?: string;
     imageUrls?: string[];
     additionalText?: string;
+    location?: string;
+    context?: string;
+    learning?: string;
 }
 
 interface Baptism {
@@ -70,6 +73,165 @@ interface Companionship {
     id: string;
     families: Family[];
 }
+
+interface ActivityDocImage {
+    image: string;
+    caption: string;
+    title: string;
+    date: string;
+    order: number;
+    description: string;
+    location: string;
+}
+
+interface ActivityDocEntry {
+    id: string;
+    title: string;
+    date: string;
+    fullDate: string;
+    time: string;
+    description: string;
+    additionalText: string;
+    location: string;
+    context: string;
+    learning: string;
+    hasImages: boolean;
+    imageCount: number;
+    primaryImage: ActivityDocImage | null;
+    images: ActivityDocImage[];
+}
+
+interface ActivityGalleryEntry {
+    titulo: string;
+    fecha: string;
+    descripcion: string;
+    cantidad: number;
+    imagen_principal: ActivityDocImage | null;
+    imagenes: ActivityDocImage[];
+}
+
+const MAX_DOC_IMAGE_WIDTH = 450;
+const MAX_DOC_IMAGE_HEIGHT = 300;
+
+type ImageModuleInstance = InstanceType<typeof ImageModule>;
+
+const createImageModuleFromUrls = async (urls: string[]): Promise<ImageModuleInstance> => {
+    const buffers = await fetchImageBuffers(urls);
+
+    return new ImageModule({
+        centered: true,
+        getImage: (tagValue: string) => {
+            if (!tagValue) {
+                return Buffer.alloc(0);
+            }
+            return buffers.get(tagValue) ?? Buffer.alloc(0);
+        },
+        getSize: () => {
+            return [MAX_DOC_IMAGE_WIDTH, MAX_DOC_IMAGE_HEIGHT];
+        },
+    });
+};
+
+const fetchImageBuffers = async (urls: string[]): Promise<Map<string, Buffer>> => {
+    if (urls.length === 0) {
+        return new Map();
+    }
+
+    const entries = await Promise.all(urls.map(async (url) => {
+        try {
+            const response = await axios.get<ArrayBuffer>(url, {
+                responseType: "arraybuffer",
+                headers: {
+                    Accept: "image/*",
+                },
+            });
+            return [url, Buffer.from(response.data)] as const;
+        } catch (error) {
+            functions.logger.error("Error downloading image for report", { url, error });
+            return [url, Buffer.alloc(0)] as const;
+        }
+    }));
+
+    return new Map(entries);
+};
+
+const prepareActivitiesDocData = async (activities: Activity[]): Promise<{
+    activitiesData: ActivityDocEntry[];
+    imageModule: ImageModuleInstance;
+    totalImages: number;
+    galleries: ActivityGalleryEntry[];
+    activitiesWithImages: number;
+}> => {
+    const uniqueImageUrls = new Set<string>();
+
+    const activitiesData: ActivityDocEntry[] = activities.map((activity) => {
+        const activityDate = activity.date.toDate();
+        const dateStr = format(activityDate, "dd/MM/yyyy", { locale: es });
+        const fullDate = format(activityDate, "dd 'de' MMMM 'de' yyyy", { locale: es });
+        const timeStr = activity.time ? ` ${activity.time}` : "";
+
+        let fullDescription = activity.description;
+        if (activity.additionalText) {
+            fullDescription += `\n\nTexto Adicional: ${activity.additionalText}`;
+        }
+
+        const images: ActivityDocImage[] = (activity.imageUrls ?? [])
+            .filter((url): url is string => !!url)
+            .map((url, index) => {
+                uniqueImageUrls.add(url);
+                return {
+                    image: url,
+                    caption: `${activity.title} - ${fullDate}`,
+                    title: activity.title,
+                    date: fullDate,
+                    order: index + 1,
+                    description: fullDescription,
+                    location: activity.location || "",
+                };
+            });
+
+        const primaryImage = images[0] ?? null;
+
+        return {
+            id: activity.id,
+            title: activity.title,
+            date: `${dateStr}${timeStr}`,
+            fullDate,
+            time: activity.time || "",
+            description: fullDescription,
+            additionalText: activity.additionalText || "",
+            location: activity.location || "",
+            context: activity.context || "",
+            learning: activity.learning || "",
+            hasImages: images.length > 0,
+            imageCount: images.length,
+            primaryImage,
+            images,
+        };
+    });
+
+    const totalImages = activitiesData.reduce((sum, activity) => sum + activity.imageCount, 0);
+    const galleries: ActivityGalleryEntry[] = activitiesData
+        .filter((activity) => activity.hasImages)
+        .map((activity) => ({
+            titulo: activity.title,
+            fecha: activity.fullDate,
+            descripcion: activity.description,
+            cantidad: activity.imageCount,
+            imagen_principal: activity.primaryImage,
+            imagenes: activity.images,
+        }));
+
+    const imageModule = await createImageModuleFromUrls(Array.from(uniqueImageUrls));
+
+    return {
+        activitiesData,
+        imageModule,
+        totalImages,
+        galleries,
+        activitiesWithImages: galleries.length,
+    };
+};
 
 export const cleanupProfilePictures = functions.storage.object().onFinalize(async (object: any) => {
     const filePath = object.name;
@@ -176,29 +338,54 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
         const totalBaptisms = baptisms.length;
         const currentYearActivities = allActivities.filter(a => a.date.toDate() >= start && a.date.toDate() <= end);
 
-        // Agrupar actividades por tipo de información
-        const activitiesByMonth = activitiesToProcess.reduce((acc: any, activity) => {
+        const activitiesByMonth = activitiesToProcess.reduce((acc: Record<string, Activity[]>, activity) => {
             const month = format(activity.date.toDate(), "MMMM yyyy", { locale: es });
             if (!acc[month]) acc[month] = [];
             acc[month].push(activity);
             return acc;
-        }, {});
+        }, {} as Record<string, Activity[]>);
+
+        const {
+            activitiesData,
+            imageModule,
+            totalImages,
+            galleries,
+            activitiesWithImages,
+        } = await prepareActivitiesDocData(activitiesToProcess);
+
+        const activitiesDataMap = new Map(activitiesData.map(activity => [activity.id, activity]));
 
         const monthlyActivities = Object.entries(activitiesByMonth)
             .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
-            .map(([month, activities]: [string, any]) => ({
+            .map(([month, activities]) => ({
                 month,
                 count: activities.length,
-                activities: activities.map((a: Activity) => ({
-                    title: a.title,
-                    date: format(a.date.toDate(), "dd 'de' MMMM", { locale: es }),
-                    fullDate: format(a.date.toDate(), "dd 'de' MMMM 'de' yyyy", { locale: es }),
-                    time: a.time || "",
-                    description: a.description,
-                    additionalText: a.additionalText || "",
-                    hasImages: !!(a.imageUrls && a.imageUrls.length > 0),
-                    imageCount: a.imageUrls ? a.imageUrls.length : 0
-                }))
+                activities: activities.map((activity: Activity) => {
+                    const docActivity = activitiesDataMap.get(activity.id);
+                    const activityDate = activity.date.toDate();
+                    return {
+                        title: docActivity?.title ?? activity.title,
+                        date: format(activityDate, "dd 'de' MMMM", { locale: es }),
+                        fullDate: docActivity?.fullDate ?? format(activityDate, "dd 'de' MMMM 'de' yyyy", { locale: es }),
+                        time: docActivity?.time ?? activity.time ?? "",
+                        description: docActivity?.description ?? activity.description,
+                        additionalText: docActivity?.additionalText ?? activity.additionalText ?? "",
+                        location: docActivity?.location ?? activity.location ?? "",
+                        context: docActivity?.context ?? activity.context ?? "",
+                        learning: docActivity?.learning ?? activity.learning ?? "",
+                        hasImages: docActivity?.hasImages ?? (activity.imageUrls ? activity.imageUrls.length > 0 : false),
+                        imageCount: docActivity?.imageCount ?? (activity.imageUrls ? activity.imageUrls.length : 0),
+                        images: docActivity?.images ?? (activity.imageUrls ?? []).map((url, index) => ({
+                            image: url,
+                            caption: `${activity.title} - ${format(activityDate, "dd 'de' MMMM 'de' yyyy", { locale: es })}`,
+                            title: activity.title,
+                            date: format(activityDate, "dd 'de' MMMM 'de' yyyy", { locale: es }),
+                            order: index + 1,
+                            description: activity.description,
+                            location: activity.location || "",
+                        })),
+                    };
+                }),
             }));
 
         // Preparar bautismos con formato detallado
@@ -211,62 +398,12 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
             mes: format(b.date.toDate(), "MMMM", { locale: es })
         }));
 
-        // Preparar actividades para el formato de lista
-        const activitiesData = await Promise.all(activitiesToProcess.map(async a => {
-            const dateStr = format(a.date.toDate(), "dd/MM/yyyy", { locale: es });
-            const timeStr = a.time ? ` ${a.time}` : "";
-            
-            let fullDescription = a.description;
-            if (a.additionalText) {
-                fullDescription += `\n\nTexto Adicional: ${a.additionalText}`;
-            }
-
-            const images = a.imageUrls ? a.imageUrls.map(url => ({ image: url })) : [];
-
-            return {
-                title: a.title,
-                date: `${dateStr}${timeStr}`,
-                fullDate: format(a.date.toDate(), "dd 'de' MMMM 'de' yyyy", { locale: es }),
-                description: fullDescription,
-                images: images,
-            };
-        }));
-
         const baptismsText = detailedBaptisms.map((b: any) => `${b.nombre} (${b.fecha})`).join("\n");
 
         // Obtener template
         const bucket = storage.bucket();
         const file = bucket.file("template/reporte.docx");
         const [templateBuffer] = await file.download();
-
-        const imageModule = new ImageModule({
-            centered: true,
-            getImage: async (tagValue: string, tagName: string) => {
-                try {
-                    // Si es una URL de Firebase Storage o cualquier URL externa
-                    if (tagValue.startsWith('http://') || tagValue.startsWith('https://')) {
-                        const response = await axios.get(tagValue, {
-                            responseType: "arraybuffer",
-                            headers: {
-                                'Accept': 'image/*'
-                            }
-                        });
-                        return Buffer.from(response.data);
-                    }
-                    // Si no es una URL, retornar buffer vacío
-                    return Buffer.alloc(0);
-                } catch (error) {
-                    functions.logger.error(`Error downloading image from ${tagValue}:`, error);
-                    // Retornar un buffer vacío en caso de error para no romper el documento
-                    return Buffer.alloc(0);
-                }
-            },
-            getSize: (img: Buffer, tagValue: string, tagName: string): [number, number] => {
-                // Tamaño fijo para las imágenes en el documento
-                // Ancho máximo de 450px, alto proporcional máximo de 300px
-                return [450, 300];
-            },
-        });
 
         const zip = new PizZip(templateBuffer);
         const doc = new Docxtemplater(zip, {
@@ -318,11 +455,14 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
             total_actividades_ano_actual: currentYearActivities.length,
             total_actividades_totales: allActivities.length,
             incluye_todas_actividades: includeAllActivities ? "Sí" : "No (solo del año actual)",
-            
+
             // Datos agrupados
             actividades_por_mes: monthlyActivities,
             resumen_bautismos: detailedBaptisms,
-            
+            galeria_actividades: galleries,
+            total_imagenes: totalImages,
+            actividades_con_imagenes: activitiesWithImages,
+
             // Información adicional
             distribucion_bautismos_por_fuente: Object.entries(summary.distribucion_bautismos).map(([fuente, cantidad]) => ({
                 fuente,
@@ -334,7 +474,8 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
                 titulo: a.title,
                 fecha: format(a.date.toDate(), "dd/MM/yyyy", { locale: es }),
                 descripcion: a.description.substring(0, 100) + (a.description.length > 100 ? "..." : ""),
-                tiene_imagenes: a.imageUrls && a.imageUrls.length > 0 ? "Sí" : "No"
+                tiene_imagenes: a.imageUrls && a.imageUrls.length > 0 ? "Sí" : "No",
+                cantidad_imagenes: a.imageUrls ? a.imageUrls.length : 0,
             })),
             
             tabla_bautismos: detailedBaptisms
@@ -398,38 +539,67 @@ export const generateReport = functions.https.onCall(async (data: any, context: 
         const reportAnswersDoc = await firestore.collection("c_reporte_anual").doc(String(year)).get();
         const answers = (reportAnswersDoc.data() || {}) as AnnualReportAnswers;
 
+        const activitiesToProcess = includeAllActivities ? allActivities : currentYearActivities;
+        const {
+            activitiesData,
+            imageModule,
+            totalImages,
+            galleries,
+            activitiesWithImages,
+        } = await prepareActivitiesDocData(activitiesToProcess);
+
+        const activitiesDataMap = new Map(activitiesData.map(activity => [activity.id, activity]));
+
+        const baptismsText = baptisms.map(b => `${b.name} (${format(b.date.toDate(), "P", { locale: es })})`).join("\n");
+
+        // Obtener estadísticas generales
+        const totalActivities = activitiesToProcess.length;
+        const totalBaptisms = baptisms.length;
+
+        // Obtener actividades por mes
+        const activitiesByMonth = activitiesToProcess.reduce((acc: Record<string, Activity[]>, activity) => {
+            const month = format(activity.date.toDate(), "MMMM yyyy", { locale: es });
+            if (!acc[month]) acc[month] = [];
+            acc[month].push(activity);
+            return acc;
+        }, {} as Record<string, Activity[]>);
+
+        // Preparar datos para el template
+        const monthlyActivities = Object.entries(activitiesByMonth)
+            .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+            .map(([month, activities]) => ({
+                month,
+                count: activities.length,
+                activities: activities.map((activity: Activity) => {
+                    const docActivity = activitiesDataMap.get(activity.id);
+                    const activityDate = activity.date.toDate();
+                    return {
+                        title: docActivity?.title ?? activity.title,
+                        date: format(activityDate, "dd/MM/yyyy", { locale: es }),
+                    time: docActivity?.time ?? activity.time ?? "",
+                    description: docActivity?.description ?? activity.description,
+                    additionalText: docActivity?.additionalText ?? activity.additionalText ?? "",
+                    location: docActivity?.location ?? activity.location ?? "",
+                    context: docActivity?.context ?? activity.context ?? "",
+                    learning: docActivity?.learning ?? activity.learning ?? "",
+                    hasImages: docActivity?.hasImages ?? (activity.imageUrls ? activity.imageUrls.length > 0 : false),
+                    imageCount: docActivity?.imageCount ?? (activity.imageUrls ? activity.imageUrls.length : 0),
+                    images: docActivity?.images ?? (activity.imageUrls ?? []).map((url, index) => ({
+                        image: url,
+                        caption: `${activity.title} - ${format(activityDate, "dd 'de' MMMM 'de' yyyy", { locale: es })}`,
+                        title: activity.title,
+                        date: format(activityDate, "dd 'de' MMMM 'de' yyyy", { locale: es }),
+                        order: index + 1,
+                        description: activity.description,
+                        location: activity.location || "",
+                    })),
+                };
+            }),
+        }));
+
         const bucket = storage.bucket();
         const file = bucket.file("template/reporte.docx");
         const [templateBuffer] = await file.download();
-
-        const imageModule = new ImageModule({
-            centered: true,
-            getImage: async (tagValue: string, tagName: string) => {
-                try {
-                    // Si es una URL de Firebase Storage o cualquier URL externa
-                    if (tagValue.startsWith('http://') || tagValue.startsWith('https://')) {
-                        const response = await axios.get(tagValue, {
-                            responseType: "arraybuffer",
-                            headers: {
-                                'Accept': 'image/*'
-                            }
-                        });
-                        return Buffer.from(response.data);
-                    }
-                    // Si no es una URL, retornar buffer vacío
-                    return Buffer.alloc(0);
-                } catch (error) {
-                    functions.logger.error(`Error downloading image from ${tagValue}:`, error);
-                    // Retornar un buffer vacío en caso de error para no romper el documento
-                    return Buffer.alloc(0);
-                }
-            },
-            getSize: (img: Buffer, tagValue: string, tagName: string): [number, number] => {
-                // Tamaño fijo para las imágenes en el documento
-                // Ancho máximo de 450px, alto proporcional máximo de 300px
-                return [450, 300];
-            },
-        });
 
         const zip = new PizZip(templateBuffer);
         const doc = new Docxtemplater(zip, {
@@ -437,54 +607,6 @@ export const generateReport = functions.https.onCall(async (data: any, context: 
             linebreaks: true,
             modules: [imageModule],
         });
-
-        const activitiesToProcess = includeAllActivities ? allActivities : currentYearActivities;
-
-        const activitiesData = await Promise.all(activitiesToProcess.map(async a => {
-            const dateStr = format(a.date.toDate(), "dd/MM/yyyy", { locale: es });
-            const timeStr = a.time ? ` ${a.time}` : "";
-            
-            let fullDescription = a.description;
-            if (a.additionalText) {
-                fullDescription += `\n\nTexto Adicional: ${a.additionalText}`;
-            }
-
-            const images = a.imageUrls ? a.imageUrls.map(url => ({ image: url })) : [];
-
-            return {
-                title: a.title,
-                date: `${dateStr}${timeStr}`,
-                description: fullDescription,
-                images: images,
-            };
-        }));
-        
-        const baptismsText = baptisms.map(b => `${b.name} (${format(b.date.toDate(), "P", { locale: es })})`).join("\n");
-
-        // Obtener estadísticas generales
-        const totalActivities = activitiesToProcess.length;
-        const totalBaptisms = baptisms.length;
-
-        
-        // Obtener actividades por mes
-        const activitiesByMonth = activitiesToProcess.reduce((acc: any, activity) => {
-            const month = format(activity.date.toDate(), "MMMM yyyy", { locale: es });
-            if (!acc[month]) acc[month] = [];
-            acc[month].push(activity);
-            return acc;
-        }, {});
-
-        // Preparar datos para el template
-        const monthlyActivities = Object.entries(activitiesByMonth).map(([month, activities]: [string, any]) => ({
-            month,
-            activities: activities.map((a: Activity) => ({
-                title: a.title,
-                date: format(a.date.toDate(), "dd/MM/yyyy", { locale: es }),
-                time: a.time || "",
-                description: a.description,
-                additionalText: a.additionalText || ""
-            }))
-        }));
 
         doc.render({
             anho_reporte: year,
@@ -505,6 +627,9 @@ export const generateReport = functions.https.onCall(async (data: any, context: 
                 fecha: format(b.date.toDate(), "dd 'de' MMMM 'de' yyyy", { locale: es }),
                 origen: b.source
             })),
+            galeria_actividades: galleries,
+            total_imagenes: totalImages,
+            actividades_con_imagenes: activitiesWithImages,
             fecha_generacion: format(new Date(), "d 'de' MMMM 'de' yyyy 'a las' HH:mm", { locale: es })
         });
 
