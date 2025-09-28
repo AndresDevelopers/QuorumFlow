@@ -87,7 +87,7 @@ export default function RegisterPage() {
         name: values.name,
         email: values.email,
         birthDate: values.birthDate,
-        role: 'president',
+        role: 'user',
         createdAt: serverTimestamp(),
       });
 

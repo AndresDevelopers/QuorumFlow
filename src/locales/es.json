@@ -88,6 +88,12 @@
   "register.toastErrorUnexpected": "Ocurrió un error inesperado.",
   "register.toastErrorEmailInUse": "Este correo electrónico ya está en uso.",
 
+  "noPermission.title": "Acceso restringido",
+  "noPermission.description": "Tu cuenta está activa pero aún no tiene permisos para usar la aplicación.",
+  "noPermission.support": "Comunícate con un administrador o con la presidencia de cuórum para solicitar acceso.",
+  "noPermission.logout": "Cerrar sesión",
+  "noPermission.logoutLoading": "Cerrando sesión...",
+
   "forgotPassword.title": "¿Olvidaste tu Contraseña?",
   "forgotPassword.description": "Ingresa tu correo y te enviaremos un enlace para restablecerla.",
   "forgotPassword.emailLabel": "Correo Electrónico",

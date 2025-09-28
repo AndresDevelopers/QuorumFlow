@@ -89,6 +89,12 @@
   "register.toastErrorUnexpected": "An unexpected error occurred.",
   "register.toastErrorEmailInUse": "This email is already in use.",
 
+  "noPermission.title": "Access restricted",
+  "noPermission.description": "Your account is active but does not yet have permission to use the application.",
+  "noPermission.support": "Please contact an administrator or your quorum presidency to request access.",
+  "noPermission.logout": "Sign out",
+  "noPermission.logoutLoading": "Signing out...",
+
   "forgotPassword.title": "Forgot Password?",
   "forgotPassword.description": "Enter your email and we'll send you a link to reset it.",
   "forgotPassword.emailLabel": "Email",

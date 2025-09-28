@@ -93,7 +93,13 @@ Una aplicación web moderna diseñada específicamente para la gestión eficient
    NEXT_PUBLIC_SENTRY_DSN=tu_sentry_dsn
    ```
 
-5. **Ejecutar en desarrollo**
+5. **Configurar roles iniciales**
+   - Completar el flujo de registro en la aplicación para crear la cuenta de administrador inicial.
+   - Abrir la colección `users` en Firestore y actualizar el campo `role` de esa cuenta a un valor con privilegios (por ejemplo `admin`).
+   - Mientras el campo permanezca como `user`, la cuenta seguirá viendo la página de acceso restringido.
+   - Repetir el proceso para cada cuenta que requiera acceso completo y documentar los cambios según la política de auditoría.
+
+6. **Ejecutar en desarrollo**
    ```bash
    npm run dev
    ```
@@ -144,6 +150,12 @@ src/
 - Session Replay opcional y lazy-loaded
 
 ## 🔐 Seguridad y Privacidad
+
+### Gestión de roles y acceso
+- **Rol por defecto `user`**: Al registrarse, todas las cuentas nuevas se crean en Firestore con el campo `role: "user"` para garantizar el principio de menor privilegio.
+- **Página de acceso restringido**: Cuentas con rol `user` verán automáticamente la página `no-permission`, donde se explica cómo solicitar elevación de privilegios y se ofrece el cierre de sesión seguro.
+- **Habilitar acceso completo**: Basta con actualizar el campo `role` en el documento del usuario (por ejemplo `role: "admin"` o `role: "secretary"`). Si el campo `role` no existe o contiene otro valor distinto de `user`, la aplicación se carga normalmente.
+- **Auditoría**: Los cambios de rol deben registrarse en los logs administrativos y acompañarse de revisión periódica para asegurar el acceso mínimo necesario.
 
 ### Medidas de Seguridad
 - **Autenticación Firebase** con encriptación de extremo a extremo
