@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
 import type { ChangeEvent } from 'react';
 
-import { Users, AlertTriangle, UserX, UserCheck, Eye, ChevronUp, HeartPulse, Plus, Trash2, Loader2, Check, ChevronsUpDown, X } from 'lucide-react';
+import { Users, AlertTriangle, UserX, UserCheck, Eye, ChevronUp, HeartPulse, Plus, Trash2, Loader2, Check, ChevronsUpDown, X, Pencil } from 'lucide-react';
 
 import {
 
@@ -76,7 +76,7 @@ import { OrdinanceLabels } from '@/lib/types';
 
 import { getMembersByStatus } from '@/lib/members-data';
 
-import { fetchHealthConcerns, createHealthConcern, deleteHealthConcern } from '@/lib/health-concerns';
+import { fetchHealthConcerns, createHealthConcern, deleteHealthConcern, updateHealthConcern } from '@/lib/health-concerns';
 
 import { format } from 'date-fns';
 
@@ -188,6 +188,10 @@ export default function ObservationsPage() {
 
   const [helperPickerOpen, setHelperPickerOpen] = useState(false);
 
+  const [editingHealthConcern, setEditingHealthConcern] = useState<HealthConcern | null>(null);
+
+  const [removeExistingPhoto, setRemoveExistingPhoto] = useState(false);
+
 
 
   const healthConcernsRef = useRef<HTMLDivElement>(null);
@@ -218,6 +222,8 @@ export default function ObservationsPage() {
   const watchFirstName = healthForm.watch('firstName');
 
   const watchLastName = healthForm.watch('lastName');
+
+  const isEditingHealthConcern = Boolean(editingHealthConcern);
 
 
 
@@ -418,6 +424,10 @@ export default function ObservationsPage() {
 
     setHelperPickerOpen(false);
 
+    setEditingHealthConcern(null);
+
+    setRemoveExistingPhoto(false);
+
     if (photoInputRef.current) {
 
       photoInputRef.current.value = '';
@@ -428,9 +438,51 @@ export default function ObservationsPage() {
 
 
 
-  const handleOpenHealthDialog = () => {
+  const handleOpenHealthDialog = (concern?: HealthConcern) => {
 
-    resetHealthForm();
+    if (photoPreview && photoPreview.startsWith('blob:')) {
+
+      URL.revokeObjectURL(photoPreview);
+
+    }
+
+    if (concern) {
+
+      setEditingHealthConcern(concern);
+
+      healthForm.reset({
+
+        firstName: concern.firstName ?? '',
+
+        lastName: concern.lastName ?? '',
+
+        address: concern.address ?? '',
+
+        observation: concern.observation ?? '',
+
+        helperIds: Array.isArray(concern.helperIds) ? concern.helperIds : [],
+
+      });
+
+      setPhotoPreview(concern.photoURL ?? null);
+
+      setPhotoFile(null);
+
+      setRemoveExistingPhoto(false);
+
+      setHelperPickerOpen(false);
+
+      if (photoInputRef.current) {
+
+        photoInputRef.current.value = '';
+
+      }
+
+    } else {
+
+      resetHealthForm();
+
+    }
 
     setHealthDialogOpen(true);
 
@@ -488,19 +540,49 @@ export default function ObservationsPage() {
 
     setPhotoFile(file);
 
+    setRemoveExistingPhoto(false);
+
   };
 
 
 
   const handleRemovePhoto = () => {
 
-    if (photoPreview && photoPreview.startsWith('blob:')) {
+    if (photoFile) {
 
-      URL.revokeObjectURL(photoPreview);
+      if (photoPreview && photoPreview.startsWith('blob:')) {
+
+        URL.revokeObjectURL(photoPreview);
+
+      }
+
+      setPhotoFile(null);
+
+      if (editingHealthConcern?.photoURL) {
+
+        setPhotoPreview(editingHealthConcern.photoURL);
+
+        setRemoveExistingPhoto(false);
+
+      } else {
+
+        setPhotoPreview(null);
+
+      }
+
+    } else {
+
+      if (photoPreview && photoPreview.startsWith('blob:')) {
+
+        URL.revokeObjectURL(photoPreview);
+
+      }
+
+      setPhotoPreview(null);
+
+      setRemoveExistingPhoto(Boolean(editingHealthConcern?.photoURL));
 
     }
-
-    setPhotoPreview(null);
 
     setPhotoFile(null);
 
@@ -556,7 +638,7 @@ export default function ObservationsPage() {
 
     try {
 
-      const helperNames = values.helperIds.map((id, index) => {
+      const helperNames = values.helperIds.map((id) => {
 
         const helper = membersById.get(id);
 
@@ -572,39 +654,83 @@ export default function ObservationsPage() {
 
 
 
-      const newConcern = await createHealthConcern({
+      if (editingHealthConcern) {
 
-        firstName: values.firstName.trim(),
+        const updatedConcern = await updateHealthConcern({
 
-        lastName: values.lastName.trim(),
+          concern: editingHealthConcern,
 
-        address: values.address.trim(),
+          firstName: values.firstName.trim(),
 
-        observation: values.observation.trim(),
+          lastName: values.lastName.trim(),
 
-        helperIds: values.helperIds,
+          address: values.address.trim(),
 
-        helperNames,
+          observation: values.observation.trim(),
 
-        createdBy: user.uid,
+          helperIds: values.helperIds,
 
-        photoFile,
+          helperNames,
 
-      });
+          performedBy: user.uid,
+
+          photoFile,
+
+          removePhoto: removeExistingPhoto && !photoFile,
+
+        });
 
 
 
-      setHealthConcerns((prev) => [newConcern, ...prev]);
+        setHealthConcerns((prev) => prev.map((item) => (item.id === updatedConcern.id ? updatedConcern : item)));
 
 
 
-      toast({
+        toast({
 
-        title: 'Registro creado',
+          title: 'Registro actualizado',
 
-        description: 'Se agregó el registro de salud correctamente.',
+          description: 'La información de salud se actualizó correctamente.',
 
-      });
+        });
+
+      } else {
+
+        const newConcern = await createHealthConcern({
+
+          firstName: values.firstName.trim(),
+
+          lastName: values.lastName.trim(),
+
+          address: values.address.trim(),
+
+          observation: values.observation.trim(),
+
+          helperIds: values.helperIds,
+
+          helperNames,
+
+          createdBy: user.uid,
+
+          photoFile,
+
+        });
+
+
+
+        setHealthConcerns((prev) => [newConcern, ...prev]);
+
+
+
+        toast({
+
+          title: 'Registro creado',
+
+          description: 'Se agregó el registro de salud correctamente.',
+
+        });
+
+      }
 
 
 
@@ -614,7 +740,7 @@ export default function ObservationsPage() {
 
     } catch (error) {
 
-      console.error('Error creating health concern:', error);
+      console.error('Error saving health concern:', error);
 
       toast({
 
@@ -657,6 +783,14 @@ export default function ObservationsPage() {
       await deleteHealthConcern(concern.id, concern.photoPath);
 
       setHealthConcerns((prev) => prev.filter((item) => item.id !== concern.id));
+
+      if (editingHealthConcern?.id === concern.id) {
+
+        resetHealthForm();
+
+        setHealthDialogOpen(false);
+
+      }
 
       toast({
 
@@ -1102,7 +1236,7 @@ export default function ObservationsPage() {
             <p className="max-w-3xl text-sm text-muted-foreground">
               Agrega manualmente a los hermanos o amigos que requieren visitas, ayuda específica o seguimiento por motivos de salud.
             </p>
-            <Button onClick={handleOpenHealthDialog} disabled={savingHealthConcern} size="sm">
+            <Button onClick={() => handleOpenHealthDialog()} disabled={savingHealthConcern} size="sm">
               <Plus className="mr-2 h-4 w-4" />
               Agregar persona
             </Button>
@@ -1185,19 +1319,30 @@ export default function ObservationsPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteHealthConcern(concern)}
-                            disabled={deletingHealthConcernId === concern.id}
-                            title="Eliminar registro"
-                          >
-                            {deletingHealthConcernId === concern.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenHealthDialog(concern)}
+                              disabled={savingHealthConcern}
+                              title="Editar registro"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteHealthConcern(concern)}
+                              disabled={deletingHealthConcernId === concern.id}
+                              title="Eliminar registro"
+                            >
+                              {deletingHealthConcernId === concern.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -1266,12 +1411,22 @@ export default function ObservationsPage() {
                           {helpers.length > 0 ? helpers : <span className="text-sm text-muted-foreground">Sin asignar</span>}
                         </div>
                       </div>
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenHealthDialog(concern)}
+                          disabled={savingHealthConcern}
+                          title="Editar registro"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleDeleteHealthConcern(concern)}
                           disabled={deletingHealthConcernId === concern.id}
+                          title="Eliminar registro"
                         >
                           {deletingHealthConcernId === concern.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -3662,9 +3817,13 @@ export default function ObservationsPage() {
       >
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Agregar persona con problemas de salud</DialogTitle>
+            <DialogTitle>
+              {isEditingHealthConcern ? 'Editar persona con necesidades de salud' : 'Agregar persona con necesidades de salud'}
+            </DialogTitle>
             <DialogDescription>
-              Completa la información para organizar las visitas y el apoyo necesario.
+              {isEditingHealthConcern
+                ? 'Actualiza la información para mantener coordinado el apoyo de salud.'
+                : 'Completa la información para organizar las visitas y el apoyo necesario.'}
             </DialogDescription>
           </DialogHeader>
           <Form {...healthForm}>
@@ -3788,7 +3947,11 @@ export default function ObservationsPage() {
                                 <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-80 p-0">
+                            <PopoverContent
+                              align="start"
+                              sideOffset={8}
+                              className="w-[min(320px,90vw)] max-h-[min(60vh,420px)] overflow-y-auto p-0"
+                            >
                               {loading ? (
                                 <div className="px-3 py-6 text-sm text-muted-foreground">Cargando miembros...</div>
                               ) : members.length === 0 ? (
@@ -3879,10 +4042,10 @@ export default function ObservationsPage() {
                   {savingHealthConcern ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Guardando...
+                      {isEditingHealthConcern ? 'Actualizando...' : 'Guardando...'}
                     </>
                   ) : (
-                    'Guardar registro'
+                    isEditingHealthConcern ? 'Actualizar registro' : 'Guardar registro'
                   )}
                 </Button>
               </DialogFooter>
