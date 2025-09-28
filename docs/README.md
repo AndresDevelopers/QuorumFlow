@@ -11,6 +11,7 @@
 8. [Pruebas](#pruebas)
 9. [Contribución](#contribución)
 10. [FAQ](#faq)
+11. [Matriz de Cumplimiento](#matriz-de-cumplimiento)
 
 ## Visión General
 Documento principal que describe el propósito, alcance y objetivos del proyecto.
@@ -41,3 +42,6 @@ Guía para contribuir al proyecto.
 
 ## FAQ
 Preguntas frecuentes y soluciones a problemas comunes.
+
+## Matriz de Cumplimiento
+Resumen del estado de las reglas personalizadas y hoja de ruta priorizada. Consultar [COMPLIANCE.md](./COMPLIANCE.md) para el detalle actualizado.

@@ -1,4 +1,14 @@
-import { addDoc, deleteDoc, doc, getDocs, orderBy, query, Timestamp } from 'firebase/firestore';
+import {
+  addDoc,
+  deleteDoc,
+  deleteField,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  Timestamp,
+  updateDoc,
+} from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 
 import { healthConcernsCollection, storage } from './collections';
@@ -18,6 +28,19 @@ export type HealthConcernInput = {
   observation: string;
   createdBy: string;
   photoFile?: File | null;
+};
+
+export type HealthConcernUpdateInput = {
+  concern: HealthConcern;
+  firstName: string;
+  lastName: string;
+  helperIds: string[];
+  helperNames: string[];
+  address: string;
+  observation: string;
+  performedBy: string;
+  photoFile?: File | null;
+  removePhoto?: boolean;
 };
 
 const sanitizeFileName = (name: string) => {
@@ -99,4 +122,66 @@ export const deleteHealthConcern = async (
       console.error('Error removing health concern photo:', error);
     }
   }
+};
+
+export const updateHealthConcern = async (
+  input: HealthConcernUpdateInput
+): Promise<HealthConcern> => {
+  const now = Timestamp.now();
+  const docRef = doc(healthConcernsCollection, input.concern.id);
+
+  let uploadResult: UploadResult | undefined;
+
+  if (input.photoFile) {
+    uploadResult = await uploadPhoto(input.photoFile, input.performedBy);
+
+    if (input.concern.photoPath) {
+      try {
+        const storageRef = ref(storage, input.concern.photoPath);
+        await deleteObject(storageRef);
+      } catch (error) {
+        console.error('Error replacing health concern photo:', error);
+      }
+    }
+  } else if (input.removePhoto && input.concern.photoPath) {
+    try {
+      const storageRef = ref(storage, input.concern.photoPath);
+      await deleteObject(storageRef);
+    } catch (error) {
+      console.error('Error removing health concern photo:', error);
+    }
+  }
+
+  const data: Record<string, unknown> = {
+    firstName: input.firstName,
+    lastName: input.lastName,
+    helperIds: input.helperIds,
+    helperNames: input.helperNames,
+    address: input.address,
+    observation: input.observation,
+    updatedAt: now,
+  };
+
+  if (uploadResult) {
+    data.photoURL = uploadResult.photoURL;
+    data.photoPath = uploadResult.photoPath;
+  } else if (input.removePhoto) {
+    data.photoURL = deleteField();
+    data.photoPath = deleteField();
+  }
+
+  await updateDoc(docRef, data);
+
+  return {
+    ...input.concern,
+    firstName: input.firstName,
+    lastName: input.lastName,
+    helperIds: input.helperIds,
+    helperNames: input.helperNames,
+    address: input.address,
+    observation: input.observation,
+    updatedAt: now,
+    photoURL: uploadResult?.photoURL ?? (input.removePhoto ? undefined : input.concern.photoURL),
+    photoPath: uploadResult?.photoPath ?? (input.removePhoto ? undefined : input.concern.photoPath),
+  };
 };
