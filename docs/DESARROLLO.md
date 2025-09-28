@@ -112,6 +112,15 @@ recognition.lang = 'es-ES';
 - Limpiar recursos al desmontar componentes
 - Exportar componentes desde `src/components/shared/index.ts` para facilitar importaciones
 
+#### Generación de Reportes con Imágenes
+Las funciones `generateCompleteReport` y `generateReport` ahora incorporan una canalización de galería que descarga imágenes con `axios` y las embebe en la plantilla DOCX mediante `docxtemplater-image-module-free`.
+
+**Checklist rápido:**
+- Plantilla `template/reporte.docx` en Cloud Storage sincronizada con el modelo de referencia.
+- Actividades con campo `imageUrls` apuntando a URLs accesibles.
+- Dependencias instaladas en `functions/` (`npm install`).
+- Consultar [REPORTES.md](./REPORTES.md) para instrucciones detalladas de configuración y despliegue.
+
 ## Flujo de Trabajo
 
 ### 1. Crear una rama

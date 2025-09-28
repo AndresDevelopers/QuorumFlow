@@ -12,6 +12,7 @@
 9. [Contribución](#contribución)
 10. [FAQ](#faq)
 11. [Matriz de Cumplimiento](#matriz-de-cumplimiento)
+12. [Reportes Anuales](#reportes-anuales)
 
 ## Visión General
 Documento principal que describe el propósito, alcance y objetivos del proyecto.
@@ -45,3 +46,6 @@ Preguntas frecuentes y soluciones a problemas comunes.
 
 ## Matriz de Cumplimiento
 Resumen del estado de las reglas personalizadas y hoja de ruta priorizada. Consultar [COMPLIANCE.md](./COMPLIANCE.md) para el detalle actualizado.
+
+## Reportes Anuales
+Configuración completa de la generación de reportes en Cloud Functions y la plantilla DOCX disponible en [REPORTES.md](./REPORTES.md).
