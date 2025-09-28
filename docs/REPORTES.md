@@ -18,7 +18,7 @@ La generación de reportes anuales utiliza dos Cloud Functions (`generateComplet
    cd functions
    npm install
    ```
-   Las funciones incorporan `docxtemplater-image-module-free` y `axios` para descargar y embeber imágenes.
+   Las funciones incorporan el módulo interno `ModernImageModule` (Docxtemplater + `@xmldom/xmldom`) junto con `axios` para descargar y embeber imágenes.
 
 2. **Configurar la plantilla**
    - Descarga la referencia de diseño compartida y ajusta tu plantilla Word siguiendo esa estructura.

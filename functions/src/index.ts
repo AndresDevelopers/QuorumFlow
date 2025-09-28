@@ -6,7 +6,7 @@ import { es } from "date-fns/locale";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import * as webpush from "web-push";
-import ImageModule from "docxtemplater-image-module-free";
+import ModernImageModule from "./modules/modern-image-module";
 import axios from "axios";
 
 admin.initializeApp();
@@ -113,15 +113,15 @@ interface ActivityGalleryEntry {
 const MAX_DOC_IMAGE_WIDTH = 450;
 const MAX_DOC_IMAGE_HEIGHT = 300;
 
-type ImageModuleInstance = InstanceType<typeof ImageModule>;
+type ImageModuleInstance = ModernImageModule;
 
 const createImageModuleFromUrls = async (urls: string[]): Promise<ImageModuleInstance> => {
     const buffers = await fetchImageBuffers(urls);
 
-    return new ImageModule({
+    return new ModernImageModule({
         centered: true,
-        getImage: (tagValue: string) => {
-            if (!tagValue) {
+        getImage: (tagValue: unknown) => {
+            if (typeof tagValue !== "string" || !tagValue) {
                 return Buffer.alloc(0);
             }
             return buffers.get(tagValue) ?? Buffer.alloc(0);

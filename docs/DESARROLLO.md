@@ -113,7 +113,7 @@ recognition.lang = 'es-ES';
 - Exportar componentes desde `src/components/shared/index.ts` para facilitar importaciones
 
 #### Generación de Reportes con Imágenes
-Las funciones `generateCompleteReport` y `generateReport` ahora incorporan una canalización de galería que descarga imágenes con `axios` y las embebe en la plantilla DOCX mediante `docxtemplater-image-module-free`.
+Las funciones `generateCompleteReport` y `generateReport` ahora incorporan una canalización de galería que descarga imágenes con `axios` y las embebe en la plantilla DOCX usando nuestro módulo `ModernImageModule` basado en Docxtemplater y `@xmldom/xmldom`.
 
 **Checklist rápido:**
 - Plantilla `template/reporte.docx` en Cloud Storage sincronizada con el modelo de referencia.
