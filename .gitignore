@@ -24,6 +24,7 @@ build/
 .vscode/
 .idea/
 .cursor/
+.claude/
 
 # AI Assistant
 .kiro/

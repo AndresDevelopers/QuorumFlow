@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Companionship, Member } from '@/lib/types';
+import { validateCompanionshipData } from '@/lib/ministering-validations';
 
 const companionshipSchema = z.object({
    companions: z.array(z.object({ value: z.string().min(1, 'El nombre es requerido.') })).min(2, { message: 'Se requieren al menos dos compañeros.' }),
@@ -183,9 +184,27 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
     try {
-        // Synchronize ministering assignments
+        // Validar que no haya duplicados ni conflictos
         const companionNames = values.companions.map(c => c.value);
         const newFamilyNames = values.families.map(f => f.value);
+
+        const validationResult = await validateCompanionshipData(
+          companionNames,
+          newFamilyNames,
+          isEditMode ? companionship.id : undefined
+        );
+
+        if (!validationResult.valid) {
+          toast({
+            title: 'Error de Validación',
+            description: validationResult.error || 'Hay conflictos en la asignación',
+            variant: 'destructive',
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Synchronize ministering assignments
 
         if (isEditMode) {
             const currentFamilyNames = companionship.families.map(f => f.name);

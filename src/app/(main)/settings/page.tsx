@@ -54,6 +54,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import RoleManagement from '@/components/role-management';
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: "El nombre es requerido." }),
@@ -523,6 +524,8 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        <RoleManagement />
 
         <Card className="border-destructive">
             <CardHeader>

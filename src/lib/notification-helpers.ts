@@ -1,5 +1,5 @@
-import { addDoc, Timestamp } from "firebase/firestore";
-import { notificationsCollection } from "./collections";
+import { addDoc, Timestamp, getDocs } from "firebase/firestore";
+import { notificationsCollection, usersCollection } from "./collections";
 import type { AppNotification } from "./types";
 
 /**
@@ -156,8 +156,44 @@ export const NotificationCreators = {
       body,
       actionUrl: url,
       actionType: 'external'
+    }),
+
+  /**
+   * Create notification for urgent family need
+   */
+  urgentFamilyNeed: (userId: string, familyName: string, observation: string) =>
+    createNotification({
+      userId,
+      title: "Necesidad Urgente de Familia",
+      body: `La familia ${familyName} tiene una necesidad urgente: ${observation}`,
+      contextType: 'member'
+    }),
+
+  /**
+   * Create notification for missionary assignment
+   */
+  missionaryAssignment: (userId: string, assignmentDescription: string, assignmentId: string) =>
+    createNotification({
+      userId,
+      title: "Nueva Asignación Misional",
+      body: assignmentDescription,
+      contextId: assignmentId
     })
 };
+
+/**
+ * Get all user IDs from the system
+ * @returns Promise<string[]> - Array of all user IDs
+ */
+export async function getAllUserIds(): Promise<string[]> {
+  try {
+    const usersSnapshot = await getDocs(usersCollection);
+    return usersSnapshot.docs.map(doc => doc.id);
+  } catch (error) {
+    console.error('Error fetching all user IDs:', error);
+    return [];
+  }
+}
 
 /**
  * Bulk create notifications for multiple users
@@ -172,6 +208,18 @@ export async function createBulkNotifications(
   const promises = userIds.map(userId =>
     createNotification({ ...notificationParams, userId })
   );
-  
+
   return Promise.all(promises);
+}
+
+/**
+ * Create notifications for all users in the system
+ * @param notificationParams - Notification parameters (excluding userId)
+ * @returns Promise<string[]> - Array of created notification IDs
+ */
+export async function createNotificationsForAll(
+  notificationParams: Omit<CreateNotificationParams, 'userId'>
+): Promise<string[]> {
+  const userIds = await getAllUserIds();
+  return createBulkNotifications(userIds, notificationParams);
 }
