@@ -3,6 +3,14 @@
 ## Autenticación
 Todas las solicitudes requieren autenticación mediante JWT.
 
+Los tokens incluyen el atributo `role` con uno de los valores admitidos por la presidencia del quórum:
+
+- `secretary`
+- `president`
+- `counselor`
+
+Las cuentas recién registradas permanecen con `role: "user"` y no pueden acceder a los endpoints protegidos hasta que el secretario les asigne un rol de liderazgo.
+
 ```http
 Authorization: Bearer [JWT_TOKEN]
 ```
@@ -30,7 +38,7 @@ POST /api/auth/login
     "uid": "abc123",
     "email": "usuario@ejemplo.com",
     "displayName": "Nombre Usuario",
-    "role": "member"
+    "role": "secretary"
   },
   "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6I..."
 }
@@ -53,7 +61,7 @@ GET /api/users/me
   "birthDate": "1990-01-01",
   "address": "Calle Falsa 123",
   "groups": ["grupo1", "grupo2"],
-  "role": "member",
+  "role": "counselor",
   "createdAt": "2023-01-01T00:00:00.000Z"
 }
 ```

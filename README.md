@@ -1,19 +1,25 @@
-# 🕊️ QuorumFlow - Sistema de Gestión para Élderes
+# 🕊️ QuorumFlow - Sistema de Gestión para la Presidencia del Quórum
 
-Una aplicación web moderna diseñada específicamente para la gestión eficiente del Quórum de los Élderes en la Iglesia de Jesucristo de los Santos de los Últimos Días. Este sistema digitaliza y optimiza las responsabilidades administrativas y pastorales de los élderes, facilitando el trabajo del secretario del quórum y mejorando la atención a los miembros.
+Una aplicación web moderna diseñada específicamente para la presidencia del Quórum de Élderes (presidente, consejeros y secretario) en la Iglesia de Jesucristo de los Santos de los Últimos Días. El sistema digitaliza y optimiza las responsabilidades administrativas y pastorales que recaen sobre la presidencia, facilitando la coordinación interna y el apoyo directo a los hogares ministrados.
 
 ## 📱 ¿Qué es exactamente?
 
 **QuorumFlow** es una plataforma integral que centraliza:
-- **Gestión de miembros**: Información completa de cada élder (datos personales, ministerios asignados, historial de llamamientos)
-- **Seguimiento**: Registro de visitas ministeriales, casas visitadas, y necesidades espirituales identificadas
-- **Asignación de responsabilidades**: Distribución y seguimiento de llamamientos dentro del quórum
-- **Reportes y estadísticas**: Análisis de la actividad ministerial y participación sacramental
-- **Comunicación**: Sistema de notificaciones para reuniones, actividades y recordatorios ministeriales
+- **Gestión de miembros**: Información completa de cada élder con visión consolidada para la presidencia
+- **Seguimiento**: Registro de visitas ministeriales, hogares atendidos y necesidades espirituales priorizadas por la presidencia
+- **Asignación de responsabilidades**: Distribución y seguimiento de llamamientos y ministraciones entre secretario, presidente y consejeros
+- **Reportes y estadísticas**: Análisis de la actividad ministerial y participación sacramental para la toma de decisiones de la presidencia
+- **Comunicación**: Sistema de notificaciones interno para reuniones de presidencia, consejos y recordatorios ministeriales
+
+### Roles admitidos en la app
+- **Secretario del Quórum (`secretary`)**: Responsable de la administración total, la gestión de permisos y la consolidación de reportes.
+- **Presidente del Quórum (`president`)**: Acceso estratégico para revisar indicadores, asignar prioridades y coordinar las decisiones del consejo.
+- **Consejeros del Quórum (`counselor`)**: Herramientas operativas para dar seguimiento a las familias y acciones delegadas.
+- **Usuario en espera (`user`)**: Estado temporal sin acceso a datos hasta que la presidencia asigne un rol de liderazgo.
 
 ## 🚀 Características Principales
 
-### Para el Secretario del Quórum
+### Funciones clave para el Secretario del Quórum
 - **Dashboard personalizado** con vista rápida de pendientes y actividades
 - **Registro digital de asistencia** a reuniones del quórum y actividades
 - **Generación automática de reportes** mensuales para el presidente del quórum
@@ -24,20 +30,20 @@ Una aplicación web moderna diseñada específicamente para la gestión eficient
   - Alternancia entre voz y texto manual
   - Compatibilidad con navegadores modernos
 
-### Para los Élderes
-- **Perfil personal actualizable** con información de contacto y disponibilidad
-- **Calendario integrado** de actividades ministeriales y reuniones
-- **Sistema de notificaciones** para nuevas asignaciones o cambios
-  - Alertas inmediatas al programar nuevas actividades del quórum
+### Funciones clave para los Consejeros del Quórum
+- **Panel del consejero** con fichas de las familias y asignaciones ministeriales delegadas
+- **Calendario compartido** de reuniones de presidencia y visitas programadas
+- **Sistema de notificaciones** específico para tareas asignadas por el presidente o el secretario
+  - Alertas inmediatas al programar nuevas actividades bajo su responsabilidad
   - Avisos cuando una familia se marca como urgente en ministración
-  - Recordatorios de nuevas asignaciones en la obra misional
-- **Historial de servicio** y ministerios desempeñados
+  - Recordatorios de tareas relacionadas con la obra misional
+- **Registro histórico de seguimiento** para documentar el acompañamiento a cada hogar
 
-### Para el Presidencia del Quórum
+### Funciones clave para el Presidente del Quórum
 - **Análisis visual** de la salud espiritual del quórum
-- **Identificación de élderes inactivos** o que necesitan apoyo
-- **Planificación estratégica** de ministerios y asignaciones
-- **Comunicación masiva** segmentada por grupos o ministerios
+- **Identificación de élderes inactivos** o que necesitan apoyo prioritario
+- **Planificación estratégica** de ministerios y asignaciones junto al secretario
+- **Comunicación masiva** segmentada por grupos o ministerios para dirigir iniciativas
 
 ## 🛠️ Tecnología y Arquitectura
 
@@ -170,7 +176,7 @@ src/
 ### Privacidad de Datos
 - **Cumplimiento con GDPR** y leyes de privacidad
 - **Datos encriptados** en tránsito y en reposo
-- **Acceso basado en roles** (Secretario, Presidente y Consejeros del cuórum, miembros)
+- **Acceso basado en roles** (Secretario, Presidente y Consejeros del quórum; las cuentas sin asignación permanecen bloqueadas)
 - **Logs de auditoría** para acciones críticas
 - **Eliminación segura** de datos personales
 
@@ -224,6 +230,6 @@ Este proyecto está bajo la Licencia MIT - ver archivo [LICENSE](LICENSE) para d
 ---
 
 <div align="center">
-  <p>Desarrollado con ❤️ para fortalecer el trabajo del Secretario del quórum</p>
+  <p>Desarrollado con ❤️ para fortalecer el trabajo de la Presidencia del quórum</p>
   <p><em>"El servicio es la esencia del sacerdocio"</em></p>
 </div>

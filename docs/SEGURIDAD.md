@@ -8,10 +8,10 @@
 - Autenticación anónima para características limitadas
 
 ### Niveles de Acceso
-1. **Invitado**: Acceso de solo lectura a contenido público
-2. **Miembro**: Acceso a funcionalidades básicas
-3. **Presidencia del quórum (presidente y consejeros)**: Acceso completo a la aplicación, incluida la página de Ajustes para gestionar su perfil y preferencias. No pueden ver ni modificar la sección de Gestión de Roles de Usuarios.
-4. **Secretario**: Control total del sistema. Es el único rol con permisos para abrir la sección de Gestión de Roles de Usuarios y asignar o revocar privilegios.
+1. **Usuario en espera (`user`)**: Cuenta autenticada sin privilegios operativos. Solo puede ver la página de acceso restringido hasta que la presidencia asigne un rol ministerial.
+2. **Consejero del quórum (`counselor`)**: Acceso operativo para gestionar ministraciones, registrar seguimiento y consultar reportes de su área. No puede modificar permisos ni configuraciones globales.
+3. **Presidente del quórum (`president`)**: Acceso completo a los indicadores y reportes estratégicos. Puede coordinar tareas con el secretario y los consejeros, pero no administra roles de usuario.
+4. **Secretario del quórum (`secretary`)**: Control total del sistema. Es el único rol con permisos para abrir la sección de Gestión de Roles de Usuarios, asignar o revocar privilegios y modificar configuraciones críticas.
 
 ## Protección de Datos
 
