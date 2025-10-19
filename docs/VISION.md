@@ -1,27 +1,24 @@
 # Visión del Proyecto
 
 ## Propósito
-Sistema de gestión integral para la administración de una iglesia, enfocado en la gestión de miembros, eventos, donaciones y recursos espirituales.
+Sistema de gestión integral diseñado para la presidencia del Quórum de Élderes, orientado a coordinar las responsabilidades del secretario, el presidente y sus consejeros.
 
 ## Objetivos Principales
-- Gestionar eficientemente la información de los miembros de la congregación
-- Facilitar la planificación y seguimiento de eventos y actividades
-- Entregar notificaciones en tiempo real sobre actividades nuevas, familias con urgencias y asignaciones misionales
-- Administrar donaciones y recursos económicos de manera transparente
-- Proporcionar herramientas para el seguimiento espiritual de los miembros
-- Ofrecer una plataforma accesible y fácil de usar para líderes y miembros
+- Gestionar eficientemente la información de los miembros a nivel de presidencia
+- Facilitar la planificación y seguimiento de ministraciones, consejos y actividades del quórum
+- Entregar notificaciones en tiempo real a la presidencia sobre asignaciones, urgencias y acciones pendientes
+- Consolidar reportes estratégicos para la toma de decisiones del presidente y sus consejeros
+- Proporcionar herramientas colaborativas para el seguimiento espiritual que lidera la presidencia
+- Ofrecer una plataforma accesible y fácil de usar para el secretario, el presidente y los consejeros
 
 ## Alcance
-- Gestión de perfiles de miembros
-- Calendario de eventos
-- Sistema de donaciones en línea
-- Seguimiento de grupos pequeños
-- Biblioteca de recursos espirituales
-- Reportes y análisis
+- Gestión de perfiles de miembros con indicadores relevantes para la presidencia
+- Calendario operativo de reuniones de presidencia, consejos y ministraciones
+- Seguimiento de familias asignadas y tareas delegadas entre secretario y consejeros
+- Biblioteca de recursos espirituales y administrativos para la presidencia
+- Reportes y análisis orientados a la revisión de indicadores del quórum
 
 ## Stakeholders
-- Pastores y líderes de la iglesia
-- Miembros de la congregación
-- Equipos de voluntarios
-- Secretarios designados (responsables de la administración del sistema)
-- Presidencia del quórum (presidente y consejeros con acceso operativo)
+- Secretario del quórum (responsable de la administración del sistema)
+- Presidente del quórum (responsable de la dirección espiritual y coordinación general)
+- Consejeros del quórum (apoyo operativo y seguimiento de asignaciones)
