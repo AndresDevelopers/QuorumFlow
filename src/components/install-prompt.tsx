@@ -58,28 +58,30 @@ export function InstallPrompt() {
   if (!isVisible || isDismissed) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 max-w-sm w-full sm:w-96">
-      <div className="flex justify-between items-start mb-3">
-        <h3 className="font-medium">Instalar QuorumFlow</h3>
-        <button 
-          onClick={handleDismiss}
-          className="text-muted-foreground hover:text-foreground"
-          aria-label="Cerrar"
-        >
-          <X size={18} />
-        </button>
-      </div>
-      <p className="text-sm text-muted-foreground mb-4">
-        Instala QuorumFlow en tu dispositivo para un acceso más rápido y funcionalidad offline completa.
-      </p>
-      <div className="flex gap-2">
-        <Button 
-          onClick={handleInstallClick}
-          size="sm"
-          className="w-full"
-        >
-          Instalar
-        </Button>
+    <div className="pointer-events-none fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+1rem)] z-50 w-full max-w-[min(100%,24rem)] sm:inset-x-auto sm:right-4 sm:w-96">
+      <div className="pointer-events-auto rounded-xl border bg-card/95 p-4 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-card/75">
+        <div className="mb-3 flex items-start justify-between">
+          <h3 className="font-medium">Instalar QuorumFlow</h3>
+          <button
+            onClick={handleDismiss}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Cerrar"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Instala QuorumFlow en tu dispositivo para un acceso más rápido y funcionalidad offline completa.
+        </p>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleInstallClick}
+            size="sm"
+            className="h-11 w-full"
+          >
+            Instalar
+          </Button>
+        </div>
       </div>
     </div>
   );
