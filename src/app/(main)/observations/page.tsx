@@ -1032,15 +1032,15 @@ export default function ObservationsPage() {
 
   return (
 
-    <div className="space-y-6">
+    <section className="page-section">
 
       {/* Header */}
 
-      <div>
+      <div className="flex flex-col gap-2">
 
-        <h1 className="text-3xl font-bold tracking-tight">Observaciones</h1>
+        <h1 className="text-balance text-fluid-title font-semibold tracking-tight">Observaciones</h1>
 
-        <p className="text-muted-foreground">
+        <p className="text-balance text-fluid-subtitle text-muted-foreground">
 
           Seguimiento de miembros que requieren atención especial.
 
@@ -1052,7 +1052,7 @@ export default function ObservationsPage() {
 
       {/* Stats Cards */}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
 
         <Card className="cursor-pointer" onClick={() => withoutEndowmentRef.current?.scrollIntoView({ behavior: 'smooth' })}>
 
@@ -4074,7 +4074,7 @@ export default function ObservationsPage() {
 
       )}
 
-    </div>
+    </section>
 
   );
 

@@ -209,6 +209,7 @@ export function PushNotificationManager() {
                 <li>Servicios próximos</li>
                 <li>Necesidades urgentes de ministración</li>
                 <li>Actividades del quórum</li>
+                <li>Asignaciones de la obra misional</li>
               </ul>
             </AlertDialogDescription>
           </AlertDialogHeader>

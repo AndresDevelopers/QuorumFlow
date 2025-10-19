@@ -90,7 +90,7 @@
 
   "noPermission.title": "Acceso restringido",
   "noPermission.description": "Tu cuenta está activa pero aún no tiene permisos para usar la aplicación.",
-  "noPermission.support": "Comunícate con un administrador o con la presidencia de cuórum para solicitar acceso.",
+  "noPermission.support": "Comunícate con el secretario designado, el presidente o los consejeros del cuórum para solicitar acceso.",
   "noPermission.logout": "Cerrar sesión",
   "noPermission.logoutLoading": "Cerrando sesión...",
 
@@ -328,6 +328,8 @@
   "birthdayEdit.loadError": "Error al cargar los datos.",
   "birthdayEdit.loading": "Cargando",
 
+  "birthdays.pageTitle": "Cumpleaños",
+  "birthdays.pageDescription": "Monitorea los cumpleaños próximos y mantén la lista del cuórum al día.",
   "birthdays.editMember": "Editar Miembro",
 
   "memberProfile.title": "Perfil del Miembro",

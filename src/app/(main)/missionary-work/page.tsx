@@ -1250,12 +1250,12 @@ export default function MissionaryWorkPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
+    <section className="page-section">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <HandHeart className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold">Obra Misional</h1>
-          <p className="text-muted-foreground">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-balance text-fluid-title font-semibold">Obra Misional</h1>
+          <p className="text-balance text-fluid-subtitle text-muted-foreground">
             Coordina y da seguimiento a los esfuerzos misionales del quórum.
           </p>
         </div>
@@ -1337,6 +1337,6 @@ export default function MissionaryWorkPage() {
           </Accordion>
         </CardContent>
       </Card>
-    </div>
+    </section>
   );
 }

@@ -10,8 +10,8 @@
 ### Niveles de Acceso
 1. **Invitado**: Acceso de solo lectura a contenido público
 2. **Miembro**: Acceso a funcionalidades básicas
-3. **Líder**: Gestión de grupos y eventos
-4. **Administrador**: Acceso completo al sistema
+3. **Presidencia del quórum (presidente y consejeros)**: Acceso completo a la aplicación, incluida la página de Ajustes para gestionar su perfil y preferencias. No pueden ver ni modificar la sección de Gestión de Roles de Usuarios.
+4. **Secretario**: Control total del sistema. Es el único rol con permisos para abrir la sección de Gestión de Roles de Usuarios y asignar o revocar privilegios.
 
 ## Protección de Datos
 
@@ -38,13 +38,18 @@ service cloud.firestore {
     }
     
     match /eventos/{eventId} {
-      allow read: if request.auth != null;
-      allow create, update, delete: if isAdmin();
+      allow read: if hasLeadershipAccess();
+      allow create, update, delete: if isSecretary();
     }
-    
+
     // Funciones auxiliares
-    function isAdmin() {
-      return request.auth.token.admin == true;
+    function hasLeadershipAccess() {
+      return request.auth != null &&
+        (request.auth.token.role in ['secretary', 'president', 'counselor']);
+    }
+
+    function isSecretary() {
+      return request.auth.token.role == 'secretary';
     }
   }
 }
@@ -57,7 +62,7 @@ service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
       allow read: if request.auth != null;
-      allow write: if isAdmin();
+      allow write: if isSecretary();
     }
   }
 }
@@ -70,6 +75,7 @@ service firebase.storage {
 - No exponer claves en el código
 - Uso de variables de entorno para datos sensibles
 - Validación de entrada en frontend y backend
+- Las notificaciones push se generan desde Cloud Functions verificadas; los tokens se almacenan por usuario y se eliminan cuando se invalidan
 
 ### Funcionalidades de Voz
 - **Permisos del navegador**: Solicitud explícita de acceso al micrófono

@@ -182,7 +182,13 @@ export default function BirthdaysPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <section className="page-section">
+      <header className="flex flex-col gap-2">
+        <h1 className="text-balance text-fluid-title font-semibold">{t('birthdays.pageTitle')}</h1>
+        <p className="text-balance text-fluid-subtitle text-muted-foreground">
+          {t('birthdays.pageDescription')}
+        </p>
+      </header>
       <Card>
         <CardHeader>
           <CardTitle>{t('birthdays.upcomingTitle')}</CardTitle>
@@ -318,6 +324,6 @@ export default function BirthdaysPage() {
         </CardContent>
       </Card>
 
-    </div>
+    </section>
   );
 }

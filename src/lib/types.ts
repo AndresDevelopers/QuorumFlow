@@ -187,7 +187,17 @@ export type AppNotification = {
     actionUrl?: string;
     actionType?: 'navigate' | 'external';
     // Context data to determine navigation route
-    contextType?: 'convert' | 'activity' | 'service' | 'member' | 'council' | 'baptism' | 'birthday' | 'investigator';
+    contextType?:
+        | 'convert'
+        | 'activity'
+        | 'service'
+        | 'member'
+        | 'council'
+        | 'baptism'
+        | 'birthday'
+        | 'investigator'
+        | 'urgent_family'
+        | 'missionary_assignment';
     contextId?: string;
 }
 

@@ -32,7 +32,7 @@ export default function NoPermissionPage() {
           <AlertTriangle className="h-10 w-10" aria-hidden="true" />
         </div>
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold">{t("noPermission.title")}</h1>
+          <h1 className="text-balance text-fluid-title font-semibold">{t("noPermission.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("noPermission.description")}</p>
           <p className="text-sm text-muted-foreground">{t("noPermission.support")}</p>
         </div>

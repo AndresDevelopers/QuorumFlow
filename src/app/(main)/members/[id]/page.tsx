@@ -154,22 +154,24 @@ export default function MemberProfilePage() {
   const statusInfo = statusConfig[member.status];
 
   return (
-    <div className="space-y-6">
+    <section className="page-section">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={handleBackToMembers}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            {t('memberProfile.backToMembers')}
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{t('memberProfile.title')}</h1>
-            <p className="text-muted-foreground">
-              {member.firstName} {member.lastName}
-            </p>
-          </div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleBackToMembers}
+          className="w-full sm:w-auto sm:self-start"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          {t('memberProfile.backToMembers')}
+        </Button>
+        <div className="flex flex-col gap-1 text-left">
+          <h1 className="text-balance text-fluid-title font-semibold tracking-tight">{t('memberProfile.title')}</h1>
+          <p className="text-sm text-muted-foreground sm:text-base">
+            {member.firstName} {member.lastName}
+          </p>
         </div>
-
       </div>
 
       {/* Profile Photo and Basic Info */}
@@ -192,7 +194,7 @@ export default function MemberProfilePage() {
 
             <div className="flex-1 space-y-2">
               <div>
-                <h2 className="text-2xl font-bold">{member.firstName} {member.lastName}</h2>
+                <h2 className="text-xl font-semibold sm:text-2xl">{member.firstName} {member.lastName}</h2>
                 <Badge variant={statusInfo.variant} className="mt-2">
                   {statusInfo.label}
                 </Badge>
@@ -219,7 +221,7 @@ export default function MemberProfilePage() {
       </Card>
 
       {/* Detailed Information */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 md:gap-6">
         {/* Personal Information */}
         <Card>
           <CardHeader>
@@ -377,6 +379,6 @@ export default function MemberProfilePage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </section>
   );
 }

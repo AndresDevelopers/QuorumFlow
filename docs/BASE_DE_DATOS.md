@@ -15,9 +15,9 @@ interface User {
   gender?: 'male' | 'female' | 'other' | 'prefer-not-to-say';
   maritalStatus?: 'single' | 'married' | 'divorced' | 'widowed';
   baptismDate?: Date;            // Fecha de bautismo
-  membershipStatus: 'visitor' | 'member' | 'leader' | 'admin';
+  membershipStatus: 'visitor' | 'member' | 'counselor' | 'president' | 'secretary';
   groups: string[];              // IDs de grupos a los que pertenece
-  roles: string[];               // Roles en la iglesia
+  roles: ('user' | 'counselor' | 'president' | 'secretary')[]; // Roles ministeriales (presidente y consejeros pueden ver Ajustes; solo 'secretary' administra roles)
   lastLogin?: Date;              // Último inicio de sesión
   createdAt: Date;               // Fecha de creación
   updatedAt: Date;               // Última actualización
@@ -118,6 +118,39 @@ interface Annotation {
 - Auto-inicio del reconocimiento de voz al abrir diálogos
 - Transcripción en tiempo real con fallback a texto manual
 - Gestión de estados de grabación y errores de la API de voz
+
+### Notificaciones (`c_notifications`)
+```typescript
+interface AppNotification {
+  id: string;                        // ID del documento
+  userId: string;                    // Usuario destinatario
+  title: string;                     // Título visible en app y push
+  body: string;                      // Mensaje descriptivo
+  createdAt: Timestamp;              // Fecha de creación (serverTimestamp)
+  isRead: boolean;                   // Estado de lectura en la campana
+  actionUrl?: string;                // Ruta directa en la aplicación
+  actionType?: 'navigate' | 'external';
+  contextType?:
+    | 'convert'
+    | 'activity'
+    | 'service'
+    | 'member'
+    | 'council'
+    | 'baptism'
+    | 'birthday'
+    | 'investigator'
+    | 'urgent_family'
+    | 'missionary_assignment';       // Contexto semántico para navegación
+  contextId?: string;                // Identificador del recurso asociado
+}
+```
+
+**Eventos que generan notificaciones automáticas:**
+- Creación de una nueva actividad (`c_actividades`).
+- Marcado de una familia como urgente dentro de ministración (`c_ministracion`).
+- Creación de una nueva asignación misional (`c_obra_misional_asignaciones`).
+
+Cada evento dispara una Cloud Function que almacena la notificación para todos los usuarios y envía push a los dispositivos con suscripción activa.
 
 ## Subcolecciones
 

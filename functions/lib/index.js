@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.notifications = exports.generateReport = exports.generateCompleteReport = exports.cleanupProfilePictures = void 0;
+exports.notifications = exports.onMissionaryAssignmentCreated = exports.onUrgentFamilyFlagged = exports.onActivityCreated = exports.generateReport = exports.generateCompleteReport = exports.cleanupProfilePictures = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const date_fns_1 = require("date-fns");
@@ -46,14 +46,22 @@ const docxtemplater_1 = __importDefault(require("docxtemplater"));
 const webpush = __importStar(require("web-push"));
 const modern_image_module_1 = __importDefault(require("./modules/modern-image-module"));
 const axios_1 = __importDefault(require("axios"));
+const notification_dispatcher_1 = require("./modules/notification-dispatcher");
 admin.initializeApp();
 const firestore = admin.firestore();
 const storage = admin.storage();
+const notificationDispatcher = new notification_dispatcher_1.NotificationDispatcher(firestore, webpush, functions.logger);
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     webpush.setVapidDetails(process.env.VAPID_SUBJECT_EMAIL || "mailto:example@yourdomain.org", process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
 }
 const MAX_DOC_IMAGE_WIDTH = 450;
 const MAX_DOC_IMAGE_HEIGHT = 300;
+const slugify = (value) => value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 const createImageModuleFromUrls = async (urls) => {
     const buffers = await fetchImageBuffers(urls);
     return new modern_image_module_1.default({
@@ -490,6 +498,150 @@ exports.generateReport = functions.https.onCall(async (data, context) => {
             throw new functions.https.HttpsError("internal", error.message, error);
         }
         throw new functions.https.HttpsError("internal", "An unknown error occurred.");
+    }
+});
+exports.onActivityCreated = functions.firestore
+    .document("c_actividades/{activityId}")
+    .onCreate(async (snapshot, context) => {
+    try {
+        const activity = snapshot.data();
+        const activityId = context.params.activityId;
+        const activityTitle = activity?.title?.trim() || "Nueva actividad";
+        const activityDate = activity?.date && typeof activity.date.toDate === "function"
+            ? activity.date.toDate()
+            : null;
+        const formattedDate = activityDate
+            ? (0, date_fns_1.format)(activityDate, "EEEE d 'de' MMMM yyyy", { locale: locale_1.es })
+            : null;
+        const timeSegment = activity?.time ? ` a las ${activity.time}` : "";
+        const details = [];
+        if (formattedDate) {
+            details.push(`para el ${formattedDate}${timeSegment}`);
+        }
+        if (activity?.location) {
+            details.push(`en ${activity.location}`);
+        }
+        const detailText = details.length > 0 ? ` ${details.join(" ")}` : "";
+        const body = `Se programó la actividad "${activityTitle}"${detailText}.`;
+        await notificationDispatcher.broadcast({
+            title: "Nueva Actividad Programada",
+            body,
+            url: "/reports",
+            tag: `activity-${activityId}`,
+            actions: [
+                {
+                    action: "open",
+                    title: "Ver actividades",
+                    url: "/reports",
+                },
+            ],
+            context: {
+                contextType: "activity",
+                contextId: activityId,
+                actionUrl: "/reports",
+                actionType: "navigate",
+            },
+        });
+    }
+    catch (error) {
+        functions.logger.error("Failed to broadcast activity notification", {
+            error,
+            activityId: context.params.activityId,
+        });
+    }
+});
+exports.onUrgentFamilyFlagged = functions.firestore
+    .document("c_ministracion/{companionshipId}")
+    .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    if (!after?.families || after.families.length === 0) {
+        return;
+    }
+    const previousStatus = new Map((before?.families ?? []).map((family) => [family.name, family.isUrgent]));
+    const newlyUrgent = after.families.filter((family) => {
+        if (!family.isUrgent) {
+            return false;
+        }
+        const wasUrgent = previousStatus.get(family.name);
+        return wasUrgent !== true;
+    });
+    if (newlyUrgent.length === 0) {
+        return;
+    }
+    await Promise.all(newlyUrgent.map(async (family) => {
+        const familyName = family.name || "Familia";
+        const familySlug = slugify(familyName) || "familia";
+        try {
+            const normalizedObservation = family.observation?.trim();
+            const body = normalizedObservation
+                ? `La familia ${familyName} requiere ayuda: ${normalizedObservation}`
+                : `La familia ${familyName} ha sido marcada como urgente.`;
+            const contextId = `${context.params.companionshipId}:${familySlug}`;
+            await notificationDispatcher.broadcast({
+                title: "Nueva familia con necesidad urgente",
+                body,
+                url: "/ministering/urgent",
+                tag: `urgent-family-${context.params.companionshipId}-${familySlug}`,
+                actions: [
+                    {
+                        action: "open",
+                        title: "Ver familias urgentes",
+                        url: "/ministering/urgent",
+                    },
+                ],
+                context: {
+                    contextType: "urgent_family",
+                    contextId,
+                    actionUrl: "/ministering/urgent",
+                    actionType: "navigate",
+                },
+            });
+        }
+        catch (error) {
+            functions.logger.error("Failed to broadcast urgent family notification", {
+                error,
+                companionshipId: context.params.companionshipId,
+                family: familyName,
+            });
+        }
+    }));
+});
+exports.onMissionaryAssignmentCreated = functions.firestore
+    .document("c_obra_misional_asignaciones/{assignmentId}")
+    .onCreate(async (snapshot, context) => {
+    try {
+        const assignment = snapshot.data();
+        const assignmentId = context.params.assignmentId;
+        const description = assignment?.description?.trim();
+        const body = description && description.length > 0
+            ? description
+            : "Se registró una nueva asignación misional.";
+        await notificationDispatcher.broadcast({
+            title: "Nueva Asignación Misional",
+            body,
+            url: "/missionary-work",
+            tag: `missionary-assignment-${assignmentId}`,
+            actions: [
+                {
+                    action: "open",
+                    title: "Ver asignaciones",
+                    url: "/missionary-work",
+                },
+            ],
+            context: {
+                contextType: "missionary_assignment",
+                contextId: assignmentId,
+                actionUrl: "/missionary-work",
+                actionType: "navigate",
+            },
+        });
+    }
+    catch (error) {
+        functions.logger.error("Failed to broadcast missionary assignment notification", {
+            error,
+            assignmentId: context.params.assignmentId,
+        });
     }
 });
 exports.notifications = functions.pubsub.schedule("every day 09:00").onRun(async (context) => {

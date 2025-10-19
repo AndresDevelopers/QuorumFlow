@@ -91,7 +91,7 @@
 
   "noPermission.title": "Access restricted",
   "noPermission.description": "Your account is active but does not yet have permission to use the application.",
-  "noPermission.support": "Please contact an administrator or your quorum presidency to request access.",
+  "noPermission.support": "Please contact the designated secretary, quorum president, or counselors to request access.",
   "noPermission.logout": "Sign out",
   "noPermission.logoutLoading": "Signing out...",
 
@@ -253,6 +253,8 @@
   "birthdayEdit.loadError": "Error loading data.",
   "birthdayEdit.loading": "Loading",
 
+  "birthdays.pageTitle": "Birthdays",
+  "birthdays.pageDescription": "Track upcoming birthdays and keep the quorum list current.",
   "birthdays.editMember": "Edit Member",
 
   "memberProfile.title": "Member Profile",
