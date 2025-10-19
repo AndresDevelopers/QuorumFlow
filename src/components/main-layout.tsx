@@ -266,14 +266,16 @@ export function MainLayout({ children }: { children: ReactNode }) {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur sm:px-6">
+        <header
+          className="sticky top-0 z-10 flex min-h-[3.5rem] items-center gap-3 border-b bg-background/95 px-4 py-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6 md:gap-4"
+        >
           <SidebarTrigger />
           <div className="ml-auto flex items-center gap-2">
             <NotificationBell />
             <UserNav />
           </div>
         </header>
-        <main className="p-4 sm:p-6">{children}</main>
+        <main className="page-shell">{children}</main>
         <ErrorBoundary>
           <OfflineIndicator />
         </ErrorBoundary>

@@ -73,7 +73,8 @@ export const NotificationCreators = {
       title: "Nueva Actividad Programada",
       body: `Se ha programado la actividad: ${activityTitle}`,
       contextType: 'activity',
-      contextId: activityId
+      contextId: activityId,
+      actionUrl: '/reports'
     }),
 
   /**
@@ -166,7 +167,8 @@ export const NotificationCreators = {
       userId,
       title: "Necesidad Urgente de Familia",
       body: `La familia ${familyName} tiene una necesidad urgente: ${observation}`,
-      contextType: 'member'
+      contextType: 'urgent_family',
+      actionUrl: '/ministering/urgent'
     }),
 
   /**
@@ -177,7 +179,9 @@ export const NotificationCreators = {
       userId,
       title: "Nueva Asignación Misional",
       body: assignmentDescription,
-      contextId: assignmentId
+      contextType: 'missionary_assignment',
+      contextId: assignmentId,
+      actionUrl: '/missionary-work'
     })
 };
 

@@ -80,27 +80,31 @@ export function NotificationBell() {
     }
 
     // Generate URL based on contextType and contextId
-    if (!notification.contextType || !notification.contextId) {
+    if (!notification.contextType) {
       return null;
     }
 
     switch (notification.contextType) {
       case 'convert':
-        return `/converts/${notification.contextId}`;
+        return notification.contextId ? `/converts/${notification.contextId}` : null;
       case 'activity':
-        return `/activities/${notification.contextId}`;
+        return '/reports';
       case 'service':
-        return `/services/${notification.contextId}`;
+        return notification.contextId ? `/services/${notification.contextId}` : null;
       case 'member':
-        return `/members/${notification.contextId}`;
+        return notification.contextId ? `/members/${notification.contextId}` : null;
       case 'council':
         return `/council`;
       case 'baptism':
-        return `/baptisms/${notification.contextId}`;
+        return notification.contextId ? `/baptisms/${notification.contextId}` : null;
       case 'birthday':
         return `/birthdays`;
       case 'investigator':
-        return `/investigators/${notification.contextId}`;
+        return notification.contextId ? `/investigators/${notification.contextId}` : null;
+      case 'urgent_family':
+        return '/ministering/urgent';
+      case 'missionary_assignment':
+        return '/missionary-work';
       default:
         return null;
     }

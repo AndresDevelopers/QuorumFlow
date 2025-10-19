@@ -196,12 +196,12 @@ export default function MembersPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <section className="page-section">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Miembros</h1>
-          <p className="text-muted-foreground">
+      <div className="flex flex-col items-start gap-4 sm:flex-row sm:justify-between sm:gap-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-balance text-fluid-title font-semibold tracking-tight">Miembros</h1>
+          <p className="text-balance text-fluid-subtitle text-muted-foreground">
             Gestiona los miembros del quórum y su estado de actividad.
           </p>
           {/* Sync Status Indicator */}
@@ -211,24 +211,25 @@ export default function MembersPage() {
             className="mt-2"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
           <Button
             variant="outline"
             onClick={() => fetchMembers(true)}
             disabled={loading || syncStatus === 'syncing'}
             title="Actualizar lista de miembros"
+            className="w-full sm:w-auto"
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${(loading || syncStatus === 'syncing') ? 'animate-spin' : ''}`} />
             {syncStatus === 'syncing' ? 'Sincronizando...' : 'Actualizar'}
           </Button>
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
                 Agregar Miembro
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-full max-w-[90vw] overflow-y-auto sm:max-h-[90vh] sm:max-w-2xl">
               <DialogHeader>
                 <DialogTitle>
                   {editingMember ? 'Editar Miembro' : 'Agregar Nuevo Miembro'}
@@ -250,7 +251,7 @@ export default function MembersPage() {
 
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total</CardTitle>
@@ -301,8 +302,8 @@ export default function MembersPage() {
             Busca y filtra los miembros por nombre o estado de actividad.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <CardContent className="space-y-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
@@ -508,7 +509,7 @@ export default function MembersPage() {
           </div>
 
           {/* Mobile Cards */}
-          <div className="md:hidden space-y-4">
+          <div className="space-y-4 md:hidden">
             {loading ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <Skeleton key={i} className="h-32 w-full" />
@@ -614,11 +615,12 @@ export default function MembersPage() {
                         </div>
                       </div>
 
-                      <div className="flex justify-end gap-2">
+                      <div className="flex flex-wrap justify-end gap-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleViewProfile(member.id)}
+                          className="w-full sm:w-auto"
                         >
                           <Eye className="mr-2 h-4 w-4" />
                           Ver Perfil
@@ -627,13 +629,14 @@ export default function MembersPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleEditMember(member)}
+                          className="w-full sm:w-auto"
                         >
                           <Edit className="mr-2 h-4 w-4" />
                           Editar
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" className="w-full sm:w-auto">
                               <Trash2 className="mr-2 h-4 w-4" />
                               Eliminar
                             </Button>
@@ -677,6 +680,6 @@ export default function MembersPage() {
           <ChevronUp className="h-4 w-4" />
         </Button>
       )}
-    </div>
+    </section>
   );
 }

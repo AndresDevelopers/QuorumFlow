@@ -8,11 +8,17 @@ import Docxtemplater from "docxtemplater";
 import * as webpush from "web-push";
 import ModernImageModule from "./modules/modern-image-module";
 import axios from "axios";
+import { NotificationDispatcher } from "./modules/notification-dispatcher";
 
 admin.initializeApp();
 
 const firestore = admin.firestore();
 const storage = admin.storage();
+const notificationDispatcher = new NotificationDispatcher(
+    firestore,
+    webpush,
+    functions.logger
+);
 
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
     webpush.setVapidDetails(
@@ -67,6 +73,7 @@ interface Birthday {
 interface Family {
     name: string;
     isUrgent: boolean;
+    observation?: string;
 }
 
 interface Companionship {
@@ -114,6 +121,14 @@ const MAX_DOC_IMAGE_WIDTH = 450;
 const MAX_DOC_IMAGE_HEIGHT = 300;
 
 type ImageModuleInstance = ModernImageModule;
+
+const slugify = (value: string): string =>
+    value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
 
 const createImageModuleFromUrls = async (urls: string[]): Promise<ImageModuleInstance> => {
     const buffers = await fetchImageBuffers(urls);
@@ -647,6 +662,167 @@ export const generateReport = functions.https.onCall(async (data: any, context: 
         throw new functions.https.HttpsError("internal", "An unknown error occurred.");
     }
 });
+
+export const onActivityCreated = functions.firestore
+    .document("c_actividades/{activityId}")
+    .onCreate(async (snapshot, context) => {
+        try {
+            const activity = snapshot.data() as Activity;
+            const activityId = context.params.activityId as string;
+
+            const activityTitle = activity?.title?.trim() || "Nueva actividad";
+            const activityDate = activity?.date && typeof activity.date.toDate === "function"
+                ? activity.date.toDate()
+                : null;
+            const formattedDate = activityDate
+                ? format(activityDate, "EEEE d 'de' MMMM yyyy", { locale: es })
+                : null;
+            const timeSegment = activity?.time ? ` a las ${activity.time}` : "";
+            const details: string[] = [];
+
+            if (formattedDate) {
+                details.push(`para el ${formattedDate}${timeSegment}`);
+            }
+
+            if (activity?.location) {
+                details.push(`en ${activity.location}`);
+            }
+
+            const detailText = details.length > 0 ? ` ${details.join(" ")}` : "";
+            const body = `Se programó la actividad "${activityTitle}"${detailText}.`;
+
+            await notificationDispatcher.broadcast({
+                title: "Nueva Actividad Programada",
+                body,
+                url: "/reports",
+                tag: `activity-${activityId}`,
+                actions: [
+                    {
+                        action: "open",
+                        title: "Ver actividades",
+                        url: "/reports",
+                    },
+                ],
+                context: {
+                    contextType: "activity",
+                    contextId: activityId,
+                    actionUrl: "/reports",
+                    actionType: "navigate",
+                },
+            });
+        } catch (error) {
+            functions.logger.error("Failed to broadcast activity notification", {
+                error,
+                activityId: context.params.activityId,
+            });
+        }
+    });
+
+export const onUrgentFamilyFlagged = functions.firestore
+    .document("c_ministracion/{companionshipId}")
+    .onUpdate(async (change, context) => {
+        const before = change.before.data() as Companionship | undefined;
+        const after = change.after.data() as Companionship | undefined;
+
+        if (!after?.families || after.families.length === 0) {
+            return;
+        }
+
+        const previousStatus = new Map(
+            (before?.families ?? []).map((family) => [family.name, family.isUrgent])
+        );
+
+        const newlyUrgent = after.families.filter((family) => {
+            if (!family.isUrgent) {
+                return false;
+            }
+            const wasUrgent = previousStatus.get(family.name);
+            return wasUrgent !== true;
+        });
+
+        if (newlyUrgent.length === 0) {
+            return;
+        }
+
+        await Promise.all(
+            newlyUrgent.map(async (family) => {
+                const familyName = family.name || "Familia";
+                const familySlug = slugify(familyName) || "familia";
+                try {
+                    const normalizedObservation = family.observation?.trim();
+                    const body = normalizedObservation
+                        ? `La familia ${familyName} requiere ayuda: ${normalizedObservation}`
+                        : `La familia ${familyName} ha sido marcada como urgente.`;
+
+                    const contextId = `${context.params.companionshipId}:${familySlug}`;
+
+                    await notificationDispatcher.broadcast({
+                        title: "Nueva familia con necesidad urgente",
+                        body,
+                        url: "/ministering/urgent",
+                        tag: `urgent-family-${context.params.companionshipId}-${familySlug}`,
+                        actions: [
+                            {
+                                action: "open",
+                                title: "Ver familias urgentes",
+                                url: "/ministering/urgent",
+                            },
+                        ],
+                        context: {
+                            contextType: "urgent_family",
+                            contextId,
+                            actionUrl: "/ministering/urgent",
+                            actionType: "navigate",
+                        },
+                    });
+                } catch (error) {
+                    functions.logger.error("Failed to broadcast urgent family notification", {
+                        error,
+                        companionshipId: context.params.companionshipId,
+                        family: familyName,
+                    });
+                }
+            })
+        );
+    });
+
+export const onMissionaryAssignmentCreated = functions.firestore
+    .document("c_obra_misional_asignaciones/{assignmentId}")
+    .onCreate(async (snapshot, context) => {
+        try {
+            const assignment = snapshot.data() as { description?: string } | undefined;
+            const assignmentId = context.params.assignmentId as string;
+            const description = assignment?.description?.trim();
+            const body = description && description.length > 0
+                ? description
+                : "Se registró una nueva asignación misional.";
+
+            await notificationDispatcher.broadcast({
+                title: "Nueva Asignación Misional",
+                body,
+                url: "/missionary-work",
+                tag: `missionary-assignment-${assignmentId}`,
+                actions: [
+                    {
+                        action: "open",
+                        title: "Ver asignaciones",
+                        url: "/missionary-work",
+                    },
+                ],
+                context: {
+                    contextType: "missionary_assignment",
+                    contextId: assignmentId,
+                    actionUrl: "/missionary-work",
+                    actionType: "navigate",
+                },
+            });
+        } catch (error) {
+            functions.logger.error("Failed to broadcast missionary assignment notification", {
+                error,
+                assignmentId: context.params.assignmentId,
+            });
+        }
+    });
 
 
 export const notifications = functions.pubsub.schedule("every day 09:00").onRun(async (context: any) => {

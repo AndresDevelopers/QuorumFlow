@@ -1,11 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { usersCollection } from '@/lib/collections';
 import { doc, getDoc, getDocs, updateDoc, Timestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import logger from '@/lib/logger';
+import {
+  assignableRoles,
+  canManageSettings,
+  normalizeRole,
+  type UserRole,
+} from '@/lib/roles';
 import {
   Card,
   CardContent,
@@ -13,6 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -32,8 +39,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
-type UserRole = 'user' | 'secretary' | 'admin' | 'leader';
-
 interface UserData {
   uid: string;
   name: string;
@@ -51,6 +56,36 @@ export default function RoleManagement() {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
 
+  const roleMeta = useMemo<
+    Record<
+      UserRole,
+      {
+        label: string;
+        description: string;
+      }
+    >
+  >(
+    () => ({
+      user: {
+        label: 'Miembro',
+        description: 'Acceso limitado, sin configuraciones.',
+      },
+      counselor: {
+        label: 'Consejero',
+        description: 'Puede ver todo salvo editar ajustes.',
+      },
+      president: {
+        label: 'Presidente',
+        description: 'Puede ver todo salvo editar ajustes.',
+      },
+      secretary: {
+        label: 'Secretario',
+        description: 'Control total y gestión de permisos.',
+      },
+    }),
+    []
+  );
+
   // Verificar si el usuario actual tiene rol "secretary"
   useEffect(() => {
     const checkUserRole = async () => {
@@ -62,10 +97,10 @@ export default function RoleManagement() {
 
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          const role = userData.role as UserRole;
+          const role = normalizeRole(userData.role);
           setUserRole(role);
 
-          if (role === 'secretary' || role === 'admin') {
+          if (canManageSettings(role)) {
             setHasAccess(true);
           } else {
             setHasAccess(false);
@@ -99,7 +134,7 @@ export default function RoleManagement() {
             uid: doc.id,
             name: data.name || 'Sin nombre',
             email: data.email || 'Sin email',
-            role: (data.role || 'user') as UserRole,
+            role: normalizeRole(data.role),
             createdAt: data.createdAt,
           });
         });
@@ -133,16 +168,17 @@ export default function RoleManagement() {
     setIsSaving(userId);
 
     try {
+      const normalizedRole = normalizeRole(newRole);
       const userDocRef = doc(usersCollection, userId);
       await updateDoc(userDocRef, {
-        role: newRole,
+        role: normalizedRole,
         updatedAt: Timestamp.now(),
       });
 
       // Actualizar la lista local
       setUsers((prevUsers) =>
         prevUsers.map((user) =>
-          user.uid === userId ? { ...user, role: newRole } : user
+          user.uid === userId ? { ...user, role: normalizedRole } : user
         )
       );
 
@@ -154,7 +190,7 @@ export default function RoleManagement() {
       logger.info({
         message: 'User role updated',
         userId,
-        newRole,
+        newRole: normalizedRole,
         changedBy: firebaseUser.uid,
       });
     } catch (error) {
@@ -178,9 +214,11 @@ export default function RoleManagement() {
             Acceso Restringido
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="text-sm leading-relaxed">
           <p className="text-amber-800 dark:text-amber-200">
-            Solo los usuarios con rol de secretario o administrador pueden acceder a la gestión de roles.
+            Solo el secretario designado puede administrar los roles desde la página de Ajustes.
+            El presidente y los consejeros tienen acceso al resto de la aplicación, pero deben
+            coordinar cambios de permisos con el secretario.
           </p>
         </CardContent>
       </Card>
@@ -188,14 +226,17 @@ export default function RoleManagement() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Gestión de Roles de Usuarios</CardTitle>
-        <CardDescription>
-          Administra los roles de acceso para todos los usuarios del sistema.
+    <Card className="shadow-sm">
+      <CardHeader className="gap-2">
+        <CardTitle className="text-base font-semibold sm:text-lg">
+          Gestión de Roles de Usuarios
+        </CardTitle>
+        <CardDescription className="text-sm text-muted-foreground">
+          Define qué líderes pueden administrar y apoyar al quórum sin salirte de la
+          pantalla.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
         {isLoading ? (
           <div className="space-y-4">
             <Skeleton className="h-10 w-full" />
@@ -207,58 +248,110 @@ export default function RoleManagement() {
             <p className="text-muted-foreground">No hay usuarios registrados.</p>
           </div>
         ) : (
-          <div className="rounded-md border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead className="w-40">Rol</TableHead>
-                  <TableHead className="w-20 text-center">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.uid}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Select
-                        value={user.role}
-                        onValueChange={(newRole) =>
-                          handleRoleChange(user.uid, newRole as UserRole)
-                        }
-                        disabled={isSaving === user.uid}
+          <>
+            <div className="space-y-3 md:hidden">
+              {users.map((user) => (
+                <div
+                  key={user.uid}
+                  className="flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-sm"
+                >
+                  <div className="flex flex-col gap-1">
+                    <p className="text-sm font-medium leading-tight text-foreground">
+                      {user.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground break-all">
+                      {user.email}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor={`role-${user.uid}`} className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Rol asignado
+                    </Label>
+                    <Select
+                      value={user.role}
+                      onValueChange={(newRole) =>
+                        handleRoleChange(user.uid, normalizeRole(newRole))
+                      }
+                      disabled={isSaving === user.uid}
+                    >
+                      <SelectTrigger
+                        id={`role-${user.uid}`}
+                        className="h-11 rounded-md text-left"
                       >
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="user">
-                            Usuario (Acceso restringido)
+                        <SelectValue placeholder="Selecciona un rol" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-64">
+                        {assignableRoles.map((roleOption) => (
+                          <SelectItem key={roleOption} value={roleOption}>
+                            {roleMeta[roleOption].label}
                           </SelectItem>
-                          <SelectItem value="secretary">
-                            Secretario (Acceso completo)
-                          </SelectItem>
-                          <SelectItem value="admin">
-                            Administrador (Control total)
-                          </SelectItem>
-                          <SelectItem value="leader">
-                            Líder (Acceso completo)
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {isSaving === user.uid && (
-                        <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {roleMeta[user.role].description}
+                    </p>
+                  </div>
+                  {isSaving === user.uid && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Actualizando
+                      rol...
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block">
+              <div className="overflow-x-auto rounded-md border">
+                <Table className="min-w-[640px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead className="w-48">Rol</TableHead>
+                      <TableHead className="w-20 text-center">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((user) => (
+                      <TableRow key={user.uid}>
+                        <TableCell className="font-medium">{user.name}</TableCell>
+                        <TableCell className="break-all">{user.email}</TableCell>
+                        <TableCell>
+                          <Select
+                            value={user.role}
+                            onValueChange={(newRole) =>
+                              handleRoleChange(user.uid, normalizeRole(newRole))
+                            }
+                            disabled={isSaving === user.uid}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Selecciona un rol" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {assignableRoles.map((roleOption) => (
+                                <SelectItem key={roleOption} value={roleOption}>
+                                  {roleMeta[roleOption].label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            {roleMeta[user.role].description}
+                          </p>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {isSaving === user.uid && (
+                            <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

@@ -28,6 +28,9 @@ Una aplicación web moderna diseñada específicamente para la gestión eficient
 - **Perfil personal actualizable** con información de contacto y disponibilidad
 - **Calendario integrado** de actividades ministeriales y reuniones
 - **Sistema de notificaciones** para nuevas asignaciones o cambios
+  - Alertas inmediatas al programar nuevas actividades del quórum
+  - Avisos cuando una familia se marca como urgente en ministración
+  - Recordatorios de nuevas asignaciones en la obra misional
 - **Historial de servicio** y ministerios desempeñados
 
 ### Para el Presidencia del Quórum
@@ -154,7 +157,7 @@ src/
 ### Gestión de roles y acceso
 - **Rol por defecto `user`**: Al registrarse, todas las cuentas nuevas se crean en Firestore con el campo `role: "user"` para garantizar el principio de menor privilegio.
 - **Página de acceso restringido**: Cuentas con rol `user` verán automáticamente la página `no-permission`, donde se explica cómo solicitar elevación de privilegios y se ofrece el cierre de sesión seguro.
-- **Habilitar acceso completo**: Basta con actualizar el campo `role` en el documento del usuario (por ejemplo `role: "admin"` o `role: "secretary"`). Si el campo `role` no existe o contiene otro valor distinto de `user`, la aplicación se carga normalmente.
+- **Roles de liderazgo**: Actualiza el campo `role` del usuario a `"president"` o `"counselor"` para otorgar acceso completo a las secciones operativas y a la página de Ajustes (sin visibilidad de Gestión de Roles). Usa `"secretary"` cuando el usuario deba administrar Ajustes y permisos (los valores heredados `"admin"` siguen normalizándose a secretario).
 - **Auditoría**: Los cambios de rol deben registrarse en los logs administrativos y acompañarse de revisión periódica para asegurar el acceso mínimo necesario.
 
 ### Medidas de Seguridad
@@ -167,7 +170,7 @@ src/
 ### Privacidad de Datos
 - **Cumplimiento con GDPR** y leyes de privacidad
 - **Datos encriptados** en tránsito y en reposo
-- **Acceso basado en roles** (Secretario, Élder, Presidencia)
+- **Acceso basado en roles** (Secretario, Presidente y Consejeros del cuórum, miembros)
 - **Logs de auditoría** para acciones críticas
 - **Eliminación segura** de datos personales
 

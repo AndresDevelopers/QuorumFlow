@@ -250,18 +250,18 @@ export default function FamilySearchPage() {
 
 
   return (
-    <div className="space-y-6">
-       <div className="flex items-center gap-3">
+    <section className="page-section">
+       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Library className="h-8 w-8 text-primary" />
-            <div>
-                <h1 className="text-3xl font-bold">{translations.title}</h1>
-                <p className="text-muted-foreground">
+            <div className="flex flex-col gap-1">
+                <h1 className="text-balance text-fluid-title font-semibold">{translations.title}</h1>
+                <p className="text-balance text-fluid-subtitle text-muted-foreground">
                     {translations.description}
                 </p>
             </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-1">
+        <div className="grid gap-4 lg:grid-cols-1">
             {/* Familias por Capacitar */}
             <Card>
                 <CardHeader>
@@ -275,7 +275,7 @@ export default function FamilySearchPage() {
                         </div>
                         <Dialog open={isTrainingOpen} onOpenChange={setTrainingOpen}>
                             <DialogTrigger asChild><Button size="sm"><PlusCircle className="mr-2"/> Familia</Button></DialogTrigger>
-                            <DialogContent>
+                            <DialogContent className="w-full max-w-[90vw] sm:max-w-lg">
                                 <DialogHeader>
                                     <DialogTitle>Agregar Familia para Capacitación</DialogTitle>
                                     <DialogDescription>
@@ -346,8 +346,6 @@ export default function FamilySearchPage() {
                 </CardContent>
             </Card>
         </div>
-
-
-    </div>
+    </section>
   );
 }

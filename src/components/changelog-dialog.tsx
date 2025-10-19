@@ -47,9 +47,11 @@ export function ChangelogDialog({ children }: { children: React.ReactNode }) {
           <div className="grid gap-4 py-4">
 
             <div>
-              <h3 className="font-semibold">v 1.1.6 (Actual)</h3>
+              <h3 className="font-semibold">v 1.1.7 (Actual)</h3>
               <ul className="list-disc list-inside text-sm text-muted-foreground">
-                <li>Las páginas Changelog (diálogo), Observaciones, esas páginas tienen problemas en el idioma español con los acentos, arréglalo basándote en las otras páginas ya que las otras páginas no tienen problemas con los acentos.</li>
+                <li>Mejoramos la vista móvil de Ajustes y Miembros para que todo el contenido se ajuste bien en pantallas pequeñas, en especial la sección de gestión de roles.</li>
+                <li>Ahora los tres roles de la presidencia pueden abrir Ajustes, pero solo la persona asignada como secretario puede cambiar los permisos de los usuarios.</li>
+                <li>Las notificaciones funcionan en celulares y avisan automáticamente sobre actividades nuevas, familias marcadas como urgentes y asignaciones recientes de Obra Misional.</li>
               </ul>
             </div>
             <div>

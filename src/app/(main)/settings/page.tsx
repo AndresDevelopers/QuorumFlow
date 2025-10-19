@@ -30,7 +30,7 @@ import { deleteUser, updateProfile } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -49,12 +49,18 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { CalendarIcon, User, Camera, Loader2, X } from 'lucide-react';
+import { AlertCircle, CalendarIcon, User, Camera, Loader2, X } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import RoleManagement from '@/components/role-management';
+import {
+  canManageSettings,
+  canViewSettings,
+  normalizeRole,
+  type UserRole,
+} from '@/lib/roles';
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: "El nombre es requerido." }),
@@ -94,27 +100,55 @@ export default function SettingsPage() {
   const [isSubscriptionLoading, setSubscriptionLoading] = useState(true);
   const [isSupported, setIsSupported] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isCheckingRole, setIsCheckingRole] = useState(true);
+  const [hasSettingsAccess, setHasSettingsAccess] = useState(false);
+  const [canManageRoles, setCanManageRoles] = useState(false);
+  const [userRole, setUserRole] = useState<UserRole>('user');
+  const roleFriendlyNames = useMemo<Record<UserRole, string>>(
+    () => ({
+      user: 'Miembro',
+      counselor: 'Consejero',
+      president: 'Presidente',
+      secretary: 'Secretario',
+    }),
+    []
+  );
 
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
+    if (!hasSettingsAccess) {
+      setSubscriptionLoading(false);
+      setIsSupported(false);
+      return;
+    }
+
+    if (
+      typeof window !== 'undefined' &&
+      'serviceWorker' in navigator &&
+      'PushManager' in window
+    ) {
       setIsSupported(true);
-      navigator.serviceWorker.ready.then(reg => {
-        reg.pushManager.getSubscription().then(sub => {
-          if (sub) {
-            setIsSubscribed(true);
-          }
-          setSubscriptionLoading(false);
-        });
-      }).catch(() => setSubscriptionLoading(false));
+      navigator.serviceWorker.ready
+        .then((reg) => {
+          reg.pushManager
+            .getSubscription()
+            .then((sub) => {
+              if (sub) {
+                setIsSubscribed(true);
+              }
+              setSubscriptionLoading(false);
+            })
+            .catch(() => setSubscriptionLoading(false));
+        })
+        .catch(() => setSubscriptionLoading(false));
     } else {
       setSubscriptionLoading(false);
       setIsSupported(false);
     }
-  }, []);
+  }, [hasSettingsAccess]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(profileSchema),
@@ -125,30 +159,64 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const fetchUserData = async () => {
-        if (!firebaseUser) return;
-        setIsProfileLoading(true);
+      if (!firebaseUser) {
+        setIsCheckingRole(false);
+        setHasSettingsAccess(false);
+        setCanManageRoles(false);
+        return;
+      }
+
+      setIsProfileLoading(true);
+      setIsCheckingRole(true);
+
+      try {
         const userDocRef = doc(usersCollection, firebaseUser.uid);
         const userDoc = await getDoc(userDocRef);
+
+        let normalizedRole: UserRole = 'user';
+
         if (userDoc.exists()) {
           const userData = userDoc.data();
+          normalizedRole = normalizeRole(userData.role);
           form.reset({
             name: userData.name || firebaseUser.displayName || '',
-            birthDate: userData.birthDate ? (userData.birthDate as Timestamp).toDate() : undefined,
+            birthDate: userData.birthDate
+              ? (userData.birthDate as Timestamp).toDate()
+              : undefined,
           });
-          setPreviewUrl(firebaseUser.photoURL || null);
         } else {
-            form.reset({
-                name: firebaseUser.displayName || '',
-            });
-            setPreviewUrl(firebaseUser.photoURL || null);
+          form.reset({
+            name: firebaseUser.displayName || '',
+          });
         }
-        setIsProfileLoading(false);
-      };
 
-    if (firebaseUser) {
-      fetchUserData();
-    }
-  }, [firebaseUser, form]);
+        setPreviewUrl(firebaseUser.photoURL || null);
+        setUserRole(normalizedRole);
+
+        const canView = canViewSettings(normalizedRole);
+        setHasSettingsAccess(canView);
+        setCanManageRoles(canManageSettings(normalizedRole));
+
+        if (!canView) {
+          return;
+        }
+      } catch (error) {
+        logger.error({ error, message: 'Error loading settings profile data' });
+        setHasSettingsAccess(false);
+        setCanManageRoles(false);
+        toast({
+          title: 'Error',
+          description: 'No se pudo cargar tu información de perfil.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsCheckingRole(false);
+        setIsProfileLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [firebaseUser, form, toast]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -338,15 +406,51 @@ export default function SettingsPage() {
   };
 
 
+  if (isCheckingRole) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="space-y-3 text-center">
+          <Skeleton className="mx-auto h-8 w-48" />
+          <Skeleton className="mx-auto h-4 w-64" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasSettingsAccess) {
+    return (
+      <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-100">
+            <AlertCircle className="h-5 w-5" />
+            Acceso restringido
+          </CardTitle>
+          <CardDescription className="text-amber-800 dark:text-amber-200">
+            Tu rol actual es {roleFriendlyNames[userRole]}. Solo la presidencia del cuórum
+            (secretario, presidente o consejeros) puede abrir y configurar esta sección.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-amber-800 dark:text-amber-200">
+            Puedes navegar por el resto de la aplicación con normalidad. Para ajustes de
+            configuración, contacta al secretario del cuórum.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">{t('Settings')}</h1>
-        <p className="text-muted-foreground">
+    <section className="page-section">
+      <header className="flex flex-col gap-2">
+        <h1 className="text-balance text-fluid-title font-semibold">
+          {t('Settings')}
+        </h1>
+        <p className="text-balance text-fluid-subtitle text-muted-foreground">
           {t('Manage your account and application settings.')}
         </p>
-      </div>
-      <div className="grid gap-6 lg:grid-cols-2">
+      </header>
+      <div className="grid gap-4 md:gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1.1fr)]">
         <Card>
           <CardHeader>
             <CardTitle>{t('Profile')}</CardTitle>
@@ -463,26 +567,30 @@ export default function SettingsPage() {
                     </>
                 )}
               </CardContent>
-              <CardFooter className="border-t px-6 py-4">
-                  <Button type="submit" disabled={isSubmitting || isProfileLoading}>
+              <CardFooter className="flex flex-col gap-3 border-t px-6 py-4 sm:flex-row sm:justify-end">
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting || isProfileLoading}
+                    className="w-full sm:w-auto"
+                  >
                     {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
                   </Button>
               </CardFooter>
             </form>
           </Form>
         </Card>
-        <Card>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>{t('Appearance')}</CardTitle>
             <CardDescription>
               {t('Customize the look and feel of the application.')}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Label htmlFor="dark-mode" className="flex flex-col space-y-1">
-                <span>{t('Dark Mode')}</span>
-                <span className="font-normal leading-snug text-muted-foreground text-xs">
+                <span className="text-sm font-medium sm:text-base">{t('Dark Mode')}</span>
+                <span className="text-xs font-normal leading-snug text-muted-foreground sm:text-sm">
                   {t('Toggle between light and dark themes.')}
                 </span>
               </Label>
@@ -496,38 +604,42 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>{t('Notifications')}</CardTitle>
             <CardDescription>
               {t('Configure how you receive notifications.')}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="notifications-switch" className="flex flex-col space-y-1">
-                  <span>Activar Notificaciones</span>
-                  <span className="font-normal leading-snug text-muted-foreground">
-                    Recibe alertas sobre servicios y necesidades urgentes.
-                  </span>
-                </Label>
-                <Switch
-                  id="notifications-switch"
-                  checked={isSubscribed}
-                  onCheckedChange={handleSubscriptionChange}
-                  disabled={!isSupported || isSubscriptionLoading}
-                />
-              </div>
-              {!isSupported && <p className="text-xs text-muted-foreground mt-2">Tu navegador no es compatible con notificaciones.</p>}
-
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Label htmlFor="notifications-switch" className="flex flex-col space-y-1">
+                <span className="text-sm font-medium sm:text-base">Activar Notificaciones</span>
+                <span className="text-xs font-normal leading-snug text-muted-foreground sm:text-sm">
+                  Recibe alertas sobre servicios y necesidades urgentes.
+                </span>
+              </Label>
+              <Switch
+                id="notifications-switch"
+                checked={isSubscribed}
+                onCheckedChange={handleSubscriptionChange}
+                disabled={!isSupported || isSubscriptionLoading}
+              />
             </div>
+            {!isSupported && (
+              <p className="mt-2 text-xs text-muted-foreground sm:text-sm">
+                Tu navegador no es compatible con notificaciones.
+              </p>
+            )}
           </CardContent>
         </Card>
+        {canManageRoles && (
+          <div className="xl:col-span-full">
+            <RoleManagement />
+          </div>
+        )}
 
-        <RoleManagement />
-
-        <Card className="border-destructive">
+        <Card className="border-destructive xl:col-span-full">
             <CardHeader>
                 <CardTitle className="text-destructive">Zona de Peligro</CardTitle>
                 <CardDescription>
@@ -558,8 +670,6 @@ export default function SettingsPage() {
             </CardContent>
         </Card>
       </div>
-    </div>
+    </section>
   );
 }
-
-    

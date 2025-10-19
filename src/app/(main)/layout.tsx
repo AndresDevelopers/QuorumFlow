@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { Skeleton } from "@/components/ui/skeleton";
 import { doc, getDoc } from "firebase/firestore";
 import { usersCollection } from "@/lib/collections";
+import { normalizeRole } from "@/lib/roles";
 
 function PrivateRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -33,8 +34,7 @@ function PrivateRoute({ children }: { children: ReactNode }) {
 
         if (snapshot.exists()) {
           const data = snapshot.data() as { role?: unknown };
-          const roleValue = typeof data.role === "string" ? data.role : undefined;
-          const normalizedRole = roleValue?.trim().toLowerCase();
+          const normalizedRole = normalizeRole(data.role);
 
           setIsRestricted(normalizedRole === "user");
         } else {

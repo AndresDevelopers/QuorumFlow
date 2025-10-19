@@ -54,14 +54,14 @@ export default function ProfilePage() {
     const loading = authLoading || loadingProfile;
 
   return (
-    <div className="space-y-6">
-       <div>
-        <h1 className="text-3xl font-bold">{t('Profile')}</h1>
-        <p className="text-muted-foreground">
+    <section className="page-section">
+       <div className="flex flex-col gap-2">
+        <h1 className="text-balance text-fluid-title font-semibold">{t('Profile')}</h1>
+        <p className="text-balance text-fluid-subtitle text-muted-foreground">
           {t('View and manage your profile information.')}
         </p>
       </div>
-      <Card className="max-w-md mx-auto">
+      <Card className="mx-auto w-full max-w-md">
         <CardHeader className="items-center text-center">
             {loading ? (
                 <Skeleton className="h-24 w-24 rounded-full mb-4" />
@@ -105,6 +105,6 @@ export default function ProfilePage() {
             {/* Additional profile information could go here */}
         </CardContent>
       </Card>
-    </div>
+    </section>
   );
 }
