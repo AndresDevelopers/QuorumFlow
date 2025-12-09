@@ -1,7 +1,19 @@
 
 import type {NextConfig} from 'next';
 import withPWAInit from '@ducanh2912/next-pwa';
-import { withSentryConfig } from '@sentry/nextjs';
+
+// Only import and use Sentry if enabled
+let withSentryConfig: any = null;
+const isSentryEnabled = process.env.SENTRY_ENABLED !== 'false';
+
+if (isSentryEnabled) {
+  try {
+    const sentryModule = require('@sentry/nextjs');
+    withSentryConfig = sentryModule.withSentryConfig;
+  } catch (error) {
+    console.warn('⚠️ Sentry module not found. Building without Sentry integration.');
+  }
+}
 
 const withPWA = withPWAInit({
   dest: 'public',
@@ -53,6 +65,7 @@ const nextConfig: NextConfig = {
   },
 };
 
+// Sentry configuration - only used if Sentry is enabled and available
 const sentryBuildOptions = {
   // For all available options, see:
   // https://github.com/getsentry/sentry-webpack-plugin#options
@@ -99,8 +112,10 @@ const sentryBuildOptions = {
   // Reference: https://docs.sentry.io/platforms/javascript/guides/nextjs/migration/
 };
 
-// Only use Sentry if all required environment variables are set and not placeholder values
-const isSentryConfigured = process.env.SENTRY_AUTH_TOKEN &&
+// Check if Sentry is both enabled and properly configured
+const isSentryConfigured = isSentryEnabled &&
+  withSentryConfig &&
+  process.env.SENTRY_AUTH_TOKEN &&
   process.env.SENTRY_ORG &&
   process.env.SENTRY_PROJECT &&
   process.env.SENTRY_ORG !== 'tu-org-slug' &&

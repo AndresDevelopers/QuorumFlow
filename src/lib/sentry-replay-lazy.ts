@@ -3,7 +3,16 @@
  * Reduces initial bundle size by loading Replay only when needed
  */
 
-import { getCurrentHub } from '@sentry/nextjs';
+// Dynamically import Sentry only if available
+let sentryModule: any = null;
+let getCurrentHub: any = null;
+
+try {
+  sentryModule = require('@sentry/nextjs');
+  getCurrentHub = sentryModule.getCurrentHub;
+} catch (error) {
+  // Sentry is optional
+}
 
 interface ReplayOptions {
   sessionSampleRate?: number;
@@ -39,6 +48,12 @@ export async function loadSentryReplay(options: ReplayOptions = {}): Promise<any
   try {
     isLoading = true;
     
+    // Check if Sentry is available
+    if (!getCurrentHub) {
+      console.warn('⚠️ Sentry not available. Session Replay will not be loaded.');
+      return null;
+    }
+    
     // Import Replay from @sentry/replay
     const { Replay } = await import('@sentry/replay');
     
@@ -68,7 +83,7 @@ export async function loadSentryReplay(options: ReplayOptions = {}): Promise<any
 
   } catch (error) {
     console.error('❌ Failed to load Sentry Session Replay:', error);
-    throw error;
+    return null;
   } finally {
     isLoading = false;
   }

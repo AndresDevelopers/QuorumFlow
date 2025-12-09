@@ -10,7 +10,16 @@ import {
 } from '@/components/ui/card';
 import { useEffect } from 'react';
 import logger from '@/lib/logger';
-import * as Sentry from '@sentry/nextjs';
+
+// Dynamically import Sentry only if available
+let Sentry: any = null;
+if (typeof window !== 'undefined') {
+  try {
+    Sentry = require('@sentry/nextjs');
+  } catch (error) {
+    // Sentry is optional
+  }
+}
 
 function getErrorMessage(error: any): string {
   if (error) {
@@ -42,7 +51,9 @@ export default function Error({
   useEffect(() => {
     // Log the error to the console and Sentry
     logger.error({ error, message: 'Caught by Error Boundary' });
-    Sentry.captureException(error);
+    if (Sentry?.captureException) {
+      Sentry.captureException(error);
+    }
   }, [error]);
 
   const errorMessage = getErrorMessage(error);
