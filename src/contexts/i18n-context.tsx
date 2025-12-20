@@ -24,17 +24,20 @@ export const I18nProvider = ({ children }: { children: ReactNode }) => {
   const [language, setLanguageState] = useState<Language>("es");
 
   useEffect(() => {
-    const savedLang = localStorage.getItem("language") as Language | null;
-    if (savedLang) {
-      setLanguageState(savedLang);
-    } else {
+    queueMicrotask(() => {
+      const savedLang = localStorage.getItem("language") as Language | null;
+      if (savedLang) {
+        setLanguageState(savedLang);
+        return;
+      }
+
       const browserLang = navigator.language.split('-')[0];
       if (browserLang === 'en') {
         setLanguageState('en');
       } else {
         setLanguageState('es'); // Default to Spanish
       }
-    }
+    });
   }, []);
 
   const setLanguage = (lang: Language) => {

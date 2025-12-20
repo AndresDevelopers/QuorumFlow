@@ -55,7 +55,7 @@ const birthdaySchema = z.object({
   birthDate: z.date({
     required_error: 'birthdayForm.birthDateRequired',
   }),
-  entryMode: z.enum(['manual', 'automatic']).default('manual'),
+  entryMode: z.enum(['manual', 'automatic']),
   selectedMemberId: z.string().optional(),
 });
 
@@ -134,11 +134,10 @@ export function BirthdayForm({ isOpen, onOpenChange, onFormSubmit, birthday }: B
         setPreviewUrl(birthday.photoURL || null);
         setEntryMode('manual');
       } else {
-        form.reset({ 
-          name: '', 
-          birthDate: undefined,
+        form.reset({
+          name: '',
           entryMode: 'manual',
-          selectedMemberId: undefined
+          selectedMemberId: undefined,
         });
         setPreviewUrl(null);
         setEntryMode('manual');

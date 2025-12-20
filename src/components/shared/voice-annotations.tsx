@@ -413,7 +413,8 @@ export function VoiceAnnotations({
           <AlertDialogHeader>
             <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Esto eliminará permanentemente la anotación: <strong>"{selectedAnnotation?.text}"</strong>.
+              Esta acción no se puede deshacer. Esto eliminará permanentemente la anotación:{" "}
+              <strong>&quot;{selectedAnnotation?.text}&quot;</strong>.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,8 +1,39 @@
 import { NextResponse } from 'next/server';
-import { getDocs, query, orderBy, where, collection } from 'firebase/firestore';
+import { getDocs, query, orderBy, where, collection, Timestamp } from 'firebase/firestore';
 import { unstable_cache, revalidateTag } from 'next/cache';
 import { Member, MemberStatus } from '@/lib/types';
 import { createMember } from '@/lib/members-data';
+
+function coerceToTimestamp(value: unknown): Timestamp | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  if (value instanceof Timestamp) return value;
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? undefined : Timestamp.fromDate(value);
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? undefined : Timestamp.fromDate(date);
+  }
+  if (typeof value === 'object' && value) {
+    const maybeValue: any = value;
+    if (typeof maybeValue.toDate === 'function') {
+      const date = maybeValue.toDate();
+      if (date instanceof Date && !isNaN(date.getTime())) {
+        return Timestamp.fromDate(date);
+      }
+    }
+    const seconds = maybeValue.seconds ?? maybeValue._seconds;
+    const nanoseconds = maybeValue.nanoseconds ?? maybeValue._nanoseconds;
+    if (typeof seconds === 'number') {
+      const millis =
+        seconds * 1000 +
+        (typeof nanoseconds === 'number' ? Math.floor(nanoseconds / 1_000_000) : 0);
+      return Timestamp.fromMillis(millis);
+    }
+  }
+  return undefined;
+}
 
 // Initialize Firebase directly in the API route
 async function initializeFirebaseForServer() {
@@ -147,35 +178,48 @@ export async function POST(request: Request) {
       baptismDate: data.baptismDate
     });
 
-    // Convert date strings to Date objects
     const memberData: any = {
       ...data,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
       createdBy: 'system', // Or get from auth
     };
 
-    if (data.birthDate) {
-      memberData.birthDate = new Date(data.birthDate);
-      console.log('📅 Converted birthDate:', {
-        original: data.birthDate,
-        converted: memberData.birthDate
-      });
+    if ('birthDate' in data) {
+      const birthDate = coerceToTimestamp(data.birthDate);
+      if (birthDate instanceof Timestamp) {
+        memberData.birthDate = birthDate;
+        console.log('📅 Converted birthDate:', {
+          original: data.birthDate,
+          converted: memberData.birthDate
+        });
+      } else if (birthDate === null) {
+        memberData.birthDate = null;
+      } else if (data.birthDate) {
+        console.warn('⚠️ Invalid birthDate, skipping conversion:', data.birthDate);
+      }
     }
-    if (data.baptismDate) {
-      memberData.baptismDate = new Date(data.baptismDate);
-      console.log('🎂 Converted baptismDate:', {
-        original: data.baptismDate,
-        converted: memberData.baptismDate
-      });
+    if ('baptismDate' in data) {
+      const baptismDate = coerceToTimestamp(data.baptismDate);
+      if (baptismDate instanceof Timestamp) {
+        memberData.baptismDate = baptismDate;
+        console.log('🎂 Converted baptismDate:', {
+          original: data.baptismDate,
+          converted: memberData.baptismDate
+        });
+      } else if (baptismDate === null) {
+        memberData.baptismDate = null;
+      } else if (data.baptismDate) {
+        console.warn('⚠️ Invalid baptismDate, skipping conversion:', data.baptismDate);
+      }
     }
 
     // Set activity dates based on status
     if (data.status === 'active') {
-      memberData.lastActiveDate = new Date();
+      memberData.lastActiveDate = Timestamp.now();
       memberData.inactiveSince = null;
     } else {
-      memberData.inactiveSince = new Date();
+      memberData.inactiveSince = Timestamp.now();
     }
 
     console.log('🔄 Calling createMember with:', {
@@ -186,7 +230,7 @@ export async function POST(request: Request) {
     const memberId = await createMember(memberData);
 
     // Always invalidate cache when creating/updating members
-    revalidateTag('members');
+    revalidateTag('members', 'default');
 
     // Return response with cache-busting headers
     const response = NextResponse.json({ id: memberId }, { status: 201 });

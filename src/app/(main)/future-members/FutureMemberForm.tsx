@@ -52,7 +52,7 @@ const futureMemberSchema = z.object({
   baptismDate: z.date({
     required_error: 'La fecha de bautismo es requerida.',
   }),
-  isBaptized: z.boolean().default(false),
+  isBaptized: z.boolean(),
 });
 
 type FormValues = z.infer<typeof futureMemberSchema>;
@@ -80,6 +80,7 @@ export function FutureMemberForm({ futureMember }: FutureMemberFormProps) {
     resolver: zodResolver(futureMemberSchema),
     defaultValues: {
       name: '',
+      isBaptized: false,
     },
   });
 
@@ -93,7 +94,7 @@ export function FutureMemberForm({ futureMember }: FutureMemberFormProps) {
       setPreviewUrl(futureMember.photoURL || null);
       setBaptismPhotos(futureMember.baptismPhotos || []);
     } else {
-      form.reset({ name: '', baptismDate: undefined, isBaptized: false });
+      form.reset({ name: '', isBaptized: false });
       setPreviewUrl(null);
       setBaptismPhotos([]);
     }

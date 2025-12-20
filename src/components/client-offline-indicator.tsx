@@ -33,9 +33,9 @@ function ClientOfflineIndicator() {
     const { toast } = useToast();
     const [showOnlineIndicator, setShowOnlineIndicator] = useState(false);
     const [wasOffline, setWasOffline] = useState(false);
-    const timeoutRef = useRef<NodeJS.Timeout>();
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [showInstalledIndicator, setShowInstalledIndicator] = useState(false);
-    const installTimeoutRef = useRef<NodeJS.Timeout>();
+    const installTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [offlineMinimized, setOfflineMinimized] = useState(false);
 
     // Helpers to ensure the installed banner shows only once
@@ -57,27 +57,25 @@ function ClientOfflineIndicator() {
 
     // Effect to handle online/offline state changes
     useEffect(() => {
-        if (!isOnline) {
-            // User went offline
-            setWasOffline(true);
-            setShowOnlineIndicator(false);
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-            }
-            // Load minimized state from localStorage on first offline
-            try {
-                const saved = localStorage.getItem('offlineBannerMinimized');
-                if (saved === 'true') setOfflineMinimized(true);
-            } catch {}
-        } else if (wasOffline && isOnline) {
-            // User came back online after being offline
-            setShowOnlineIndicator(true);
-            
-            // Auto-hide after 5 seconds
-            timeoutRef.current = setTimeout(() => {
+        queueMicrotask(() => {
+            if (!isOnline) {
+                setWasOffline(true);
                 setShowOnlineIndicator(false);
-            }, 5000);
-        }
+                if (timeoutRef.current) {
+                    clearTimeout(timeoutRef.current);
+                }
+                try {
+                    const saved = localStorage.getItem('offlineBannerMinimized');
+                    if (saved === 'true') setOfflineMinimized(true);
+                } catch {}
+            } else if (wasOffline && isOnline) {
+                setShowOnlineIndicator(true);
+                
+                timeoutRef.current = setTimeout(() => {
+                    setShowOnlineIndicator(false);
+                }, 5000);
+            }
+        });
 
         return () => {
             if (timeoutRef.current) {
@@ -99,7 +97,9 @@ function ClientOfflineIndicator() {
         if (!isInstalled) return;
         if (hasShownInstallBannerBefore()) return;
 
-        setShowInstalledIndicator(true);
+        queueMicrotask(() => {
+            setShowInstalledIndicator(true);
+        });
         installTimeoutRef.current = setTimeout(() => {
             setShowInstalledIndicator(false);
             markInstallBannerShown();

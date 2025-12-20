@@ -333,6 +333,7 @@ export async function updateMinisteringTeachersOnCompanionshipChange(
     const result = await executeBatchUpdates(allOperations);
 
     console.log(`✅ [SYNC] Updated ${result.updatedCount} member(s)`, result);
+    return result;
 
   } catch (error) {
     logger.error({ error, message: 'Error updating ministering teachers on companionship change' });

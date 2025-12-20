@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -11,7 +15,7 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "forceConsistentCasingInFileNames": true,
     "plugins": [
@@ -20,11 +24,27 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"],
-      "@/contexts/*": ["./src/contexts/*"],
-      "@testing-library/react": ["./src/test-support/testing-library-react"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@/contexts/*": [
+        "./src/contexts/*"
+      ],
+      "@testing-library/react": [
+        "./src/test-support/testing-library-react"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "**/*.d.ts", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "functions"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    "**/*.d.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "functions"
+  ]
 }

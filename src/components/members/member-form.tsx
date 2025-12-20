@@ -768,7 +768,8 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Miembro Guardado Anteriormente</AlertDialogTitle>
             <AlertDialogDescription>
-              Ya existe un miembro con el nombre "{form.getValues('firstName')} {form.getValues('lastName')}".
+              Ya existe un miembro con el nombre{" "}
+              &quot;{form.getValues('firstName')} {form.getValues('lastName')}&quot;.
               {duplicateMembers.length > 0 && (
                 <div className="mt-3">
                   <div className="text-sm font-medium mb-2">Miembros encontrados:</div>

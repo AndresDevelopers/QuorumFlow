@@ -51,7 +51,9 @@ export default function FutureMembersPage() {
   useEffect(() => {
     if (authLoading || !user) return;
 
-    loadData();
+    queueMicrotask(() => {
+      void loadData();
+    });
   }, [authLoading, user, loadData]);
 
 

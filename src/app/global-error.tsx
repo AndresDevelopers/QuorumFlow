@@ -49,7 +49,20 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
   const lang = getLanguage()
   const t = translations[lang]
 
-    useEffect(() => {\n    // Log the error to Sentry with additional context\n    if (Sentry?.captureException) {\n      Sentry.captureException(error, {\n        tags: {\n          component: 'GlobalError',\n          errorBoundary: true\n        },\n        extra: {\n          digest: error.digest,\n          timestamp: new Date().toISOString()\n        }\n      })\n    }\n  }, [error])
+  useEffect(() => {
+    if (Sentry?.captureException) {
+      Sentry.captureException(error, {
+        tags: {
+          component: 'GlobalError',
+          errorBoundary: true
+        },
+        extra: {
+          digest: error.digest,
+          timestamp: new Date().toISOString()
+        }
+      })
+    }
+  }, [error])
 
   const handleGoHome = () => {
     window.location.href = '/'

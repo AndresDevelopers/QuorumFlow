@@ -1,13 +1,45 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
 import { Timestamp } from 'firebase/firestore';
 import { updateMember, deleteMember } from '@/lib/members-data';
 
+function coerceToTimestamp(value: unknown): Timestamp | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  if (value instanceof Timestamp) return value;
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? undefined : Timestamp.fromDate(value);
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? undefined : Timestamp.fromDate(date);
+  }
+  if (typeof value === 'object' && value) {
+    const maybeValue: any = value;
+    if (typeof maybeValue.toDate === 'function') {
+      const date = maybeValue.toDate();
+      if (date instanceof Date && !isNaN(date.getTime())) {
+        return Timestamp.fromDate(date);
+      }
+    }
+    const seconds = maybeValue.seconds ?? maybeValue._seconds;
+    const nanoseconds = maybeValue.nanoseconds ?? maybeValue._nanoseconds;
+    if (typeof seconds === 'number') {
+      const millis =
+        seconds * 1000 +
+        (typeof nanoseconds === 'number' ? Math.floor(nanoseconds / 1_000_000) : 0);
+      return Timestamp.fromMillis(millis);
+    }
+  }
+  return undefined;
+}
+
 export async function PUT(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   let data: any = null;
+  const { id } = await params;
   try {
     // Parse request body with error handling
     try {
@@ -21,8 +53,8 @@ export async function PUT(
     }
 
     // Validate member ID
-    if (!params.id || params.id.trim() === '') {
-      console.error('❌ Invalid member ID:', params.id);
+    if (!id || id.trim() === '') {
+      console.error('❌ Invalid member ID:', id);
       return NextResponse.json(
         { error: 'Invalid member ID', details: 'Member ID is required' },
         { status: 400 }
@@ -30,7 +62,7 @@ export async function PUT(
     }
 
     console.log('📥 PUT /api/members/[id] received data:', {
-      memberId: params.id,
+      memberId: id,
       data,
       dataKeys: Object.keys(data),
       birthDate: data.birthDate,
@@ -60,49 +92,45 @@ export async function PUT(
       updatedAt: Timestamp.now(),
     };
 
-    if (data.birthDate) {
-      try {
-        const birthDate = new Date(data.birthDate);
-        if (!isNaN(birthDate.getTime())) {
-          memberData.birthDate = Timestamp.fromDate(birthDate);
-          console.log('📅 Converted birthDate:', {
-            original: data.birthDate,
-            converted: memberData.birthDate
-          });
-        } else {
-          console.warn('⚠️ Invalid birthDate, skipping conversion:', data.birthDate);
-        }
-      } catch (dateError) {
-        console.error('❌ Error converting birthDate:', dateError);
+    if ('birthDate' in data) {
+      const birthDate = coerceToTimestamp(data.birthDate);
+      if (birthDate instanceof Timestamp) {
+        memberData.birthDate = birthDate;
+        console.log('📅 Converted birthDate:', {
+          original: data.birthDate,
+          converted: memberData.birthDate
+        });
+      } else if (birthDate === null) {
+        memberData.birthDate = null;
+      } else if (data.birthDate) {
+        console.warn('⚠️ Invalid birthDate, skipping conversion:', data.birthDate);
       }
     }
-    if (data.baptismDate) {
-      try {
-        const baptismDate = new Date(data.baptismDate);
-        if (!isNaN(baptismDate.getTime())) {
-          memberData.baptismDate = Timestamp.fromDate(baptismDate);
-          console.log('🎂 Converted baptismDate:', {
-            original: data.baptismDate,
-            converted: memberData.baptismDate
-          });
-        } else {
-          console.warn('⚠️ Invalid baptismDate, skipping conversion:', data.baptismDate);
-        }
-      } catch (dateError) {
-        console.error('❌ Error converting baptismDate:', dateError);
+    if ('baptismDate' in data) {
+      const baptismDate = coerceToTimestamp(data.baptismDate);
+      if (baptismDate instanceof Timestamp) {
+        memberData.baptismDate = baptismDate;
+        console.log('🎂 Converted baptismDate:', {
+          original: data.baptismDate,
+          converted: memberData.baptismDate
+        });
+      } else if (baptismDate === null) {
+        memberData.baptismDate = null;
+      } else if (data.baptismDate) {
+        console.warn('⚠️ Invalid baptismDate, skipping conversion:', data.baptismDate);
       }
     }
 
     console.log('🔄 Calling updateMember with:', {
-      memberId: params.id,
+      memberId: id,
       memberData,
       memberDataKeys: Object.keys(memberData)
     });
 
-    await updateMember(params.id, memberData);
+    await updateMember(id, memberData);
 
     // Always invalidate cache when updating members
-    revalidateTag('members');
+    revalidateTag('members', 'default');
 
     // Return response with cache-busting headers
     const response = NextResponse.json({ success: true });
@@ -113,7 +141,7 @@ export async function PUT(
     console.error('❌ Error updating member:', {
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
-      memberId: params.id,
+      memberId: id,
       dataKeys: data ? Object.keys(data) : 'data not parsed yet'
     });
 
@@ -122,7 +150,7 @@ export async function PUT(
     const errorResponse = {
       error: 'Failed to update member',
       details: errorMessage,
-      memberId: params.id,
+      memberId: id,
       timestamp: new Date().toISOString()
     };
 
@@ -142,14 +170,15 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
-    await deleteMember(params.id);
+    await deleteMember(id);
 
     // Always invalidate cache when deleting members
-    revalidateTag('members');
+    revalidateTag('members', 'default');
 
     // Return response with cache-busting headers
     const response = NextResponse.json({ success: true });

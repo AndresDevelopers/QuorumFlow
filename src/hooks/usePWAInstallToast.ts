@@ -69,7 +69,9 @@ export function usePWAInstallToast() {
       });
       
       // Mark as installed to prevent duplicate toasts
-      setIsInstalled(true);
+      queueMicrotask(() => {
+        setIsInstalled(true);
+      });
       markToastAsShown();
       
       // Auto-dismiss after 5 seconds as a fallback

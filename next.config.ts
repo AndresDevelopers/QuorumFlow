@@ -27,9 +27,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   // Fix source map issues in development
   productionBrowserSourceMaps: false,
   // Webpack configuration for source maps

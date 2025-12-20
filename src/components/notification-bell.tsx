@@ -48,7 +48,9 @@ export function NotificationBell() {
   };
 
   useEffect(() => {
-    fetchNotifications();
+    queueMicrotask(() => {
+      void fetchNotifications();
+    });
   }, [user]);
 
   const handleMarkAsRead = async () => {

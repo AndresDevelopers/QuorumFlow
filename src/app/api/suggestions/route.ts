@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   // If refresh is requested, revalidate and get fresh data
   if (refresh) {
     if (process.env.NODE_ENV === 'production') {
-      revalidateTag('suggestions');
+      revalidateTag('suggestions', 'default');
     }
     // Always get fresh data when refresh is requested
     try {

@@ -100,7 +100,7 @@ export default function ServicePage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      fetchServices();
+      queueMicrotask(fetchServices);
     }
   }, [authLoading, user]);
   

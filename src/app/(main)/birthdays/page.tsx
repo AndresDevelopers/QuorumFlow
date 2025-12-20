@@ -129,11 +129,11 @@ export default function BirthdaysPage() {
         toast({ title: t('birthdays.error'), description: t('birthdays.loadError'), variant: 'destructive' });
       })
       .finally(() => setLoading(false));
-  }, [toast]);
+  }, [toast, t]);
 
   useEffect(() => {
     if (authLoading || !user) return;
-    fetchBirthdays();
+    queueMicrotask(fetchBirthdays);
   }, [authLoading, user, fetchBirthdays]);
   
   const handleDelete = async (birthday: Birthday) => {

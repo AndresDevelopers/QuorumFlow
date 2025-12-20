@@ -115,7 +115,9 @@ function DashboardPage() {
         setChartData(data);
         setLoadingChart(false);
     }
-    loadChartData();
+    queueMicrotask(() => {
+      void loadChartData();
+    });
   }, [authLoading, user])
 
   useEffect(() => {
@@ -127,7 +129,9 @@ function DashboardPage() {
         setMembersData(data);
         setLoadingMembers(false);
     }
-    loadMembersData();
+    queueMicrotask(() => {
+      void loadMembersData();
+    });
   }, [authLoading, user])
 
   const fetchAnnotations = async () => {
@@ -139,7 +143,9 @@ function DashboardPage() {
   }
 
   useEffect(() => {
-    fetchAnnotations();
+    queueMicrotask(() => {
+      void fetchAnnotations();
+    });
   }, [authLoading, user])
 
   const handleDeleteAnnotation = async (id: string) => {

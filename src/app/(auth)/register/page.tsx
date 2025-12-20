@@ -183,7 +183,7 @@ export default function RegisterPage() {
                         }
                         initialFocus
                         locale={es}
-                        captionLayout="dropdown-buttons"
+                        captionLayout="dropdown"
                         fromYear={1920}
                         toYear={new Date().getFullYear()}
                       />

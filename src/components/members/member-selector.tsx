@@ -258,24 +258,27 @@ export function useMemberData(memberId?: string) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!memberId) {
-      setMember(null);
-      return;
-    }
-
-    setLoading(true);
-    getMembersForSelector(true)
-      .then(members => {
-        const foundMember = members.find(m => m.id === memberId);
-        setMember(foundMember || null);
-      })
-      .catch(error => {
-        console.error('Error fetching member data:', error);
+    queueMicrotask(() => {
+      if (!memberId) {
         setMember(null);
-      })
-      .finally(() => {
         setLoading(false);
-      });
+        return;
+      }
+
+      setLoading(true);
+      getMembersForSelector(true)
+        .then(members => {
+          const foundMember = members.find(m => m.id === memberId);
+          setMember(foundMember || null);
+        })
+        .catch(error => {
+          console.error('Error fetching member data:', error);
+          setMember(null);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    });
   }, [memberId]);
 
   return { member, loading };

@@ -102,7 +102,9 @@ export default function ConvertsPage() {
 
   useEffect(() => {
     if (authLoading || !user) return;
-    loadData();
+    queueMicrotask(() => {
+      void loadData();
+    });
   }, [authLoading, user]);
 
 

@@ -380,7 +380,7 @@ export function AnnotationManager({
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Esta acción eliminará permanentemente: "{deleteItem?.description}".
+                            Esta acción eliminará permanentemente: &quot;{deleteItem?.description}&quot;.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -87,9 +88,9 @@ export default function MigrateMinisteringPage() {
           <div className="pt-4 border-t">
             <p className="text-sm text-muted-foreground">
               Después de ejecutar la migración, ve a la página de{' '}
-              <a href="/ministering" className="text-blue-600 hover:underline">
+              <Link href="/ministering" className="text-blue-600 hover:underline">
                 Ministración
-              </a>{' '}
+              </Link>{' '}
               para ver los compañerismos creados.
             </p>
           </div>
