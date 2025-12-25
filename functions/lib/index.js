@@ -272,7 +272,7 @@ exports.generateCompleteReport = functions.https.onCall(async (data, context) =>
                 const data = doc.data();
                 return {
                     id: doc.id,
-                    name: data.name,
+                    name: data.name || "Sin nombre",
                     date: data.baptismDate,
                     source: "Futuro Miembro",
                     photoURL: data.photoURL,
@@ -283,7 +283,7 @@ exports.generateCompleteReport = functions.https.onCall(async (data, context) =>
                 const data = doc.data();
                 return {
                     id: doc.id,
-                    name: data.name,
+                    name: data.name || "Sin nombre",
                     date: data.baptismDate,
                     source: "Nuevo Converso",
                     photoURL: data.photoURL,
@@ -294,7 +294,7 @@ exports.generateCompleteReport = functions.https.onCall(async (data, context) =>
                 const data = doc.data();
                 return {
                     id: doc.id,
-                    name: data.name,
+                    name: data.name || "Sin nombre",
                     date: data.date,
                     source: "Manual",
                     photoURL: data.photoURL,
@@ -305,14 +305,14 @@ exports.generateCompleteReport = functions.https.onCall(async (data, context) =>
                 const data = doc.data();
                 return {
                     id: doc.id,
-                    name: `${data.firstName} ${data.lastName}`,
+                    name: `${data.firstName || ""} ${data.lastName || ""}`.trim() || "Sin nombre",
                     date: data.baptismDate,
                     source: "Automático",
                     photoURL: data.photoURL,
                     baptismPhotos: data.baptismPhotos || []
                 };
             })
-        ].sort((a, b) => b.date.toMillis() - a.date.toMillis());
+        ].filter(b => b.date).sort((a, b) => b.date.toMillis() - a.date.toMillis());
         const answers = (reportAnswersDoc.data() || {});
         // Calcular estadísticas generales
         const totalActivities = activitiesToProcess.length;
@@ -482,9 +482,9 @@ exports.generateReport = functions.https.onCall(async (data, context) => {
             const data = doc.data();
             return {
                 id: doc.id,
-                name: data.name,
+                name: data.name || "Sin nombre",
                 date: data.baptismDate,
-                source: "Automático",
+                source: "Futuro Miembro",
                 photoURL: data.photoURL,
                 baptismPhotos: data.baptismPhotos || []
             };
@@ -497,7 +497,7 @@ exports.generateReport = functions.https.onCall(async (data, context) => {
             const data = doc.data();
             return {
                 id: doc.id,
-                name: data.name,
+                name: data.name || "Sin nombre",
                 date: data.date,
                 source: "Manual",
                 photoURL: data.photoURL,
@@ -512,14 +512,16 @@ exports.generateReport = functions.https.onCall(async (data, context) => {
             const data = doc.data();
             return {
                 id: doc.id,
-                name: data.name,
+                name: data.name || "Sin nombre",
                 date: data.baptismDate,
                 source: "Nuevo Converso",
                 photoURL: data.photoURL,
                 baptismPhotos: data.baptismPhotos || []
             };
         });
-        const baptisms = [...fromFutureMembers, ...fromManual, ...fromConverts].sort((a, b) => b.date.toMillis() - a.date.toMillis());
+        const baptisms = [...fromFutureMembers, ...fromManual, ...fromConverts]
+            .filter(b => b.date)
+            .sort((a, b) => b.date.toMillis() - a.date.toMillis());
         const reportAnswersDoc = await firestore.collection("c_reporte_anual").doc(String(year)).get();
         const answers = (reportAnswersDoc.data() || {});
         const activitiesToProcess = includeAllActivities ? allActivities : currentYearActivities;

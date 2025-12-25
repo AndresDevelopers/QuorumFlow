@@ -59,10 +59,32 @@ export default function LoginPage() {
       router.push("/");
     } catch (error: any) {
       console.error("Login Error:", error);
+      
       let description = t('login.toastErrorUnexpected');
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        description = t('login.toastErrorInvalidCredentials');
+      
+      // Manejo específico de errores de Firebase
+      switch (error.code) {
+        case 'auth/invalid-credential':
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+          description = t('login.toastErrorInvalidCredentials');
+          break;
+        case 'auth/user-disabled':
+          description = 'Tu cuenta ha sido deshabilitada. Contacta al administrador.';
+          break;
+        case 'auth/too-many-requests':
+          description = 'Demasiados intentos fallidos. Por favor, intenta más tarde.';
+          break;
+        case 'auth/network-request-failed':
+          description = 'Error de conexión. Verifica tu internet e intenta nuevamente.';
+          break;
+        case 'auth/invalid-email':
+          description = 'El formato del correo electrónico no es válido.';
+          break;
+        default:
+          description = t('login.toastErrorUnexpected');
       }
+      
       toast({
         title: t('login.toastErrorTitle'),
         description: description,

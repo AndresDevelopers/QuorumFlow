@@ -8,6 +8,15 @@ const { DocUtils } = docxtemplaterNamespace;
 const MODULE_NAME = "quorumflow/docxtemplater-modern-image-module";
 const DEFAULT_IMAGE_EXTENSION = "png";
 
+// EMUs (English Metric Units) conversion
+// 1 inch = 914400 EMUs
+// 1 pixel at 96 DPI = 914400 / 96 = 9525 EMUs
+const EMUS_PER_PIXEL = 9525;
+
+function convertPixelsToEmus(pixels: number): number {
+    return Math.round(pixels * EMUS_PER_PIXEL);
+}
+
 interface ModernImageModuleOptions {
     centered?: boolean;
     getImage: (tagValue: unknown, tagName: string) => Buffer | Promise<Buffer>;
@@ -361,12 +370,12 @@ export default class ModernImageModule {
 
     private renderImageXml(centered: boolean, rId: number, sizeInPixels: [number, number]): string {
         const [width, height] = sizeInPixels.map((dimension) =>
-            DocUtils.convertPixelsToEmus(dimension)
-        ) as [string, string];
+            convertPixelsToEmus(dimension)
+        ) as [number, number];
         if (centered) {
-            return this.getCenteredXml(rId, width, height);
+            return this.getCenteredXml(rId, String(width), String(height));
         }
-        return this.getInlineXml(rId, width, height);
+        return this.getInlineXml(rId, String(width), String(height));
     }
 
     private getInlineXml(rId: number, width: string, height: string): string {

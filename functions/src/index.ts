@@ -419,14 +419,14 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
         const activitiesToProcess = includeAllActivities ? allActivities : allActivities.filter(a => a.date.toDate() >= start && a.date.toDate() <= end);
 
         // Procesar bautismos con imágenes
-        const baptisms = [
+        const baptisms: Baptism[] = [
             ...futureMembersSnapshot.docs.map(doc => {
                 const data = doc.data();
                 return { 
                     id: doc.id, 
-                    name: data.name, 
+                    name: data.name || "Sin nombre", 
                     date: data.baptismDate, 
-                    source: "Futuro Miembro",
+                    source: "Futuro Miembro" as const,
                     photoURL: data.photoURL,
                     baptismPhotos: data.baptismPhotos || []
                 };
@@ -435,9 +435,9 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
                 const data = doc.data();
                 return { 
                     id: doc.id, 
-                    name: data.name, 
+                    name: data.name || "Sin nombre", 
                     date: data.baptismDate, 
-                    source: "Nuevo Converso",
+                    source: "Nuevo Converso" as const,
                     photoURL: data.photoURL,
                     baptismPhotos: data.baptismPhotos || []
                 };
@@ -446,9 +446,9 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
                 const data = doc.data();
                 return { 
                     id: doc.id, 
-                    name: data.name, 
+                    name: data.name || "Sin nombre", 
                     date: data.date, 
-                    source: "Manual",
+                    source: "Manual" as const,
                     photoURL: data.photoURL,
                     baptismPhotos: data.baptismPhotos || []
                 };
@@ -457,14 +457,14 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
                 const data = doc.data();
                 return { 
                     id: doc.id, 
-                    name: `${data.firstName} ${data.lastName}`, 
+                    name: `${data.firstName || ""} ${data.lastName || ""}`.trim() || "Sin nombre", 
                     date: data.baptismDate, 
-                    source: "Automático",
+                    source: "Automático" as const,
                     photoURL: data.photoURL,
                     baptismPhotos: data.baptismPhotos || []
                 };
             })
-        ].sort((a, b) => b.date.toMillis() - a.date.toMillis()) as any;
+        ].filter(b => b.date).sort((a, b) => b.date.toMillis() - a.date.toMillis());
 
         const answers = (reportAnswersDoc.data() || {}) as AnnualReportAnswers;
 
@@ -678,12 +678,12 @@ export const generateReport = functions.https.onCall(async (data: any, context: 
             const data = doc.data();
             return { 
                 id: doc.id, 
-                name: data.name, 
+                name: data.name || "Sin nombre", 
                 date: data.baptismDate, 
-                source: "Automático",
+                source: "Futuro Miembro" as const,
                 photoURL: data.photoURL,
                 baptismPhotos: data.baptismPhotos || []
-            } as Baptism;
+            };
         });
 
         const bSnapshot = await firestore.collection("c_bautismos")
@@ -694,12 +694,12 @@ export const generateReport = functions.https.onCall(async (data: any, context: 
             const data = doc.data();
             return { 
                 id: doc.id, 
-                name: data.name, 
+                name: data.name || "Sin nombre", 
                 date: data.date, 
-                source: "Manual",
+                source: "Manual" as const,
                 photoURL: data.photoURL,
                 baptismPhotos: data.baptismPhotos || []
-            } as Baptism;
+            };
         });
         
         const convertsSnapshot = await firestore.collection("c_nuevos_conversos")
@@ -710,15 +710,17 @@ export const generateReport = functions.https.onCall(async (data: any, context: 
             const data = doc.data();
             return { 
                 id: doc.id, 
-                name: data.name, 
+                name: data.name || "Sin nombre", 
                 date: data.baptismDate, 
-                source: "Nuevo Converso",
+                source: "Nuevo Converso" as const,
                 photoURL: data.photoURL,
                 baptismPhotos: data.baptismPhotos || []
-            } as Baptism;
+            };
         });
         
-        const baptisms = [...fromFutureMembers, ...fromManual, ...fromConverts].sort((a, b) => b.date.toMillis() - a.date.toMillis());
+        const baptisms: Baptism[] = [...fromFutureMembers, ...fromManual, ...fromConverts]
+            .filter(b => b.date)
+            .sort((a, b) => b.date.toMillis() - a.date.toMillis());
 
         const reportAnswersDoc = await firestore.collection("c_reporte_anual").doc(String(year)).get();
         const answers = (reportAnswersDoc.data() || {}) as AnnualReportAnswers;

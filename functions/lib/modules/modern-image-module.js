@@ -6,6 +6,13 @@ const docxtemplaterNamespace = require("docxtemplater");
 const { DocUtils } = docxtemplaterNamespace;
 const MODULE_NAME = "quorumflow/docxtemplater-modern-image-module";
 const DEFAULT_IMAGE_EXTENSION = "png";
+// EMUs (English Metric Units) conversion
+// 1 inch = 914400 EMUs
+// 1 pixel at 96 DPI = 914400 / 96 = 9525 EMUs
+const EMUS_PER_PIXEL = 9525;
+function convertPixelsToEmus(pixels) {
+    return Math.round(pixels * EMUS_PER_PIXEL);
+}
 class RelationshipManager {
     constructor(zip, filePath, xmlDocuments) {
         this.zip = zip;
@@ -264,11 +271,11 @@ class ModernImageModule {
         return [width, height];
     }
     renderImageXml(centered, rId, sizeInPixels) {
-        const [width, height] = sizeInPixels.map((dimension) => DocUtils.convertPixelsToEmus(dimension));
+        const [width, height] = sizeInPixels.map((dimension) => convertPixelsToEmus(dimension));
         if (centered) {
-            return this.getCenteredXml(rId, width, height);
+            return this.getCenteredXml(rId, String(width), String(height));
         }
-        return this.getInlineXml(rId, width, height);
+        return this.getInlineXml(rId, String(width), String(height));
     }
     getInlineXml(rId, width, height) {
         return `
