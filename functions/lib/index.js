@@ -161,6 +161,54 @@ const prepareActivitiesDocData = async (activities) => {
         activitiesWithImages: galleries.length,
     };
 };
+const prepareBaptismsDocData = async (baptisms) => {
+    const baptismsData = baptisms.map((baptism) => {
+        const baptismDate = baptism.date.toDate();
+        const fullDate = (0, date_fns_1.format)(baptismDate, "dd 'de' MMMM 'de' yyyy", { locale: locale_1.es });
+        const shortDate = (0, date_fns_1.format)(baptismDate, "dd/MM/yyyy", { locale: locale_1.es });
+        const dayOfWeek = (0, date_fns_1.format)(baptismDate, "EEEE", { locale: locale_1.es });
+        const month = (0, date_fns_1.format)(baptismDate, "MMMM", { locale: locale_1.es });
+        const images = (baptism.baptismPhotos ?? [])
+            .filter((url) => !!url)
+            .map((url, index) => ({
+            image: url,
+            caption: `Bautismo de ${baptism.name} - ${fullDate}`,
+            name: baptism.name,
+            date: fullDate,
+            order: index + 1,
+        }));
+        return {
+            id: baptism.id,
+            nombre: baptism.name,
+            fecha: fullDate,
+            fecha_corta: shortDate,
+            dia_semana: dayOfWeek,
+            origen: baptism.source,
+            mes: month,
+            hasImages: images.length > 0 || !!baptism.photoURL,
+            imageCount: images.length,
+            photoURL: baptism.photoURL || "",
+            images,
+        };
+    });
+    const totalBaptismImages = baptismsData.reduce((sum, baptism) => sum + baptism.imageCount, 0);
+    const baptismGalleries = baptismsData
+        .filter((baptism) => baptism.hasImages)
+        .map((baptism) => ({
+        nombre: baptism.nombre,
+        fecha: baptism.fecha,
+        origen: baptism.origen,
+        cantidad: baptism.imageCount,
+        foto_perfil: baptism.photoURL,
+        imagenes: baptism.images,
+    }));
+    return {
+        baptismsData,
+        totalBaptismImages,
+        baptismGalleries,
+        baptismsWithImages: baptismGalleries.length,
+    };
+};
 exports.cleanupProfilePictures = functions.storage.object().onFinalize(async (object) => {
     const filePath = object.name;
     const contentType = object.contentType;
@@ -218,23 +266,51 @@ exports.generateCompleteReport = functions.https.onCall(async (data, context) =>
         // Procesar datos
         const allActivities = activitiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const activitiesToProcess = includeAllActivities ? allActivities : allActivities.filter(a => a.date.toDate() >= start && a.date.toDate() <= end);
-        // Procesar bautismos
+        // Procesar bautismos con imágenes
         const baptisms = [
             ...futureMembersSnapshot.docs.map(doc => {
                 const data = doc.data();
-                return { id: doc.id, name: data.name, date: data.baptismDate, source: "Futuro Miembro" };
+                return {
+                    id: doc.id,
+                    name: data.name,
+                    date: data.baptismDate,
+                    source: "Futuro Miembro",
+                    photoURL: data.photoURL,
+                    baptismPhotos: data.baptismPhotos || []
+                };
             }),
             ...convertsSnapshot.docs.map(doc => {
                 const data = doc.data();
-                return { id: doc.id, name: data.name, date: data.baptismDate, source: "Nuevo Converso" };
+                return {
+                    id: doc.id,
+                    name: data.name,
+                    date: data.baptismDate,
+                    source: "Nuevo Converso",
+                    photoURL: data.photoURL,
+                    baptismPhotos: data.baptismPhotos || []
+                };
             }),
             ...baptismsSnapshot.docs.map(doc => {
                 const data = doc.data();
-                return { id: doc.id, name: data.name, date: data.date, source: "Manual" };
+                return {
+                    id: doc.id,
+                    name: data.name,
+                    date: data.date,
+                    source: "Manual",
+                    photoURL: data.photoURL,
+                    baptismPhotos: data.baptismPhotos || []
+                };
             }),
             ...membersSnapshot.docs.map(doc => {
                 const data = doc.data();
-                return { id: doc.id, name: `${data.firstName} ${data.lastName}`, date: data.baptismDate, source: "Automático" };
+                return {
+                    id: doc.id,
+                    name: `${data.firstName} ${data.lastName}`,
+                    date: data.baptismDate,
+                    source: "Automático",
+                    photoURL: data.photoURL,
+                    baptismPhotos: data.baptismPhotos || []
+                };
             })
         ].sort((a, b) => b.date.toMillis() - a.date.toMillis());
         const answers = (reportAnswersDoc.data() || {});
@@ -249,7 +325,22 @@ exports.generateCompleteReport = functions.https.onCall(async (data, context) =>
             acc[month].push(activity);
             return acc;
         }, {});
-        const { activitiesData, imageModule, totalImages, galleries, activitiesWithImages, } = await prepareActivitiesDocData(activitiesToProcess);
+        const { activitiesData, totalImages, galleries, activitiesWithImages, } = await prepareActivitiesDocData(activitiesToProcess);
+        const { baptismsData, totalBaptismImages, baptismGalleries, baptismsWithImages, } = await prepareBaptismsDocData(baptisms);
+        // Combinar todas las URLs de imágenes para el módulo
+        const allImageUrls = new Set();
+        // Agregar imágenes de actividades
+        activitiesData.forEach(activity => {
+            activity.images.forEach(img => allImageUrls.add(img.image));
+        });
+        // Agregar imágenes de bautismos
+        baptismsData.forEach(baptism => {
+            if (baptism.photoURL)
+                allImageUrls.add(baptism.photoURL);
+            baptism.images.forEach(img => allImageUrls.add(img.image));
+        });
+        // Crear módulo de imágenes combinado
+        const imageModule = await createImageModuleFromUrls(Array.from(allImageUrls));
         const activitiesDataMap = new Map(activitiesData.map(activity => [activity.id, activity]));
         const monthlyActivities = Object.entries(activitiesByMonth)
             .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
@@ -283,16 +374,8 @@ exports.generateCompleteReport = functions.https.onCall(async (data, context) =>
                 };
             }),
         }));
-        // Preparar bautismos con formato detallado
-        const detailedBaptisms = baptisms.map((b) => ({
-            nombre: b.name,
-            fecha: (0, date_fns_1.format)(b.date.toDate(), "dd 'de' MMMM 'de' yyyy", { locale: locale_1.es }),
-            fecha_corta: (0, date_fns_1.format)(b.date.toDate(), "dd/MM/yyyy", { locale: locale_1.es }),
-            dia_semana: (0, date_fns_1.format)(b.date.toDate(), "EEEE", { locale: locale_1.es }),
-            origen: b.source,
-            mes: (0, date_fns_1.format)(b.date.toDate(), "MMMM", { locale: locale_1.es })
-        }));
-        const baptismsText = detailedBaptisms.map((b) => `${b.nombre} (${b.fecha})`).join("\n");
+        // Los bautismos ya están preparados con imágenes en baptismsData
+        const baptismsText = baptismsData.map((b) => `${b.nombre} (${b.fecha})`).join("\n");
         // Obtener template
         const bucket = storage.bucket();
         const file = bucket.file("template/reporte.docx");
@@ -344,10 +427,14 @@ exports.generateCompleteReport = functions.https.onCall(async (data, context) =>
             incluye_todas_actividades: includeAllActivities ? "Sí" : "No (solo del año actual)",
             // Datos agrupados
             actividades_por_mes: monthlyActivities,
-            resumen_bautismos: detailedBaptisms,
+            resumen_bautismos: baptismsData,
             galeria_actividades: galleries,
+            galeria_bautismos: baptismGalleries,
             total_imagenes: totalImages,
+            total_imagenes_bautismos: totalBaptismImages,
+            total_imagenes_todas: totalImages + totalBaptismImages,
             actividades_con_imagenes: activitiesWithImages,
+            bautismos_con_imagenes: baptismsWithImages,
             // Información adicional
             distribucion_bautismos_por_fuente: Object.entries(summary.distribucion_bautismos).map(([fuente, cantidad]) => ({
                 fuente,
@@ -361,7 +448,7 @@ exports.generateCompleteReport = functions.https.onCall(async (data, context) =>
                 tiene_imagenes: a.imageUrls && a.imageUrls.length > 0 ? "Sí" : "No",
                 cantidad_imagenes: a.imageUrls ? a.imageUrls.length : 0,
             })),
-            tabla_bautismos: detailedBaptisms
+            tabla_bautismos: baptismsData
         });
         const buffer = doc.getZip().generate({ type: "nodebuffer" });
         return {
@@ -393,7 +480,14 @@ exports.generateReport = functions.https.onCall(async (data, context) => {
             .get();
         const fromFutureMembers = fmSnapshot.docs.map(doc => {
             const data = doc.data();
-            return { id: doc.id, name: data.name, date: data.baptismDate, source: "Automático" };
+            return {
+                id: doc.id,
+                name: data.name,
+                date: data.baptismDate,
+                source: "Automático",
+                photoURL: data.photoURL,
+                baptismPhotos: data.baptismPhotos || []
+            };
         });
         const bSnapshot = await firestore.collection("c_bautismos")
             .where("date", ">=", startTimestamp)
@@ -401,15 +495,52 @@ exports.generateReport = functions.https.onCall(async (data, context) => {
             .get();
         const fromManual = bSnapshot.docs.map(doc => {
             const data = doc.data();
-            return { id: doc.id, name: data.name, date: data.date, source: "Manual" };
+            return {
+                id: doc.id,
+                name: data.name,
+                date: data.date,
+                source: "Manual",
+                photoURL: data.photoURL,
+                baptismPhotos: data.baptismPhotos || []
+            };
         });
-        const baptisms = [...fromFutureMembers, ...fromManual].sort((a, b) => b.date.toMillis() - a.date.toMillis());
+        const convertsSnapshot = await firestore.collection("c_nuevos_conversos")
+            .where("baptismDate", ">=", startTimestamp)
+            .where("baptismDate", "<=", endTimestamp)
+            .get();
+        const fromConverts = convertsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                name: data.name,
+                date: data.baptismDate,
+                source: "Nuevo Converso",
+                photoURL: data.photoURL,
+                baptismPhotos: data.baptismPhotos || []
+            };
+        });
+        const baptisms = [...fromFutureMembers, ...fromManual, ...fromConverts].sort((a, b) => b.date.toMillis() - a.date.toMillis());
         const reportAnswersDoc = await firestore.collection("c_reporte_anual").doc(String(year)).get();
         const answers = (reportAnswersDoc.data() || {});
         const activitiesToProcess = includeAllActivities ? allActivities : currentYearActivities;
-        const { activitiesData, imageModule, totalImages, galleries, activitiesWithImages, } = await prepareActivitiesDocData(activitiesToProcess);
+        const { activitiesData, totalImages, galleries, activitiesWithImages, } = await prepareActivitiesDocData(activitiesToProcess);
+        const { baptismsData, totalBaptismImages, baptismGalleries, baptismsWithImages, } = await prepareBaptismsDocData(baptisms);
+        // Combinar todas las URLs de imágenes para el módulo
+        const allImageUrls = new Set();
+        // Agregar imágenes de actividades
+        activitiesData.forEach(activity => {
+            activity.images.forEach(img => allImageUrls.add(img.image));
+        });
+        // Agregar imágenes de bautismos
+        baptismsData.forEach(baptism => {
+            if (baptism.photoURL)
+                allImageUrls.add(baptism.photoURL);
+            baptism.images.forEach(img => allImageUrls.add(img.image));
+        });
+        // Crear módulo de imágenes combinado
+        const imageModule = await createImageModuleFromUrls(Array.from(allImageUrls));
         const activitiesDataMap = new Map(activitiesData.map(activity => [activity.id, activity]));
-        const baptismsText = baptisms.map(b => `${b.name} (${(0, date_fns_1.format)(b.date.toDate(), "P", { locale: locale_1.es })})`).join("\n");
+        const baptismsText = baptismsData.map(b => `${b.nombre} (${b.fecha})`).join("\n");
         // Obtener estadísticas generales
         const totalActivities = activitiesToProcess.length;
         const totalBaptisms = baptisms.length;
@@ -476,14 +607,14 @@ exports.generateReport = functions.https.onCall(async (data, context) => {
             total_actividades: totalActivities,
             total_bautismos: totalBaptisms,
             actividades_por_mes: monthlyActivities,
-            resumen_bautismos: baptisms.map(b => ({
-                nombre: b.name,
-                fecha: (0, date_fns_1.format)(b.date.toDate(), "dd 'de' MMMM 'de' yyyy", { locale: locale_1.es }),
-                origen: b.source
-            })),
+            resumen_bautismos: baptismsData,
             galeria_actividades: galleries,
+            galeria_bautismos: baptismGalleries,
             total_imagenes: totalImages,
+            total_imagenes_bautismos: totalBaptismImages,
+            total_imagenes_todas: totalImages + totalBaptismImages,
             actividades_con_imagenes: activitiesWithImages,
+            bautismos_con_imagenes: baptismsWithImages,
             fecha_generacion: (0, date_fns_1.format)(new Date(), "d 'de' MMMM 'de' yyyy 'a las' HH:mm", { locale: locale_1.es })
         });
         const buffer = doc.getZip().generate({

@@ -60,7 +60,6 @@ const activitySchema = z.object({
   description: z.string().min(10, {
     message: 'La descripción es requerida y debe tener al menos 10 caracteres.',
   }),
-  additionalText: z.string().optional(),
   location: z.string().optional(),
   context: z.string().optional(),
   learning: z.string().optional(),
@@ -89,7 +88,7 @@ export function ActivityForm({ activity }: ActivityFormProps) {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(activitySchema),
-    defaultValues: { title: '', time: '', description: '', location: '', context: '', learning: '', additionalText: '' },
+    defaultValues: { title: '', time: '', description: '', location: '', context: '', learning: '' },
   });
 
   useEffect(() => {
@@ -102,11 +101,10 @@ export function ActivityForm({ activity }: ActivityFormProps) {
         location: activity.location || '',
         context: activity.context || '',
         learning: activity.learning || '',
-        additionalText: activity.additionalText || '',
       });
       setPreviewUrls(activity.imageUrls || []);
     } else {
-       form.reset({ title: '', date: undefined, time: '', description: '', location: '', context: '', learning: '', additionalText: '' });
+       form.reset({ title: '', date: undefined, time: '', description: '', location: '', context: '', learning: '' });
        setPreviewUrls([]);
     }
     setSelectedFiles([]);
@@ -330,23 +328,6 @@ export function ActivityForm({ activity }: ActivityFormProps) {
                     <Textarea
                       rows={5}
                       placeholder="Describe brevemente qué se hizo, quiénes participaron, y los resultados."
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <FormField
-              control={form.control}
-              name="additionalText"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Texto Adicional</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      rows={5}
-                      placeholder="Agrega cualquier texto adicional que deba ser incluido en el reporte."
                       {...field}
                     />
                   </FormControl>
