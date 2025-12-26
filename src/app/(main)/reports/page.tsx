@@ -167,7 +167,7 @@ export default function ReportsPage() {
   const [suggestions, setSuggestions] = useState<SuggestedActivities | null>(null);
   const [isGenerating, startGenerating] = useTransition();
   const [isGeneratingReport, startGeneratingReport] = useTransition();
-  const [includeAllActivities, setIncludeAllActivities] = useState(false);
+  const [includeAllActivities, setIncludeAllActivities] = useState(true);
 
   const [answers, setAnswers] = useState<Partial<AnnualReportAnswers>>({});
   const [loadingAnswers, setLoadingAnswers] = useState(true);
@@ -402,14 +402,6 @@ export default function ReportsPage() {
                         </div>
                     ))
                 )}
-                <div className="flex items-center space-x-2 pt-4">
-                    <Switch 
-                        id="all-activities"
-                        checked={includeAllActivities}
-                        onCheckedChange={setIncludeAllActivities}    
-                    />
-                    <Label htmlFor="all-activities">Incluir todas las actividades registradas en el reporte</Label>
-                </div>
             </CardContent>
             <CardContent className="flex justify-end">
                 <Button onClick={handleSaveAnswers}><Save className="mr-2 h-4 w-4" /> Guardar Respuestas</Button>

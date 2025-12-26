@@ -77,18 +77,69 @@ const createImageModuleFromUrls = async (urls) => {
         },
     });
 };
+/**
+ * Extrae la ruta del archivo de Storage desde una URL de Firebase Storage.
+ * Soporta URLs con formato:
+ * - https://firebasestorage.googleapis.com/v0/b/BUCKET/o/PATH?token=...
+ * - gs://BUCKET/PATH
+ */
+const extractStoragePathFromUrl = (url) => {
+    try {
+        // Formato: https://firebasestorage.googleapis.com/v0/b/BUCKET/o/ENCODED_PATH?...
+        if (url.includes("firebasestorage.googleapis.com")) {
+            const match = url.match(/\/o\/([^?]+)/);
+            if (match) {
+                // Decodificar la ruta (puede tener %2F en lugar de /)
+                const encodedPath = match[1];
+                const decodedPath = decodeURIComponent(encodedPath);
+                functions.logger.debug("Extracted storage path", { url, encodedPath, decodedPath });
+                return decodedPath;
+            }
+        }
+        // Formato: gs://BUCKET/PATH
+        if (url.startsWith("gs://")) {
+            const parts = url.replace("gs://", "").split("/");
+            parts.shift(); // Remover el bucket
+            return parts.join("/");
+        }
+        return null;
+    }
+    catch (error) {
+        functions.logger.error("Error extracting storage path", { url, error });
+        return null;
+    }
+};
 const fetchImageBuffers = async (urls) => {
     if (urls.length === 0) {
         return new Map();
     }
+    const bucket = storage.bucket();
     const entries = await Promise.all(urls.map(async (url) => {
         try {
+            // Intentar extraer la ruta del Storage desde la URL
+            const storagePath = extractStoragePathFromUrl(url);
+            if (storagePath) {
+                // Descargar directamente usando Firebase Admin SDK (acceso privilegiado)
+                const file = bucket.file(storagePath);
+                const [exists] = await file.exists();
+                if (exists) {
+                    const [buffer] = await file.download();
+                    functions.logger.info("Image downloaded via Admin SDK", { storagePath });
+                    return [url, buffer];
+                }
+                else {
+                    functions.logger.warn("File not found in Storage", { storagePath, url });
+                }
+            }
+            // Fallback: usar axios para URLs externas o si no se pudo extraer la ruta
             const response = await axios_1.default.get(url, {
                 responseType: "arraybuffer",
                 headers: {
                     Accept: "image/*",
                 },
+                timeout: 30000, // 30 segundos de timeout
             });
+            functions.logger.info("Image downloaded via HTTP", { url });
             return [url, Buffer.from(response.data)];
         }
         catch (error) {
@@ -162,21 +213,53 @@ const prepareActivitiesDocData = async (activities) => {
     };
 };
 const prepareBaptismsDocData = async (baptisms) => {
+    functions.logger.info("prepareBaptismsDocData called", {
+        totalBaptisms: baptisms.length,
+        sampleBaptism: baptisms[0] ? {
+            name: baptisms[0].name,
+            hasPhotoURL: !!baptisms[0].photoURL,
+            photoURL: baptisms[0].photoURL,
+            hasBaptismPhotos: !!baptisms[0].baptismPhotos,
+            baptismPhotosLength: baptisms[0].baptismPhotos?.length || 0
+        } : null
+    });
     const baptismsData = baptisms.map((baptism) => {
         const baptismDate = baptism.date.toDate();
         const fullDate = (0, date_fns_1.format)(baptismDate, "dd 'de' MMMM 'de' yyyy", { locale: locale_1.es });
         const shortDate = (0, date_fns_1.format)(baptismDate, "dd/MM/yyyy", { locale: locale_1.es });
         const dayOfWeek = (0, date_fns_1.format)(baptismDate, "EEEE", { locale: locale_1.es });
         const month = (0, date_fns_1.format)(baptismDate, "MMMM", { locale: locale_1.es });
-        const images = (baptism.baptismPhotos ?? [])
-            .filter((url) => !!url)
-            .map((url, index) => ({
+        // Combinar photoURL y baptismPhotos en un solo array de imágenes
+        const allImageUrls = [];
+        // Agregar foto de perfil primero si existe
+        if (baptism.photoURL) {
+            functions.logger.info("Adding photoURL for baptism", {
+                name: baptism.name,
+                photoURL: baptism.photoURL
+            });
+            allImageUrls.push(baptism.photoURL);
+        }
+        // Agregar fotos del bautismo
+        if (baptism.baptismPhotos && baptism.baptismPhotos.length > 0) {
+            functions.logger.info("Adding baptismPhotos for baptism", {
+                name: baptism.name,
+                count: baptism.baptismPhotos.length,
+                photos: baptism.baptismPhotos
+            });
+            allImageUrls.push(...baptism.baptismPhotos.filter((url) => !!url));
+        }
+        const images = allImageUrls.map((url, index) => ({
             image: url,
             caption: `Bautismo de ${baptism.name} - ${fullDate}`,
             name: baptism.name,
             date: fullDate,
             order: index + 1,
         }));
+        functions.logger.info("Processed baptism", {
+            name: baptism.name,
+            totalImages: images.length,
+            hasImages: images.length > 0
+        });
         return {
             id: baptism.id,
             nombre: baptism.name,
@@ -185,7 +268,7 @@ const prepareBaptismsDocData = async (baptisms) => {
             dia_semana: dayOfWeek,
             origen: baptism.source,
             mes: month,
-            hasImages: images.length > 0 || !!baptism.photoURL,
+            hasImages: images.length > 0,
             imageCount: images.length,
             photoURL: baptism.photoURL || "",
             images,
