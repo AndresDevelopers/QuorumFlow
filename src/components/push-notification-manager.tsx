@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { doc, setDoc } from 'firebase/firestore';
 import { pushSubscriptionsCollection } from '@/lib/collections';
@@ -43,15 +43,7 @@ export function PushNotificationManager() {
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    // Verificar si las notificaciones push son soportadas
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
-      setIsSupported(true);
-      checkSubscription();
-    }
-  }, [user]);
-
-  const checkSubscription = async () => {
+  const checkSubscription = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -61,7 +53,14 @@ export function PushNotificationManager() {
     } catch (error) {
       console.error('Error checking push subscription:', error);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      setIsSupported(true);
+      void checkSubscription();
+    }
+  }, [checkSubscription]);
 
   const subscribeToPush = async () => {
     if (!user || !VAPID_PUBLIC_KEY) {

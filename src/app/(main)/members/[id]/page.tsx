@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { ArrowLeft, User, Phone, Calendar, MapPin, Users, FileText, Camera } from 'lucide-react';
 import {
   Card,
@@ -180,9 +181,11 @@ export default function MemberProfilePage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
             <div className="flex-shrink-0">
               {member.photoURL ? (
-                <img
+                <Image
                   src={member.photoURL}
                   alt={`${member.firstName} ${member.lastName}`}
+                  width={96}
+                  height={96}
                   className="w-24 h-24 rounded-full object-cover border-4 border-background"
                 />
               ) : (
@@ -316,10 +319,12 @@ export default function MemberProfilePage() {
                 </label>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   {member.baptismPhotos.map((photo, index) => (
-                    <img
+                    <Image
                       key={index}
                       src={photo}
                       alt={`Bautismo ${index + 1}`}
+                      width={240}
+                      height={80}
                       className="w-full h-20 object-cover rounded border"
                     />
                   ))}

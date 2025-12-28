@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -95,7 +95,7 @@ export function ConvertForm({ convert }: ConvertFormProps) {
   });
 
   // Load members for automatic mode
-  const loadMembers = async () => {
+  const loadMembers = useCallback(async () => {
     setLoadingMembers(true);
     try {
       const snapshot = await getDocs(query(membersCollection, orderBy('firstName', 'asc')));
@@ -110,7 +110,7 @@ export function ConvertForm({ convert }: ConvertFormProps) {
       });
     }
     setLoadingMembers(false);
-  };
+  }, [toast]);
 
   useEffect(() => {
     if (isEditMode && convert) {
@@ -133,7 +133,7 @@ export function ConvertForm({ convert }: ConvertFormProps) {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  }, [convert, isEditMode, form]);
+  }, [convert, isEditMode, form, loadMembers]);
 
   // Handle member selection in automatic mode
   const handleMemberSelect = (memberId: string) => {

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Bell, Mail, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -26,7 +26,7 @@ export function NotificationBell() {
   const [loading, setLoading] = useState(true);
   const [hasUnread, setHasUnread] = useState(false);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -45,13 +45,13 @@ export function NotificationBell() {
       console.error("Error fetching notifications:", error);
     }
     setLoading(false);
-  };
+  }, [user]);
 
   useEffect(() => {
     queueMicrotask(() => {
       void fetchNotifications();
     });
-  }, [user]);
+  }, [fetchNotifications]);
 
   const handleMarkAsRead = async () => {
     if (!user || !hasUnread) return;

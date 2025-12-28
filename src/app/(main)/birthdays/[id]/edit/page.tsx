@@ -51,7 +51,7 @@ export default function EditBirthdayPage() {
     };
 
     fetchBirthday();
-  }, [birthdayId, user, router, toast]);
+  }, [birthdayId, user, router, toast, t]);
 
   const handleFormClose = () => {
     setIsFormOpen(false);

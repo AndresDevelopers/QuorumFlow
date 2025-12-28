@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { doc, getDoc, updateDoc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
 import { ministeringCollection, membersCollection } from '@/lib/collections';
@@ -64,7 +64,7 @@ export default function ManageCompanionshipPage() {
 
   const companionshipId = Array.isArray(id) ? id[0] : id;
 
-  const fetchCompanionship = async () => {
+  const fetchCompanionship = useCallback(async () => {
     if (!companionshipId) return;
 
     setLoading(true);
@@ -80,11 +80,11 @@ export default function ManageCompanionshipPage() {
       router.push('/ministering');
     }
     setLoading(false);
-  };
+  }, [companionshipId, router, toast]);
 
   useEffect(() => {
     fetchCompanionship();
-  }, [companionshipId]);
+  }, [fetchCompanionship]);
 
   const handleFamilyChange = (index: number, field: keyof Family, value: any) => {
     const updatedFamilies = [...families];

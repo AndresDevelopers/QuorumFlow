@@ -7,7 +7,8 @@ import { getDocs, query, orderBy, where, Timestamp, doc, updateDoc, getDoc, dele
 import { membersCollection, futureMembersCollection, ministeringCollection, annotationsCollection, servicesCollection, activitiesCollection, convertsCollection } from '@/lib/collections';
 import type { Member, FutureMember, Companionship, Family, Annotation, Service, Activity, Convert } from '@/lib/types';
 import { getLessActiveMembers } from '@/lib/members-data';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
 import { firestore } from '@/lib/firebase';
 
 import {
@@ -206,7 +207,7 @@ export default function CouncilPage() {
 
   const [observationInputs, setObservationInputs] = useState<Record<string, string>>({});
 
-  const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
     setLoading(true);
     try {
         const [converts, baptisms, needs, notes, upcomingServices, lessActive, activities] = await Promise.all([
@@ -237,12 +238,12 @@ export default function CouncilPage() {
     } finally {
         setLoading(false);
     }
-  };
+  }, [toast]);
   
   useEffect(() => {
     if (authLoading || !user) return;
     fetchAllData();
-  }, [authLoading, user]);
+  }, [authLoading, user, fetchAllData]);
 
   const handleResolveAnnotation = async (id: string) => {
     try {
@@ -505,9 +506,11 @@ export default function CouncilPage() {
                     <TableRow key={item.id} className={item.councilCompleted ? 'bg-green-500/10' : ''}>
                       <TableCell>
                         {item.photoURL ? (
-                          <img
+                          <Image
                             src={item.photoURL}
                             alt={`Foto de ${item.firstName} ${item.lastName}`}
+                            width={40}
+                            height={40}
                             className="w-10 h-10 rounded-full object-cover"
                           />
                         ) : (
@@ -562,9 +565,11 @@ export default function CouncilPage() {
                      <div className="flex justify-between items-start">
                        <div className="flex items-center gap-3">
                          {item.photoURL ? (
-                           <img
+                           <Image
                              src={item.photoURL}
                              alt={`Foto de ${item.firstName} ${item.lastName}`}
+                             width={48}
+                             height={48}
                              className="w-12 h-12 rounded-full object-cover"
                            />
                          ) : (

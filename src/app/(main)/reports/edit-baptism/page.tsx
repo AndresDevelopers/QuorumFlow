@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { doc, getDoc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
@@ -400,10 +401,11 @@ export default function EditBaptismPage() {
                 <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-dashed border-muted-foreground/25 flex items-center justify-center">
                   {baptism.photoURL ? (
                     <>
-                      <img 
-                        src={baptism.photoURL} 
-                        alt={`${baptism.name} foto`} 
-                        className="w-full h-full object-cover"
+                      <Image
+                        src={baptism.photoURL}
+                        alt={`${baptism.name} foto`}
+                        fill
+                        className="object-cover"
                       />
                       <button
                         type="button"
@@ -416,10 +418,12 @@ export default function EditBaptismPage() {
                       </button>
                     </>
                   ) : photoFile ? (
-                    <img 
-                      src={URL.createObjectURL(photoFile)} 
-                      alt="Vista previa" 
-                      className="w-full h-full object-cover"
+                    <Image
+                      src={URL.createObjectURL(photoFile)}
+                      alt="Vista previa"
+                      fill
+                      className="object-cover"
+                      unoptimized
                     />
                   ) : (
                     <Camera className="h-8 w-8 text-muted-foreground" />
@@ -496,11 +500,14 @@ export default function EditBaptismPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {baptism.baptismPhotos?.map((photoUrl, index) => (
                     <div key={index} className="relative group">
-                      <img 
-                        src={photoUrl} 
-                        alt={`Bautismo ${index + 1}`} 
-                        className="w-full h-32 object-cover rounded-md"
-                      />
+                      <div className="relative w-full h-32 rounded-md overflow-hidden">
+                        <Image
+                          src={photoUrl}
+                          alt={`Bautismo ${index + 1}`}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleDeleteBaptismPhoto(photoUrl)}

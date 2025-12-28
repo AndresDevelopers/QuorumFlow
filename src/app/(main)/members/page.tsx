@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Plus, Search, Filter, Edit, Trash2, Users, UserCheck, UserX, Eye, ChevronUp, RefreshCw, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import {
   Card,
@@ -162,8 +163,18 @@ export default function MembersPage() {
     // Clear cache and refresh immediately
     clearCache();
 
-    // Force refresh to get updated data
+    // Force refresh to get updated data with multiple attempts
     fetchMembers(true);
+    
+    // Additional refresh after a short delay to ensure data is updated
+    setTimeout(() => {
+      fetchMembers(true);
+    }, 500);
+    
+    // Final refresh attempt
+    setTimeout(() => {
+      fetchMembers(true);
+    }, 1500);
   };
 
   const handleViewProfile = (memberId: string) => {
@@ -395,9 +406,11 @@ export default function MembersPage() {
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
                             {member.photoURL ? (
-                              <img
+                              <Image
                                 src={member.photoURL}
                                 alt={`${member.firstName} ${member.lastName}`}
+                                width={32}
+                                height={32}
                                 className="w-8 h-8 rounded-full object-cover"
                               />
                             ) : (
@@ -544,9 +557,11 @@ export default function MembersPage() {
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
                           {member.photoURL ? (
-                            <img
+                            <Image
                               src={member.photoURL}
                               alt={`${member.firstName} ${member.lastName}`}
+                              width={40}
+                              height={40}
                               className="w-10 h-10 rounded-full object-cover"
                             />
                           ) : (

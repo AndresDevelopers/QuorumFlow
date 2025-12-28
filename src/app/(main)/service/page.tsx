@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState, useTransition, useRef } from 'react';
+import { useCallback, useEffect, useState, useTransition, useRef } from 'react';
 import Link from 'next/link';
 import { getDocs, query, orderBy, Timestamp, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import { servicesCollection } from '@/lib/collections';
@@ -83,7 +83,7 @@ export default function ServicePage() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   
-  const fetchServices = () => {
+  const fetchServices = useCallback(() => {
     setLoading(true);
     getServices()
         .then(data => {
@@ -96,13 +96,13 @@ export default function ServicePage() {
         .finally(() => {
             setLoading(false);
         });
-  };
+  }, [toast]);
 
   useEffect(() => {
     if (!authLoading && user) {
-      queueMicrotask(fetchServices);
+      queueMicrotask(() => fetchServices());
     }
-  }, [authLoading, user]);
+  }, [authLoading, fetchServices, user]);
   
   const handleDelete = async (serviceId: string) => {
     try {

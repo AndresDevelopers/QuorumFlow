@@ -65,6 +65,7 @@ import {
   useCallback,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import {
@@ -945,7 +946,14 @@ function ImagesTab({
                   {uploadedFiles.map((item) => (
                     <Card key={item.url}>
                       <CardContent className="p-4">
-                        <img src={item.url} alt="Uploaded" className="w-full h-32 object-cover rounded mb-2" />
+                        <Image
+                          src={item.url}
+                          alt="Uploaded"
+                          width={480}
+                          height={128}
+                          className="w-full h-32 object-cover rounded mb-2"
+                          unoptimized
+                        />
                         <Textarea
                           value={item.description}
                           onChange={(e) => setUploadedFiles(prev =>
@@ -986,7 +994,13 @@ function ImagesTab({
                   {images.map((item) => (
                     <Card key={item.id}>
                       <CardContent className="p-4">
-                        <img src={item.imageUrl} alt="Missionary" className="w-full h-32 object-cover rounded mb-2" />
+                        <Image
+                          src={item.imageUrl}
+                          alt="Missionary"
+                          width={480}
+                          height={128}
+                          className="w-full h-32 object-cover rounded mb-2"
+                        />
                         <Textarea
                           value={item.description}
                           onChange={(e) => handleEdit(item.id, e.target.value)}

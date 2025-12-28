@@ -108,6 +108,7 @@ interface ActivityDocEntry {
     imageCount: number;
     primaryImage: ActivityDocImage | null;
     images: ActivityDocImage[];
+    separator: string;
 }
 
 interface ActivityGalleryEntry {
@@ -139,6 +140,7 @@ interface BaptismDocEntry {
     imageCount: number;
     photoURL: string;
     images: BaptismDocImage[];
+    separator: string;
 }
 
 interface BaptismGalleryEntry {
@@ -309,6 +311,7 @@ const prepareActivitiesDocData = async (activities: Activity[]): Promise<{
             imageCount: images.length,
             primaryImage,
             images,
+            separator: "─────────────────────────────────────────────────────", // Separador visual
         };
     });
 
@@ -359,19 +362,11 @@ const prepareBaptismsDocData = async (baptisms: Baptism[]): Promise<{
         const dayOfWeek = format(baptismDate, "EEEE", { locale: es });
         const month = format(baptismDate, "MMMM", { locale: es });
 
-        // Combinar photoURL y baptismPhotos en un solo array de imágenes
+        // Solo usar las fotos específicas del bautismo (baptismPhotos)
+        // NO incluir la foto de perfil (photoURL) en el reporte
         const allImageUrls: string[] = [];
         
-        // Agregar foto de perfil primero si existe
-        if (baptism.photoURL) {
-            functions.logger.info("Adding photoURL for baptism", { 
-                name: baptism.name, 
-                photoURL: baptism.photoURL 
-            });
-            allImageUrls.push(baptism.photoURL);
-        }
-        
-        // Agregar fotos del bautismo
+        // Agregar solo las fotos del bautismo
         if (baptism.baptismPhotos && baptism.baptismPhotos.length > 0) {
             functions.logger.info("Adding baptismPhotos for baptism", { 
                 name: baptism.name, 
@@ -407,6 +402,7 @@ const prepareBaptismsDocData = async (baptisms: Baptism[]): Promise<{
             imageCount: images.length,
             photoURL: baptism.photoURL || "",
             images,
+            separator: "─────────────────────────────────────────────────────", // Separador visual
         };
     });
 
@@ -510,7 +506,7 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
         const activitiesToProcess = includeAllActivities ? allActivities : allActivities.filter(a => a.date.toDate() >= start && a.date.toDate() <= end);
 
         // Procesar bautismos con imágenes
-        const baptisms: Baptism[] = [
+        const allBaptisms: Baptism[] = [
             ...futureMembersSnapshot.docs.map(doc => {
                 const data = doc.data();
                 return { 
@@ -555,7 +551,40 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
                     baptismPhotos: data.baptismPhotos || []
                 };
             })
-        ].filter(b => b.date).sort((a, b) => b.date.toMillis() - a.date.toMillis());
+        ].filter(b => b.date);
+
+        // Deduplicar bautismos por nombre y fecha
+        // Prioridad: Manual > Nuevo Converso > Futuro Miembro > Automático
+        const sourcePriority: Record<string, number> = {
+            "Manual": 1,
+            "Nuevo Converso": 2,
+            "Futuro Miembro": 3,
+            "Automático": 4
+        };
+
+        const baptismMap = new Map<string, Baptism>();
+        allBaptisms.forEach(baptism => {
+            // Normalizar nombre para comparación (sin espacios extra, minúsculas)
+            const normalizedName = baptism.name.trim().toLowerCase().replace(/\s+/g, ' ');
+            const dateKey = baptism.date.toDate().toISOString().split('T')[0]; // Solo fecha YYYY-MM-DD
+            const key = `${normalizedName}|${dateKey}`;
+
+            const existing = baptismMap.get(key);
+            if (!existing || sourcePriority[baptism.source] < sourcePriority[existing.source]) {
+                // Mantener el que tiene mayor prioridad o más fotos
+                const shouldReplace = !existing || 
+                    sourcePriority[baptism.source] < sourcePriority[existing.source] ||
+                    (sourcePriority[baptism.source] === sourcePriority[existing.source] && 
+                     (baptism.baptismPhotos?.length || 0) > (existing.baptismPhotos?.length || 0));
+                
+                if (shouldReplace) {
+                    baptismMap.set(key, baptism);
+                }
+            }
+        });
+
+        const baptisms: Baptism[] = Array.from(baptismMap.values())
+            .sort((a, b) => b.date.toMillis() - a.date.toMillis());
 
         const answers = (reportAnswersDoc.data() || {}) as AnnualReportAnswers;
 
@@ -809,8 +838,39 @@ export const generateReport = functions.https.onCall(async (data: any, context: 
             };
         });
         
-        const baptisms: Baptism[] = [...fromFutureMembers, ...fromManual, ...fromConverts]
-            .filter(b => b.date)
+        const allBaptisms: Baptism[] = [...fromFutureMembers, ...fromManual, ...fromConverts]
+            .filter(b => b.date);
+
+        // Deduplicar bautismos por nombre y fecha
+        // Prioridad: Manual > Nuevo Converso > Futuro Miembro
+        const sourcePriority: Record<string, number> = {
+            "Manual": 1,
+            "Nuevo Converso": 2,
+            "Futuro Miembro": 3
+        };
+
+        const baptismMap = new Map<string, Baptism>();
+        allBaptisms.forEach(baptism => {
+            // Normalizar nombre para comparación (sin espacios extra, minúsculas)
+            const normalizedName = baptism.name.trim().toLowerCase().replace(/\s+/g, ' ');
+            const dateKey = baptism.date.toDate().toISOString().split('T')[0]; // Solo fecha YYYY-MM-DD
+            const key = `${normalizedName}|${dateKey}`;
+
+            const existing = baptismMap.get(key);
+            if (!existing || sourcePriority[baptism.source] < sourcePriority[existing.source]) {
+                // Mantener el que tiene mayor prioridad o más fotos
+                const shouldReplace = !existing || 
+                    sourcePriority[baptism.source] < sourcePriority[existing.source] ||
+                    (sourcePriority[baptism.source] === sourcePriority[existing.source] && 
+                     (baptism.baptismPhotos?.length || 0) > (existing.baptismPhotos?.length || 0));
+                
+                if (shouldReplace) {
+                    baptismMap.set(key, baptism);
+                }
+            }
+        });
+
+        const baptisms: Baptism[] = Array.from(baptismMap.values())
             .sort((a, b) => b.date.toMillis() - a.date.toMillis());
 
         const reportAnswersDoc = await firestore.collection("c_reporte_anual").doc(String(year)).get();

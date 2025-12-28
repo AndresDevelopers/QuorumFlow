@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { getDocs, query, orderBy, where, Timestamp, addDoc, deleteDoc, doc, serverTimestamp, updateDoc, getDoc } from 'firebase/firestore';
 import { convertsCollection, membersCollection, annotationsCollection } from '@/lib/collections';
 import { Convert, Annotation } from '@/lib/types';
@@ -219,9 +220,11 @@ const ConsejoPage: React.FC = () => {
             {newConverts.map((convert) => (
               <li key={convert.id} className="flex items-start gap-2.5">
                 {convert.photoURL && (
-                  <img
+                  <Image
                     src={convert.photoURL}
                     alt={`Foto de ${convert.name}`}
+                    width={48}
+                    height={48}
                     className="w-12 h-12 rounded-full object-cover"
                   />
                 )}

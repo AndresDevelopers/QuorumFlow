@@ -19,7 +19,7 @@ const withPWA = withPWAInit({
   dest: 'public',
   disable: process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test',
   sw: 'sw.js',
-  register: false, // Disable automatic registration
+  register: true,
 });
 
 const nextConfig: NextConfig = {
@@ -35,6 +35,13 @@ const nextConfig: NextConfig = {
       // Disable source maps in development to avoid conflicts
       config.devtool = false;
     }
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings ?? []),
+      {
+        message: /Critical dependency: the request of a dependency is an expression/,
+        module: /[\\/]node_modules[\\/]\.pnpm[\\/]express@.*[\\/]node_modules[\\/]express[\\/]lib[\\/]view\.js/,
+      },
+    ];
     return config;
   },
   images: {

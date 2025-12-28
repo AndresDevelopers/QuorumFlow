@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Check, ChevronsUpDown, Users, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -71,7 +71,7 @@ export function MemberSelector({
   const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
-  const fetchMembers = async () => {
+  const fetchMembers = useCallback(async () => {
     setLoading(true);
     try {
       const allMembers = await getMembersForSelector(includeInactive);
@@ -98,11 +98,11 @@ export function MemberSelector({
     } finally {
       setLoading(false);
     }
-  };
+  }, [includeInactive, statusFilter, toast, value]);
 
   useEffect(() => {
     fetchMembers();
-  }, [includeInactive, statusFilter, value]);
+  }, [fetchMembers]);
 
   const handleSelect = (memberId: string) => {
     const member = members.find(m => m.id === memberId);

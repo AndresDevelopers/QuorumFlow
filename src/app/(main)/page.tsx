@@ -19,7 +19,7 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { useI18n } from "@/contexts/i18n-context";
 import { getDashboardData, getActivityChartData, getMembersByStatus } from "@/lib/dashboard-data";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { VoiceAnnotations } from "@/components/shared/voice-annotations";
 import type { Annotation } from "@/lib/types";
 import {
@@ -134,19 +134,19 @@ function DashboardPage() {
     });
   }, [authLoading, user])
 
-  const fetchAnnotations = async () => {
+  const fetchAnnotations = useCallback(async () => {
     if (authLoading || !user) return; // Wait for authentication
     setLoadingAnnotations(true);
     const result = await getAnnotations('dashboard');
     setAnnotations(result);
     setLoadingAnnotations(false);
-  }
+  }, [authLoading, user]);
 
   useEffect(() => {
     queueMicrotask(() => {
       void fetchAnnotations();
     });
-  }, [authLoading, user])
+  }, [fetchAnnotations])
 
   const handleDeleteAnnotation = async (id: string) => {
     try {

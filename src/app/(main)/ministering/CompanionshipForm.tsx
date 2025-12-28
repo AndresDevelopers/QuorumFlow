@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -68,9 +68,8 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
       families: [{ value: '' }],
     };
 
-
   // Load members for automatic mode
-  const loadMembers = async () => {
+  const loadMembers = useCallback(async () => {
     setLoadingMembers(true);
     try {
       const snapshot = await getDocs(query(membersCollection, orderBy('firstName', 'asc')));
@@ -85,11 +84,11 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
       });
     }
     setLoadingMembers(false);
-  };
+  }, [toast]);
 
   useEffect(() => {
     loadMembers();
-  }, []);
+  }, [loadMembers]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(companionshipSchema),

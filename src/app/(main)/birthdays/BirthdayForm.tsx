@@ -120,7 +120,7 @@ export function BirthdayForm({ isOpen, onOpenChange, onFormSubmit, birthday }: B
         })
         .finally(() => setLoadingMembers(false));
     }
-  }, [isOpen, isEditMode, toast]);
+  }, [isOpen, isEditMode, toast, t]);
 
   useEffect(() => {
     if (isOpen) {

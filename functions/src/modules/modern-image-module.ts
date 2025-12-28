@@ -1,7 +1,6 @@
 import type PizZip from "pizzip";
 import { DOMParser } from "@xmldom/xmldom";
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const docxtemplaterNamespace = require("docxtemplater");
 const { DocUtils } = docxtemplaterNamespace;
 

@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import * as z from 'zod';
+import Image from 'next/image';
 import { Upload, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -54,6 +55,7 @@ import { syncMinisteringAssignments, getPreviousMinisteringTeachers } from '@/li
 import { Timestamp } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
+import { safeGetDate } from '@/lib/date-utils';
 
 const memberFormSchema = z.object({
   firstName: z.string().min(1, 'El nombre es requerido'),
@@ -131,10 +133,8 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
 
     if (member) {
       // Convertir Timestamps a Date y preparar valores para el formulario
-      const birthDateValue = member.birthDate?.toDate ? member.birthDate.toDate() : 
-                            member.birthDate instanceof Date ? member.birthDate : undefined;
-      const baptismDateValue = member.baptismDate?.toDate ? member.baptismDate.toDate() : 
-                              member.baptismDate instanceof Date ? member.baptismDate : undefined;
+      const birthDateValue = safeGetDate((member as any).birthDate) ?? undefined;
+      const baptismDateValue = safeGetDate((member as any).baptismDate) ?? undefined;
       
       const valuesToSet = {
         firstName: member.firstName || '',
@@ -206,7 +206,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
   }, [member, form]);
 
   // Cargar miembros disponibles para ministrantes
-  const loadAvailableMembers = async () => {
+  const loadAvailableMembers = useCallback(async () => {
     if (!user) {
       console.log('👤 No user available for loading members');
       return;
@@ -234,7 +234,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
     } finally {
       setLoadingMembers(false);
     }
-  };
+  }, [member, user]);
 
   // Cargar miembros disponibles cuando el componente se monta
   useEffect(() => {
@@ -245,7 +245,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [user, member, authLoading]);
+  }, [authLoading, loadAvailableMembers, user]);
 
   // Función para verificar duplicados
   const checkForDuplicates = useCallback(async (firstName: string, lastName: string) => {
@@ -283,10 +283,14 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       setCheckingDuplicate(false);
     }
   }, [member]);
+
+  const watchedFirstName = useWatch({ control: form.control, name: 'firstName' });
+  const watchedLastName = useWatch({ control: form.control, name: 'lastName' });
+
   // Efecto para verificar duplicados automáticamente al escribir
   useEffect(() => {
-    const firstName = form.watch('firstName');
-    const lastName = form.watch('lastName');
+    const firstName = watchedFirstName;
+    const lastName = watchedLastName;
 
     if (!firstName?.trim() || !lastName?.trim()) {
       setDuplicateMembers([]);
@@ -310,10 +314,10 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       setAllowContinueWithDuplicate(false);
       setDuplicateDecisionMade(false);
     }
-  }, [form.watch('firstName'), form.watch('lastName'), checkForDuplicates]);
+  }, [checkForDuplicates, watchedFirstName, watchedLastName]);
 
   // Función para parsear fecha desde string DD/MM/YYYY
-  const parseDate = (dateString: string): Date | undefined => {
+  const parseDate = (dateString: string, maxYear: number): Date | undefined => {
     if (!dateString.trim()) return undefined;
 
     const dateRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
@@ -325,10 +329,9 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
     const day = parseInt(dayStr, 10);
     const month = parseInt(monthStr, 10) - 1; // JS months are 0-indexed
     const year = parseInt(yearStr, 10);
-    const currentYear = new Date().getFullYear();
 
     // Validate ranges
-    if (day < 1 || day > 31 || month < 0 || month > 11 || year < 1900 || year > currentYear) {
+    if (day < 1 || day > 31 || month < 0 || month > 11 || year < 1900 || year > maxYear) {
       return undefined;
     }
 
@@ -956,14 +959,14 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
                     setBirthDateInput(inputValue);
                     
                     // Only update the form field if we have a valid date
-                    const parsedDate = parseDate(inputValue);
+                    const parsedDate = parseDate(inputValue, new Date().getFullYear());
                     if (parsedDate || !inputValue.trim()) {
                       field.onChange(parsedDate);
                     }
                   }}
                   onBlur={(e) => {
                     const inputValue = e.target.value;
-                    const parsedDate = parseDate(inputValue);
+                    const parsedDate = parseDate(inputValue, new Date().getFullYear());
                     
                     if (parsedDate) {
                       // Valid date: format it properly
@@ -1007,14 +1010,14 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
                     setBaptismDateInput(inputValue);
                     
                     // Only update the form field if we have a valid date
-                    const parsedDate = parseDate(inputValue);
+                    const parsedDate = parseDate(inputValue, new Date().getFullYear() + 10);
                     if (parsedDate || !inputValue.trim()) {
                       field.onChange(parsedDate);
                     }
                   }}
                   onBlur={(e) => {
                     const inputValue = e.target.value;
-                    const parsedDate = parseDate(inputValue);
+                    const parsedDate = parseDate(inputValue, new Date().getFullYear() + 10);
                     
                     if (parsedDate) {
                       // Valid date: format it properly
@@ -1070,11 +1073,15 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {baptismPhotoPreviews.map((preview, index) => (
                   <div key={index} className="relative group">
-                    <img
-                      src={preview}
-                      alt={`Foto de bautismo ${index + 1}`}
-                      className="w-full h-24 object-cover rounded-md border"
-                    />
+                    <div className="relative w-full h-24 rounded-md border overflow-hidden">
+                      <Image
+                        src={preview}
+                        alt={`Foto de bautismo ${index + 1}`}
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => removeBaptismPhoto(index)}

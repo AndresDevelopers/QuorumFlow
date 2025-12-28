@@ -201,6 +201,7 @@ export async function updateMember(
       photoURL: memberData.photoURL,
       birthDate: memberData.birthDate,
       baptismDate: memberData.baptismDate,
+      baptismPhotos: memberData.baptismPhotos,
       ordinances: memberData.ordinances,
       ministeringTeachers: memberData.ministeringTeachers
     };

@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -367,10 +368,13 @@ export function FutureMemberForm({ futureMember }: FutureMemberFormProps) {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-2">
                     {baptismPhotos.map((photo, index) => (
                         <div key={index} className="relative">
-                        <img 
+                        <Image 
                             src={typeof photo === 'string' ? photo : URL.createObjectURL(photo)} 
                             alt={`Bautismo ${index + 1}`} 
+                            width={240}
+                            height={96}
                             className="w-full h-24 object-cover rounded-md"
+                            unoptimized
                         />
                         <Button
                             type="button"

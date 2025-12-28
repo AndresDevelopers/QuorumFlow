@@ -159,7 +159,7 @@ export function useOffline(): OfflineHook {
             const count = await new Promise<number>((resolve, reject) => {
                 const timeoutId = setTimeout(() => {
                     reject(new Error('IndexedDB operation timeout'));
-                }, 5000);
+                }, 10000); // Aumentado a 10 segundos
 
                 countRequest.onsuccess = () => {
                     clearTimeout(timeoutId);
@@ -175,7 +175,8 @@ export function useOffline(): OfflineHook {
             setState(prev => ({ ...prev, queuedOperations: count }));
         } catch (error) {
             console.error('Failed to get queued operations count:', error);
-            // Don't update state on error to avoid unnecessary re-renders
+            // Set queued operations to 0 on error to avoid blocking the UI
+            setState(prev => ({ ...prev, queuedOperations: 0 }));
         }
     }, [isClient]);
 

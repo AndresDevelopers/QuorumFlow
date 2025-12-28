@@ -3,6 +3,7 @@
 
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import Image from 'next/image';
 
 import type { ChangeEvent } from 'react';
 
@@ -1544,14 +1545,12 @@ export default function ObservationsPage() {
 
                             {member.photoURL ? (
 
-                              <img
-
+                              <Image
                                 src={member.photoURL}
-
                                 alt={`${member.firstName} ${member.lastName}`}
-
+                                width={32}
+                                height={32}
                                 className="w-8 h-8 rounded-full object-cover"
-
                               />
 
                             ) : (
@@ -1693,17 +1692,13 @@ export default function ObservationsPage() {
                         <div className="flex items-center gap-3">
 
                           {member.photoURL ? (
-
-                            <img
-
+                            <Image
                               src={member.photoURL}
-
                               alt={`${member.firstName} ${member.lastName}`}
-
+                              width={40}
+                              height={40}
                               className="w-10 h-10 rounded-full object-cover"
-
                             />
-
                           ) : (
 
                             <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
@@ -1907,17 +1902,13 @@ export default function ObservationsPage() {
                           <div className="flex items-center gap-3">
 
                             {member.photoURL ? (
-
-                              <img
-
+                              <Image
                                 src={member.photoURL}
-
                                 alt={`${member.firstName} ${member.lastName}`}
-
+                                width={32}
+                                height={32}
                                 className="w-8 h-8 rounded-full object-cover"
-
                               />
-
                             ) : (
 
                               <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
@@ -2057,17 +2048,13 @@ export default function ObservationsPage() {
                         <div className="flex items-center gap-3">
 
                           {member.photoURL ? (
-
-                            <img
-
+                            <Image
                               src={member.photoURL}
-
                               alt={`${member.firstName} ${member.lastName}`}
-
+                              width={40}
+                              height={40}
                               className="w-10 h-10 rounded-full object-cover"
-
                             />
-
                           ) : (
 
                             <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
@@ -2271,17 +2258,13 @@ export default function ObservationsPage() {
                           <div className="flex items-center gap-3">
 
                             {member.photoURL ? (
-
-                              <img
-
+                              <Image
                                 src={member.photoURL}
-
                                 alt={`${member.firstName} ${member.lastName}`}
-
+                                width={32}
+                                height={32}
                                 className="w-8 h-8 rounded-full object-cover"
-
                               />
-
                             ) : (
 
                               <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
@@ -2421,17 +2404,13 @@ export default function ObservationsPage() {
                         <div className="flex items-center gap-3">
 
                           {member.photoURL ? (
-
-                            <img
-
+                            <Image
                               src={member.photoURL}
-
                               alt={`${member.firstName} ${member.lastName}`}
-
+                              width={40}
+                              height={40}
                               className="w-10 h-10 rounded-full object-cover"
-
                             />
-
                           ) : (
 
                             <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
@@ -2631,17 +2610,13 @@ export default function ObservationsPage() {
                           <div className="flex items-center gap-3">
 
                             {member.photoURL ? (
-
-                              <img
-
+                              <Image
                                 src={member.photoURL}
-
                                 alt={`${member.firstName} ${member.lastName}`}
-
+                                width={32}
+                                height={32}
                                 className="w-8 h-8 rounded-full object-cover"
-
                               />
-
                             ) : (
 
                               <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
@@ -2755,17 +2730,13 @@ export default function ObservationsPage() {
                         <div className="flex items-center gap-3">
 
                           {member.photoURL ? (
-
-                            <img
-
+                            <Image
                               src={member.photoURL}
-
                               alt={`${member.firstName} ${member.lastName}`}
-
+                              width={40}
+                              height={40}
                               className="w-10 h-10 rounded-full object-cover"
-
                             />
-
                           ) : (
 
                             <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
@@ -2932,14 +2903,12 @@ export default function ObservationsPage() {
 
                           {member.photoURL ? (
 
-                            <img
-
+                            <Image
                               src={member.photoURL}
-
                               alt={`${member.firstName} ${member.lastName}`}
-
+                              width={32}
+                              height={32}
                               className="w-8 h-8 rounded-full object-cover"
-
                             />
 
                           ) : (
@@ -3054,14 +3023,12 @@ export default function ObservationsPage() {
 
                         {member.photoURL ? (
 
-                          <img
-
+                          <Image
                             src={member.photoURL}
-
                             alt={`${member.firstName} ${member.lastName}`}
-
+                            width={40}
+                            height={40}
                             className="w-10 h-10 rounded-full object-cover"
-
                           />
 
                         ) : (
@@ -4080,4 +4047,3 @@ export default function ObservationsPage() {
   );
 
 }
-
