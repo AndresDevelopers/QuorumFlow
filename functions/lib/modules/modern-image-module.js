@@ -1,7 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const xmldom_1 = require("@xmldom/xmldom");
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const docxtemplaterNamespace = require("docxtemplater");
 const { DocUtils } = docxtemplaterNamespace;
 const MODULE_NAME = "quorumflow/docxtemplater-modern-image-module";
@@ -12,6 +11,24 @@ const DEFAULT_IMAGE_EXTENSION = "png";
 const EMUS_PER_PIXEL = 9525;
 function convertPixelsToEmus(pixels) {
     return Math.round(pixels * EMUS_PER_PIXEL);
+}
+function resolveImageContentType(extension) {
+    const normalized = extension.toLowerCase();
+    if (normalized === "jpg" || normalized === "jpeg")
+        return "image/jpeg";
+    if (normalized === "svg")
+        return "image/svg+xml";
+    if (normalized === "tif" || normalized === "tiff")
+        return "image/tiff";
+    if (normalized === "png")
+        return "image/png";
+    if (normalized === "gif")
+        return "image/gif";
+    if (normalized === "bmp")
+        return "image/bmp";
+    if (normalized === "webp")
+        return "image/webp";
+    return `image/${normalized}`;
 }
 class RelationshipManager {
     constructor(zip, filePath, xmlDocuments) {
@@ -91,7 +108,7 @@ class RelationshipManager {
         const typesNode = contentTypesDocument.getElementsByTagName("Types")[0];
         const newDefault = contentTypesDocument.createElement("Default");
         newDefault.setAttribute("Extension", normalizedExtension);
-        newDefault.setAttribute("ContentType", `image/${normalizedExtension}`);
+        newDefault.setAttribute("ContentType", resolveImageContentType(normalizedExtension));
         typesNode.appendChild(newDefault);
     }
     getNextRelationshipId() {

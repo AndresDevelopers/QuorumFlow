@@ -55,6 +55,12 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Switch } from '@/components/ui/switch';
 import type { SuggestedActivities } from '@/ai/flows/suggest-activities-flow';
 
+function base64ToDocxBlob(base64: string): Blob {
+  const sanitized = base64.replace(/\s/g, '');
+  const bytes = Uint8Array.from(atob(sanitized), (char) => char.charCodeAt(0));
+  return new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
 async function getActivities(): Promise<Activity[]> {
   const q = query(activitiesCollection, orderBy('date', 'desc'));
   const snapshot = await getDocs(q);
@@ -318,13 +324,7 @@ export default function ReportsPage() {
         });
         
         const data = result.data as { fileContents: string };
-        const byteCharacters = atob(data.fileContents);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+        const blob = base64ToDocxBlob(data.fileContents);
 
         saveAs(blob, `Reporte_Completo_${getYear(new Date())}.docx`);
         toast({ title: "Éxito", description: "El reporte completo se ha generado correctamente." });
@@ -342,13 +342,7 @@ export default function ReportsPage() {
           });
           
           const data = result.data as { fileContents: string };
-          const byteCharacters = atob(data.fileContents);
-          const byteNumbers = new Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-          }
-          const byteArray = new Uint8Array(byteNumbers);
-          const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+          const blob = base64ToDocxBlob(data.fileContents);
 
           saveAs(blob, `Reporte_Anual_${getYear(new Date())}.docx`);
           toast({ title: "Éxito", description: "El reporte se ha generado correctamente (versión anterior)." });

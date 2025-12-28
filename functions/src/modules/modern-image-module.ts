@@ -16,6 +16,18 @@ function convertPixelsToEmus(pixels: number): number {
     return Math.round(pixels * EMUS_PER_PIXEL);
 }
 
+function resolveImageContentType(extension: string): string {
+    const normalized = extension.toLowerCase();
+    if (normalized === "jpg" || normalized === "jpeg") return "image/jpeg";
+    if (normalized === "svg") return "image/svg+xml";
+    if (normalized === "tif" || normalized === "tiff") return "image/tiff";
+    if (normalized === "png") return "image/png";
+    if (normalized === "gif") return "image/gif";
+    if (normalized === "bmp") return "image/bmp";
+    if (normalized === "webp") return "image/webp";
+    return `image/${normalized}`;
+}
+
 interface ModernImageModuleOptions {
     centered?: boolean;
     getImage: (tagValue: unknown, tagName: string) => Buffer | Promise<Buffer>;
@@ -147,7 +159,7 @@ class RelationshipManager {
         const typesNode = contentTypesDocument.getElementsByTagName("Types")[0];
         const newDefault = contentTypesDocument.createElement("Default");
         newDefault.setAttribute("Extension", normalizedExtension);
-        newDefault.setAttribute("ContentType", `image/${normalizedExtension}`);
+        newDefault.setAttribute("ContentType", resolveImageContentType(normalizedExtension));
         typesNode.appendChild(newDefault);
     }
 
