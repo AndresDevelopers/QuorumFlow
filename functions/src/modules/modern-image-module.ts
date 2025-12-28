@@ -16,6 +16,12 @@ function convertPixelsToEmus(pixels: number): number {
     return Math.round(pixels * EMUS_PER_PIXEL);
 }
 
+function normalizeTagKey(value: string): string {
+    return value
+        .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        .trim();
+}
+
 function resolveImageContentType(extension: string): string {
     const normalized = extension.toLowerCase();
     if (normalized === "jpg" || normalized === "jpeg") return "image/jpeg";
@@ -89,28 +95,10 @@ class RelationshipManager {
         if (existing) {
             return existing;
         }
-
-        const templatePath = "word/_rels/document.xml.rels";
-        const template = this.xmlDocuments[templatePath];
-        if (!template) {
-            throw new Error(
-                `Unable to bootstrap relationships XML. Missing template at ${templatePath}.`
-            );
-        }
-
         const cloned = new DOMParser().parseFromString(
-            DocUtils.xml2str(template),
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>',
             "application/xml"
         );
-        const relationships = cloned.getElementsByTagName("Relationships")[0];
-        const relationshipNodes = relationships.getElementsByTagName("Relationship");
-
-        for (let index = relationshipNodes.length - 1; index >= 0; index -= 1) {
-            const node = relationshipNodes.item(index);
-            if (node) {
-                relationships.removeChild(node);
-            }
-        }
 
         this.xmlDocuments[this.relsPath] = cloned;
         return cloned;
@@ -257,7 +245,7 @@ export default class ModernImageModule {
             return {
                 module: MODULE_NAME,
                 type: "placeholder",
-                value: placeHolderContent.slice(2),
+                value: normalizeTagKey(placeHolderContent.slice(2)),
                 centered: true,
             };
         }
@@ -265,7 +253,7 @@ export default class ModernImageModule {
             return {
                 module: MODULE_NAME,
                 type: "placeholder",
-                value: placeHolderContent.slice(1),
+                value: normalizeTagKey(placeHolderContent.slice(1)),
                 centered: false,
             };
         }
@@ -348,7 +336,7 @@ export default class ModernImageModule {
 
     private resolveBufferSync(result: Buffer | Promise<Buffer>): Buffer {
         if (result instanceof Promise) {
-            throw new Error(
+            throw new TypeError(
                 "Asynchronous image sources are not supported in synchronous render path. Use async templates instead."
             );
         }
@@ -357,7 +345,7 @@ export default class ModernImageModule {
 
     private resolveSizeSync(result: [number, number] | Promise<[number, number]>): [number, number] {
         if (result instanceof Promise) {
-            throw new Error(
+            throw new TypeError(
                 "Asynchronous size resolvers are not supported in synchronous render path. Use async templates instead."
             );
         }
@@ -366,7 +354,7 @@ export default class ModernImageModule {
 
     private ensureBuffer(value: Buffer): Buffer {
         if (!Buffer.isBuffer(value)) {
-            throw new Error("ModernImageModule expected getImage to resolve to a Buffer instance.");
+            throw new TypeError("ModernImageModule expected getImage to resolve to a Buffer instance.");
         }
         return value;
     }
@@ -374,7 +362,7 @@ export default class ModernImageModule {
     private normalizeSize(value: [number, number]): [number, number] {
         const [width, height] = value;
         if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-            throw new Error("ModernImageModule expected getSize to resolve to positive numeric dimensions.");
+            throw new TypeError("ModernImageModule expected getSize to resolve to positive numeric dimensions.");
         }
         return [width, height];
     }
@@ -428,7 +416,7 @@ export default class ModernImageModule {
                     </a:graphic>
                 </wp:inline>
             </w:drawing>
-        `.replace(/\s{2,}/g, "");
+        `.split(/\s{2,}/).join("");
     }
 
     private getCenteredXml(rId: number, width: string, height: string): string {
@@ -442,7 +430,7 @@ export default class ModernImageModule {
                     ${this.getInlineXml(rId, width, height)}
                 </w:r>
             </w:p>
-        `.replace(/\s{2,}/g, "");
+        `.split(/\s{2,}/).join("");
     }
 
     private createImageName(tagValue: unknown): string {

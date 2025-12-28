@@ -1,0 +1,121 @@
+#  🤖 System Instructions: Next.js Architecture & Quality Standards
+
+## 🚨 MANDATOS ABSOLUTOS (NON-NEGOTIABLE)
+
+1\.  \*\*Gestor de Paquetes\*\*: Usar \*\*exclusivamente \`pnpm\`\*\*.  
+    \* ❌ Prohibido \`npm\` o \`yarn\`.  
+    \* ❌ Prohibido modo PnP.  
+    \* ⚠️ Ejecutar \`pnpm audit\` si se detectan vulnerabilidades.  
+2\.  \*\*Base de Datos & Integridad\*\*:  
+    \* Usar \*\*Prisma ORM\*\*. Mantener sincronizado: \`npx prisma generate\`.  
+    \* 🔒 \*\*Seguridad\*\*: Implementar \*\*RLS (Row Level Security)\*\* en base de datos para cada tabla nueva.  
+    \* ⚡ \*\*Concurrencia Crítica\*\*:  
+        \* Usar \`prisma.$transaction\` para operaciones que toquen múltiples tablas.  
+        \* Implementar \*\*Optimistic Concurrency Control\*\* (campo \`@version\` en Prisma) para evitar "Race Conditions" en actualizaciones de saldo o inventario.  
+3\.  \*\*Workflow de Calidad\*\*:  
+    \* \*\*Inicio\*\*: Verificar plugins de \*\*SonarQube\*\* y \*\*Codacy\*\*.  
+    \* \*\*Final\*\*: Validar \`pnpm lint\`, \`tsc \--noEmit\`, \`pnpm build\`. Todo en Verde.  
+4\.  \*\*Regla de Oro de Testing\*\*:  
+    \* 🛑 Si código nuevo rompe un test: \*\*CORRIGE EL CÓDIGO, NUNCA EL TEST\*\*.  
+    \* Jamás modificar la lógica de un test para falsear el resultado.  
+5\.  \*\*Documentación\*\*:  
+    \* ✅ Solo Features Nuevas.  
+    \* ❌ NO documentar bug fixes.  
+    \* i18n siempre sincronizado.
+
+\---
+
+## 🏗️ Principios de Arquitectura (Next.js Edition)
+
+### Organización del Código
+
+\* \*\*Feature-First\*\*: Organizar en \`src/features/\` (ej: \`auth\`, \`wallet\`, \`network\`).  
+\* \*\*Clean Architecture\*\*:  
+    \* \*\*Data\*\*: DTOs, Zod Schemas, Prisma Repository.  
+    \* \*\*Domain\*\*: Business Logic pura, Custom Hooks.  
+    \* \*\*Presentation\*\*: UI Components, Pages.  
+\* \*\*Separación de Responsabilidades\*\*:  
+    \* Server Components (Data/Security) vs Client Components (Interaction).  
+\* \*\*Inyección de Dependencias\*\*: Evitar hardcoding; usar Context/Props.
+
+### Patrones de Diseño Obligatorios
+
+\* \*\*Repository Pattern\*\*: Abstracción de BD (\`orders.repository.ts\`).  
+\* \*\*Server Actions (Command Pattern)\*\*: Mutaciones seguras.  
+\* \*\*Factory Pattern\*\*: Generación dinámica de UI.  
+\* \*\*Observer Pattern\*\*: Suscripciones reactivas.  
+\* \*\*Error Boundary\*\*: \`error.tsx\` en cada ruta.
+
+### UX Mobile-First & PWA
+
+\* \*\*Diseño\*\*: Mobile-First (Base 320px). Breakpoints: 768px, 1024px.  
+\* \*\*Touch Targets\*\*: Mínimo \*\*44px x 44px\*\*.  
+\* \*\*UI States\*\*: Loading (Skeletons), Empty (Ilustraciones), Error (Recoverable).  
+\* \*\*PWA\*\*: Service Worker (Cache Offline), Manifest completo, "Pull to Refresh".
+
+\---
+
+##  🔒 Seguridad Robusta & Uploads
+
+### Protección de Archivos (Anti-Malware)
+
+\* \*\*Escaneo Obligatorio\*\*: NINGÚN archivo subido por el usuario debe procesarse sin ser escaneado.  
+\* \*\*Protocolo de Escaneo\*\*:  
+    1\.  \*\*Verificar Configuración\*\*: Buscar \`VIRUSTOTAL\_API\_KEY\` en \`.env\`.  
+    2\.  \*\*Opción A (Con API)\*\*: Si existe la key, implementar chequeo contra VirusTotal API antes de mover el archivo a almacenamiento permanente.  
+    3\.  \*\*Opción B (Sin API)\*\*: Si no está configurado, implementar solución automática server-side (ej: contenedor con \*\*ClamAV\*\* o función Lambda/Edge de escaneo).  
+    4\.  \*\*Cuarentena\*\*: Los archivos se suben primero a un bucket "Temp/Quarantine". Solo pasan a "Clean" tras resultado negativo de virus.
+
+### Configuración y Ataques
+
+\* \*\*Zero Hardcoding\*\*: Todo a \`.env\`. Validar con Zod al inicio.  
+\* \*\*Input Validation\*\*: Zod estricto en todos los inputs.  
+\* \*\*Rate Limiting\*\*: Protección contra DDoS/Brute Force en Server Actions.  
+\* \*\*Sanitización\*\*: DOMPurify si se inyecta HTML.  
+\* \*\*Headers\*\*: CSP, HSTS, X-Content-Type-Options.
+
+\---
+
+## 🧠 Estructura de Proyecto y SEO
+
+### Estructura Predecible
+
+\`\`\`text  
+src/  
+  app/                 \# Rutas App Router  
+  features/            \# Módulos de Negocio  
+  lib/  
+    antivirus/         \# Lógica de escaneo (VirusTotal/ClamAV)  
+    db/                \# Prisma Client  
+  types/               \# Tipos globales
+
+## SEO Técnico & A11y
+
+ \* Semántica: HTML5 Estricto.  
+ \* Metadata: Títulos dinámicos, Open Graph, Twitter Cards.  
+ \* Schema.org: JSON-LD (Product, Organization).  
+ \* A11y: WCAG 2.1 AA (Contraste, Aria-labels, Alt texts).  
+🛡️ Validación y Tipos  
+ \* Type Safety: TypeScript Strict. Prohibido any.  
+ \* Contratos: Esquemas Zod sincronizados (Front-Back-DB).  
+ \* Errores: try/catch con tipos de error personalizados.  
+🧪 Testing y Calidad  
+Cobertura  
+ \* Unit: \>80% en lógica de negocio.  
+ \* Integration: Testear flujo completo (Upload \-\> Scan \-\> Save).  
+ \* Mobile: Simular 3G, Touch, Orientación.  
+Análisis Estático  
+ \* SonarQube: 0 Code Smells Críticos.  
+ \* Codacy: Calidad A/B.  
+ \* pnpm audit antes de deploy.
+
+## 🔄 CI/CD
+
+ \* Pipeline: Lint \-\> TypeCheck \-\> Build \-\> Test \-\> Security Audit.  
+ \* Deploy: Automático solo si pasa todo.
+
+## 🎯 Filosofía Central para IA
+
+ \* Seguridad Primero: Asumir que todo input (texto o archivo) es malicioso hasta probar lo contrario.  
+ \* Integridad de Datos: Nunca permitir condiciones de carrera (Race Conditions) en transacciones financieras o de inventario.  
+ \* Claridad: Código auto-explicativo y documentado (solo features nuevas).

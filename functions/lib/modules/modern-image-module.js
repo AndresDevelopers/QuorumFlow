@@ -12,6 +12,11 @@ const EMUS_PER_PIXEL = 9525;
 function convertPixelsToEmus(pixels) {
     return Math.round(pixels * EMUS_PER_PIXEL);
 }
+function normalizeTagKey(value) {
+    return value
+        .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        .trim();
+}
 function resolveImageContentType(extension) {
     const normalized = extension.toLowerCase();
     if (normalized === "jpg" || normalized === "jpeg")
@@ -52,20 +57,7 @@ class RelationshipManager {
         if (existing) {
             return existing;
         }
-        const templatePath = "word/_rels/document.xml.rels";
-        const template = this.xmlDocuments[templatePath];
-        if (!template) {
-            throw new Error(`Unable to bootstrap relationships XML. Missing template at ${templatePath}.`);
-        }
-        const cloned = new xmldom_1.DOMParser().parseFromString(DocUtils.xml2str(template), "application/xml");
-        const relationships = cloned.getElementsByTagName("Relationships")[0];
-        const relationshipNodes = relationships.getElementsByTagName("Relationship");
-        for (let index = relationshipNodes.length - 1; index >= 0; index -= 1) {
-            const node = relationshipNodes.item(index);
-            if (node) {
-                relationships.removeChild(node);
-            }
-        }
+        const cloned = new xmldom_1.DOMParser().parseFromString('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>', "application/xml");
         this.xmlDocuments[this.relsPath] = cloned;
         return cloned;
     }
@@ -189,7 +181,7 @@ class ModernImageModule {
             return {
                 module: MODULE_NAME,
                 type: "placeholder",
-                value: placeHolderContent.slice(2),
+                value: normalizeTagKey(placeHolderContent.slice(2)),
                 centered: true,
             };
         }
@@ -197,7 +189,7 @@ class ModernImageModule {
             return {
                 module: MODULE_NAME,
                 type: "placeholder",
-                value: placeHolderContent.slice(1),
+                value: normalizeTagKey(placeHolderContent.slice(1)),
                 centered: false,
             };
         }
@@ -264,26 +256,26 @@ class ModernImageModule {
     }
     resolveBufferSync(result) {
         if (result instanceof Promise) {
-            throw new Error("Asynchronous image sources are not supported in synchronous render path. Use async templates instead.");
+            throw new TypeError("Asynchronous image sources are not supported in synchronous render path. Use async templates instead.");
         }
         return this.ensureBuffer(result);
     }
     resolveSizeSync(result) {
         if (result instanceof Promise) {
-            throw new Error("Asynchronous size resolvers are not supported in synchronous render path. Use async templates instead.");
+            throw new TypeError("Asynchronous size resolvers are not supported in synchronous render path. Use async templates instead.");
         }
         return this.normalizeSize(result);
     }
     ensureBuffer(value) {
         if (!Buffer.isBuffer(value)) {
-            throw new Error("ModernImageModule expected getImage to resolve to a Buffer instance.");
+            throw new TypeError("ModernImageModule expected getImage to resolve to a Buffer instance.");
         }
         return value;
     }
     normalizeSize(value) {
         const [width, height] = value;
         if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-            throw new Error("ModernImageModule expected getSize to resolve to positive numeric dimensions.");
+            throw new TypeError("ModernImageModule expected getSize to resolve to positive numeric dimensions.");
         }
         return [width, height];
     }
@@ -333,7 +325,7 @@ class ModernImageModule {
                     </a:graphic>
                 </wp:inline>
             </w:drawing>
-        `.replace(/\s{2,}/g, "");
+        `.split(/\s{2,}/).join("");
     }
     getCenteredXml(rId, width, height) {
         return `
@@ -346,7 +338,7 @@ class ModernImageModule {
                     ${this.getInlineXml(rId, width, height)}
                 </w:r>
             </w:p>
-        `.replace(/\s{2,}/g, "");
+        `.split(/\s{2,}/).join("");
     }
     createImageName(tagValue) {
         const extension = this.resolveExtension(tagValue);
