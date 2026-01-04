@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/table';
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -324,20 +325,20 @@ export default function ReportsPage() {
     }
   };
 
-  const generateReport = async () => {
+  const generateReportForYear = async (year: number) => {
     startGeneratingReport(async () => {
       try {
         const functions = getFunctions();
         const generateCompleteReportCallable = httpsCallable(functions, 'generateCompleteReport');
         const result = await generateCompleteReportCallable({ 
-            year: selectedYear,
+            year,
             includeAllActivities: false
         });
         
         const data = result.data as { fileContents: string };
         const blob = base64ToDocxBlob(data.fileContents);
 
-        saveAs(blob, `Reporte_Completo_${selectedYear}.docx`);
+        saveAs(blob, `Reporte_Completo_${year}.docx`);
         toast({ title: "Éxito", description: "El reporte completo se ha generado correctamente." });
 
       } catch (error) {
@@ -348,14 +349,14 @@ export default function ReportsPage() {
           const functions = getFunctions();
           const generateReportCallable = httpsCallable(functions, 'generateReport');
           const result = await generateReportCallable({ 
-              year: selectedYear,
+              year,
               includeAllActivities: false
           });
           
           const data = result.data as { fileContents: string };
           const blob = base64ToDocxBlob(data.fileContents);
 
-          saveAs(blob, `Reporte_Anual_${selectedYear}.docx`);
+          saveAs(blob, `Reporte_Anual_${year}.docx`);
           toast({ title: "Éxito", description: "El reporte se ha generado correctamente (versión anterior)." });
         } catch (fallbackError) {
           logger.error({ error: fallbackError, message: "Error calling fallback generateReport cloud function" });
@@ -386,9 +387,40 @@ export default function ReportsPage() {
                             </CardDescription>
                         </div>
                     </div>
-                     <Button onClick={generateReport} disabled={isGeneratingReport}>
-                        {isGeneratingReport ? <><RefreshCw className="mr-2 h-4 w-4 animate-spin" />Generando...</> : <><Download className="mr-2 h-4 w-4" />Descargar Reporte</>}
-                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button disabled={isGeneratingReport}>
+                                {isGeneratingReport ? <><RefreshCw className="mr-2 h-4 w-4 animate-spin" />Generando...</> : <><Download className="mr-2 h-4 w-4" />Descargar Reporte</>}
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Descargar reporte</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Elige el año del informe que deseas descargar.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <div className="grid gap-2">
+                                <AlertDialogAction
+                                    className="w-full h-11"
+                                    disabled={isGeneratingReport}
+                                    onClick={() => generateReportForYear(currentYear)}
+                                >
+                                    Año actual ({currentYear})
+                                </AlertDialogAction>
+                                <AlertDialogAction
+                                    className="w-full h-11"
+                                    disabled={isGeneratingReport}
+                                    onClick={() => generateReportForYear(currentYear - 1)}
+                                >
+                                    Año pasado ({currentYear - 1})
+                                </AlertDialogAction>
+                                <AlertDialogCancel className="w-full h-11">
+                                    Cancelar
+                                </AlertDialogCancel>
+                            </div>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </div>
             </CardHeader>
             <CardContent className="space-y-6">
