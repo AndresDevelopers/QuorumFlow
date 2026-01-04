@@ -1,15 +1,15 @@
 
 'use client';
 
-import { useCallback, useEffect, useState, useTransition, useRef } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getDocs, query, orderBy, Timestamp, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { useSearchParams } from 'next/navigation';
+import { getDocs, query, orderBy, Timestamp, where, deleteDoc, doc } from 'firebase/firestore';
 import { servicesCollection } from '@/lib/collections';
 import type { Service } from '@/lib/types';
-import { addDays, format, isAfter, isBefore } from 'date-fns';
+import { addDays, endOfYear, format, getYear, isAfter, isBefore, startOfYear } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
-import { z } from 'zod';
 import logger from '@/lib/logger';
 import { useAuth } from '@/contexts/auth-context';
 
@@ -33,7 +33,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -49,26 +48,25 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Calendar } from '@/components/ui/calendar';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { CalendarIcon, PlusCircle, Trash2, Pencil, Image as ImageIcon } from 'lucide-react';
+import { PlusCircle, Trash2, Pencil, Image as ImageIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { ServiceForm } from './ServiceForm';
 import Image from 'next/image';
 
 
-async function getServices(): Promise<Service[]> {
+async function getServicesForYear(year: number): Promise<Service[]> {
   try {
-    const q = query(servicesCollection, orderBy('date', 'desc'));
+    const start = startOfYear(new Date(year, 0, 1));
+    const end = endOfYear(new Date(year, 0, 1));
+
+    const startTimestamp = Timestamp.fromDate(start);
+    const endTimestamp = Timestamp.fromDate(end);
+
+    const q = query(
+      servicesCollection,
+      where('date', '>=', startTimestamp),
+      where('date', '<=', endTimestamp),
+      orderBy('date', 'desc')
+    );
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
   } catch (error) {
@@ -79,13 +77,18 @@ async function getServices(): Promise<Service[]> {
 
 export default function ServicePage() {
   const { user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   
+  const currentYear = getYear(new Date());
+  const yearParam = Number(searchParams.get('year'));
+  const selectedYear = Number.isInteger(yearParam) && yearParam >= 1900 && yearParam <= 2100 ? yearParam : currentYear;
+
   const fetchServices = useCallback(() => {
     setLoading(true);
-    getServices()
+    getServicesForYear(selectedYear)
         .then(data => {
             setServices(data);
         })
@@ -96,7 +99,7 @@ export default function ServicePage() {
         .finally(() => {
             setLoading(false);
         });
-  }, [toast]);
+  }, [selectedYear, toast]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -178,9 +181,9 @@ export default function ServicePage() {
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
-              <CardTitle>Lista de Servicios</CardTitle>
+              <CardTitle>Servicios del Año {selectedYear}</CardTitle>
               <CardDescription>
-                Todos los proyectos de servicio, pasados y futuros.
+                Proyectos de servicio registrados en el año seleccionado.
               </CardDescription>
             </div>
             <Button asChild>

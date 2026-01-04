@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import { getDocs, query, orderBy, Timestamp, where, deleteDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { activitiesCollection, baptismsCollection, futureMembersCollection, convertsCollection, annualReportsCollection, membersCollection } from '@/lib/collections';
 import type { Activity, Baptism, Convert, AnnualReportAnswers } from '@/lib/types';
@@ -23,7 +24,6 @@ import {
 } from '@/components/ui/table';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/carousel";
 
 import { Button } from '@/components/ui/button';
-import { Download, FileText, PlusCircle, UserPlus, Droplets, Wand2, RefreshCw, Trash2, Save, Pencil, Camera } from 'lucide-react';
+import { Download, FileText, PlusCircle, Droplets, Wand2, RefreshCw, Save, Pencil, Camera } from 'lucide-react';
 import { format, getYear, startOfYear, endOfYear } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { saveAs } from 'file-saver';
@@ -52,7 +52,6 @@ import logger from '@/lib/logger';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { Switch } from '@/components/ui/switch';
 import type { SuggestedActivities } from '@/ai/flows/suggest-activities-flow';
 
 function base64ToDocxBlob(base64: string): Blob {
@@ -61,15 +60,26 @@ function base64ToDocxBlob(base64: string): Blob {
   return new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
 }
 
-async function getActivities(): Promise<Activity[]> {
-  const q = query(activitiesCollection, orderBy('date', 'desc'));
+async function getActivitiesForYear(year: number): Promise<Activity[]> {
+  const start = startOfYear(new Date(year, 0, 1));
+  const end = endOfYear(new Date(year, 0, 1));
+
+  const startTimestamp = Timestamp.fromDate(start);
+  const endTimestamp = Timestamp.fromDate(end);
+
+  const q = query(
+    activitiesCollection,
+    where('date', '>=', startTimestamp),
+    where('date', '<=', endTimestamp),
+    orderBy('date', 'desc')
+  );
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity));
 }
 
-async function getBaptismsForCurrentYear(): Promise<Baptism[]> {
-    const start = startOfYear(new Date());
-    const end = endOfYear(new Date());
+async function getBaptismsForYear(year: number): Promise<Baptism[]> {
+    const start = startOfYear(new Date(year, 0, 1));
+    const end = endOfYear(new Date(year, 0, 1));
 
     const startTimestamp = Timestamp.fromDate(start);
     const endTimestamp = Timestamp.fromDate(end);
@@ -166,6 +176,7 @@ const reportQuestions = [
 
 export default function ReportsPage() {
   const { user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [baptisms, setBaptisms] = useState<Baptism[]>([]);
@@ -173,7 +184,9 @@ export default function ReportsPage() {
   const [suggestions, setSuggestions] = useState<SuggestedActivities | null>(null);
   const [isGenerating, startGenerating] = useTransition();
   const [isGeneratingReport, startGeneratingReport] = useTransition();
-  const [includeAllActivities, setIncludeAllActivities] = useState(true);
+  const currentYear = getYear(new Date());
+  const yearParam = Number(searchParams.get('year'));
+  const selectedYear = Number.isInteger(yearParam) && yearParam >= 1900 && yearParam <= 2100 ? yearParam : currentYear;
 
   const [answers, setAnswers] = useState<Partial<AnnualReportAnswers>>({});
   const [loadingAnswers, setLoadingAnswers] = useState(true);
@@ -181,12 +194,11 @@ export default function ReportsPage() {
   const fetchInitialData = useCallback(async () => {
       setLoading(true);
       setLoadingAnswers(true);
-      const currentYear = getYear(new Date());
 
       const [activitiesData, baptismsData, answersData] = await Promise.all([
-          getActivities(), 
-          getBaptismsForCurrentYear(),
-          getAnnualReportAnswers(currentYear)
+          getActivitiesForYear(selectedYear), 
+          getBaptismsForYear(selectedYear),
+          getAnnualReportAnswers(selectedYear)
       ]);
       
       setActivities(activitiesData);
@@ -198,7 +210,7 @@ export default function ReportsPage() {
       setLoadingAnswers(false);
 
       return activitiesData;
-  }, []);
+  }, [selectedYear]);
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -302,9 +314,8 @@ export default function ReportsPage() {
   };
 
   const handleSaveAnswers = async () => {
-    const currentYear = String(getYear(new Date()));
     try {
-        const docRef = doc(annualReportsCollection, currentYear);
+        const docRef = doc(annualReportsCollection, String(selectedYear));
         await setDoc(docRef, answers, { merge: true });
         toast({ title: 'Éxito', description: 'Respuestas guardadas correctamente.' });
     } catch (error) {
@@ -319,14 +330,14 @@ export default function ReportsPage() {
         const functions = getFunctions();
         const generateCompleteReportCallable = httpsCallable(functions, 'generateCompleteReport');
         const result = await generateCompleteReportCallable({ 
-            year: getYear(new Date()),
-            includeAllActivities
+            year: selectedYear,
+            includeAllActivities: false
         });
         
         const data = result.data as { fileContents: string };
         const blob = base64ToDocxBlob(data.fileContents);
 
-        saveAs(blob, `Reporte_Completo_${getYear(new Date())}.docx`);
+        saveAs(blob, `Reporte_Completo_${selectedYear}.docx`);
         toast({ title: "Éxito", description: "El reporte completo se ha generado correctamente." });
 
       } catch (error) {
@@ -337,14 +348,14 @@ export default function ReportsPage() {
           const functions = getFunctions();
           const generateReportCallable = httpsCallable(functions, 'generateReport');
           const result = await generateReportCallable({ 
-              year: getYear(new Date()),
-              includeAllActivities
+              year: selectedYear,
+              includeAllActivities: false
           });
           
           const data = result.data as { fileContents: string };
           const blob = base64ToDocxBlob(data.fileContents);
 
-          saveAs(blob, `Reporte_Anual_${getYear(new Date())}.docx`);
+          saveAs(blob, `Reporte_Anual_${selectedYear}.docx`);
           toast({ title: "Éxito", description: "El reporte se ha generado correctamente (versión anterior)." });
         } catch (fallbackError) {
           logger.error({ error: fallbackError, message: "Error calling fallback generateReport cloud function" });
@@ -366,10 +377,10 @@ export default function ReportsPage() {
         <Card>
             <CardHeader>
                 <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
                         <FileText className="h-8 w-8 text-primary" />
                         <div>
-                            <CardTitle>Informe Anual</CardTitle>
+                            <CardTitle>Informe Anual {selectedYear}</CardTitle>
                             <CardDescription>
                                 Compila la información para el informe anual del quórum.
                             </CardDescription>
@@ -410,7 +421,7 @@ export default function ReportsPage() {
                 <div>
                     <CardTitle>Actividades Registradas</CardTitle>
                     <CardDescription>
-                    Registro de todas las actividades del quórum.
+                    Registro de las actividades del año {selectedYear}.
                     </CardDescription>
                 </div>
                 </div>
@@ -552,9 +563,9 @@ export default function ReportsPage() {
                     <div className="flex items-center gap-3">
                         <Droplets className="h-8 w-8 text-primary" />
                         <div>
-                            <CardTitle>Bautismos del Año {getYear(new Date())}</CardTitle>
+                            <CardTitle>Bautismos del Año {selectedYear}</CardTitle>
                             <CardDescription>
-                            Lista de miembros bautizados en el año actual.
+                            Lista de miembros bautizados en el año seleccionado.
                             </CardDescription>
                         </div>
                     </div>
