@@ -91,14 +91,10 @@ export async function getDashboardData() {
   const futureMembers = await getFutureMembers();
   const futureMembersCount = futureMembers.length;
 
-  // 3. Ministering Reports Rate
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const ministeringSnapshot = await getDocs(ministeringCollection);
   const companionships = ministeringSnapshot.docs.map(doc => doc.data() as Companionship);
-  const totalFamilies = companionships.reduce((acc, comp) => acc + comp.families.length, 0);
-  const totalVisited = companionships.reduce((acc, comp) => acc + comp.families.filter(f => f.visitedThisMonth).length, 0);
-  const ministeringReportRate = totalFamilies > 0 ? Math.round((totalVisited / totalFamilies) * 100) : 0;
 
   // 4. Council Actions Count - Based on active items in Council page
 
@@ -163,7 +159,6 @@ export async function getDashboardData() {
   return {
     convertsCount,
     futureMembersCount,
-    ministeringReportRate,
     councilActionsCount,
   };
 }

@@ -139,8 +139,7 @@ async function addToNewCompanionships(
       const newFamily = {
         name: memberFamilyName,
         isUrgent: false,
-        observation: '',
-        visitedThisMonth: false
+        observation: ''
       };
 
       const companionshipRef = doc(ministeringCollection, matchingCompanionship.id);
@@ -159,8 +158,7 @@ async function addToNewCompanionships(
       families: [{
         name: memberFamilyName,
         isUrgent: false,
-        observation: '',
-        visitedThisMonth: false
+        observation: ''
       }]
     };
 

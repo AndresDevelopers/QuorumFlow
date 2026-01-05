@@ -57,7 +57,7 @@ export function ChangelogDialog({ children }: { children: React.ReactNode }) {
             <div>
               <h3 className="font-semibold">v 1.1.5</h3>
               <ul className="list-disc list-inside text-sm text-muted-foreground">
-                <li>Se añadió en Observaciones una vista dedicada para los compañerismos de ministración con familias menos activas o inactivas, facilitando el seguimiento de esas visitas.</li>
+                <li>Se añadió en Observaciones una vista dedicada para los compañerismos de ministración con familias menos activas o inactivas, facilitando el seguimiento de esas familias.</li>
                 <li>La tarjeta de Anotaciones del Tablero ahora mantiene la interacción en la misma página, evitando redirecciones inesperadas.</li>
                 <li>En Ministración el listado carga más compañerismos de forma incremental al desplazarse, superando el límite inicial de diez registros.</li>
                 <li>El registro de usuarios crea automáticamente el documento en c_users con el rol predeterminado <code>user</code>, además de la cuenta en Auth.</li>
@@ -280,4 +280,3 @@ export function ChangelogDialog({ children }: { children: React.ReactNode }) {
   );
 
 }
-

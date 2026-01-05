@@ -3,9 +3,9 @@
 
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { doc, getDoc, updateDoc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
-import { ministeringCollection, membersCollection } from '@/lib/collections';
-import type { Companionship, Family, Member } from '@/lib/types';
+import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { ministeringCollection } from '@/lib/collections';
+import type { Companionship, Family } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import logger from '@/lib/logger';
 import Link from 'next/link';
@@ -28,7 +28,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import {
   AlertDialog,
@@ -43,8 +42,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { ArrowLeft, Edit, Save, Trash2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Edit, Save, Trash2 } from 'lucide-react';
 import { CompanionshipForm } from '../CompanionshipForm';
 
 export default function ManageCompanionshipPage() {
@@ -207,7 +205,6 @@ export default function ManageCompanionshipPage() {
                 <TableHeader>
                 <TableRow>
                     <TableHead>Familia</TableHead>
-                    <TableHead>Visitado</TableHead>
                     <TableHead>Urgente</TableHead>
                     <TableHead className="w-[40%]">Observación</TableHead>
                 </TableRow>
@@ -216,12 +213,6 @@ export default function ManageCompanionshipPage() {
                 {families.map((family, index) => (
                     <TableRow key={index}>
                     <TableCell className="font-medium">{family.name}</TableCell>
-                    <TableCell>
-                        <Checkbox
-                        checked={family.visitedThisMonth}
-                        onCheckedChange={(checked) => handleFamilyChange(index, 'visitedThisMonth', !!checked)}
-                        />
-                    </TableCell>
                     <TableCell>
                          <Switch
                             checked={family.isUrgent}

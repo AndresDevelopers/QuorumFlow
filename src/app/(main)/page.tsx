@@ -4,7 +4,6 @@
 import Link from 'next/link';
 import {
   BookUser,
-  FileText,
   Gavel,
   HeartHandshake,
 } from "lucide-react";
@@ -163,14 +162,13 @@ function DashboardPage() {
   const {
     convertsCount,
     futureMembersCount,
-    ministeringReportRate,
     councilActionsCount,
-  } = data || { convertsCount: 0, futureMembersCount: 0, ministeringReportRate: 0, councilActionsCount: 0 };
+  } = data || { convertsCount: 0, futureMembersCount: 0, councilActionsCount: 0 };
 
 
   return (
     <div className="flex flex-1 flex-col gap-4 md:gap-8">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {loading ? <StatCardSkeleton/> : <Link href="/converts">
           <StatCard
             title={t("Total Converts")}
@@ -185,14 +183,6 @@ function DashboardPage() {
             value={String(futureMembersCount)}
             icon={<BookUser className="h-4 w-4 text-muted-foreground" />}
             description={t("with baptism date set")}
-          />
-        </Link>}
-         {loading ? <StatCardSkeleton/> : <Link href="/reports">
-          <StatCard
-            title={t("Reports Submitted")}
-            value={`${ministeringReportRate}%`}
-            icon={<FileText className="h-4 w-4 text-muted-foreground" />}
-            description={t("of ministering visits completed")}
           />
         </Link>}
          {loading ? <StatCardSkeleton/> : <Link href="/council">

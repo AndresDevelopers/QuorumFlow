@@ -33,12 +33,8 @@ export async function getDashboardData() {
   );
   const futureMembersCount = futureMembersSnapshot.size;
 
-  // 3. Ministering Reports Rate
   const ministeringSnapshot = await getDocs(ministeringCollection);
   const companionships = ministeringSnapshot.docs.map(doc => doc.data() as Companionship);
-  const totalCompanionships = companionships.length;
-  const upToDateCount = companionships.filter(c => c.families.every(f => f.visitedThisMonth)).length;
-  const ministeringReportRate = totalCompanionships > 0 ? Math.round((upToDateCount / totalCompanionships) * 100) : 0;
   
   // 4. Council Actions Count
   // a. Converts needing council
@@ -76,7 +72,6 @@ export async function getDashboardData() {
   return {
     convertsCount,
     futureMembersCount,
-    ministeringReportRate,
     councilActionsCount,
   };
 }

@@ -5,7 +5,6 @@ export type Family = {
   name: string;
   isUrgent: boolean;
   observation: string;
-  visitedThisMonth: boolean;
 };
 
 export type Companionship = {
@@ -249,4 +248,3 @@ export type Member = {
     lessActiveObservation?: string;
     lessActiveCompletedAt?: Timestamp;
 }
-

@@ -249,7 +249,7 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
              const existingFamilies = companionship.families;
              const updatedFamilies = newFamilyNames.map(name => {
                  const existing = existingFamilies.find(f => f.name === name);
-                 return existing || { name, isUrgent: false, observation: '', visitedThisMonth: false };
+                 return existing || { name, isUrgent: false, observation: '' };
              });
 
              await updateDoc(companionshipRef, {
@@ -270,7 +270,6 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
                 name: f.value,
                 isUrgent: false,
                 observation: '',
-                visitedThisMonth: false,
             }));
 
             await addDoc(ministeringCollection, {
