@@ -26,7 +26,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { PlusCircle, Settings, Users } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/auth-context';
@@ -82,16 +81,6 @@ export default function MinisteringPage() {
   );
 
   const totalCompanionships = companionships.length;
-
-  function StatusBadge({ companionship }: { companionship: Companionship }) {
-      const isAnyFamilyUrgent = companionship.families.some(f => f.isUrgent);
-
-      if (isAnyFamilyUrgent) {
-        return <Badge variant="destructive">{t('ministering.urgent')}</Badge>;
-      }
-
-      return <Badge variant="secondary">{t('ministering.upToDate')}</Badge>;
-  }
 
   const getMemberLink = (name: string) => {
     let searchName = name;
@@ -363,7 +352,6 @@ export default function MinisteringPage() {
                     <TableRow>
                     <TableHead>{t('ministering.companions')}</TableHead>
                     <TableHead>{t('ministering.assignedFamilies')}</TableHead>
-                    <TableHead>{t('ministering.status')}</TableHead>
                     <TableHead>Distrito</TableHead>
                     <TableHead className="text-right">
                         {t('ministering.actions')}
@@ -376,7 +364,6 @@ export default function MinisteringPage() {
                             <TableRow key={i}>
                                 <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                                 <TableCell><Skeleton className="h-5 w-48" /></TableCell>
-                                <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                                 <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                                 <TableCell className="text-right"><Skeleton className="h-8 w-24" /></TableCell>
                             </TableRow>
@@ -400,9 +387,6 @@ export default function MinisteringPage() {
                               </Link>
                             </div>
                           ))}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge companionship={item} />
                         </TableCell>
                         <TableCell>
                           {companionshipDistrictMap.get(item.id)?.join(', ') || 'No asignado'}
@@ -441,7 +425,11 @@ export default function MinisteringPage() {
                                     </CardTitle>
                                     <CardDescription>
                                         <div className="flex items-center gap-2 mt-1">
-                                            <StatusBadge companionship={item} />
+                                            {item.families.some((f) => f.isUrgent) && (
+                                              <span className="text-sm text-destructive">
+                                                {t('ministering.urgent')}
+                                              </span>
+                                            )}
                                         </div>
                                     </CardDescription>
                                 </div>
