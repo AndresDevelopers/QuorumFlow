@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getDocs, query, orderBy, Timestamp, where, deleteDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { activitiesCollection, baptismsCollection, futureMembersCollection, convertsCollection, annualReportsCollection, membersCollection } from '@/lib/collections';
 import type { Activity, Baptism, Convert, AnnualReportAnswers } from '@/lib/types';
@@ -54,11 +54,63 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import type { SuggestedActivities } from '@/ai/flows/suggest-activities-flow';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 function base64ToDocxBlob(base64: string): Blob {
   const sanitized = base64.replace(/\s/g, '');
   const bytes = Uint8Array.from(atob(sanitized), (char) => char.charCodeAt(0));
   return new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
+async function getAvailableReportYears(): Promise<number[]> {
+  const [
+    activitiesSnapshot,
+    manualBaptismsSnapshot,
+    convertsSnapshot,
+    futureMembersSnapshot,
+    membersSnapshot,
+  ] = await Promise.all([
+    getDocs(query(activitiesCollection, orderBy('date', 'desc'))),
+    getDocs(query(baptismsCollection, orderBy('date', 'desc'))),
+    getDocs(convertsCollection),
+    getDocs(futureMembersCollection),
+    getDocs(membersCollection),
+  ]);
+
+  const yearSet = new Set<number>();
+
+  activitiesSnapshot.docs.forEach((doc) => {
+    const data = doc.data() as { date?: Timestamp };
+    if (data.date) yearSet.add(getYear(data.date.toDate()));
+  });
+
+  manualBaptismsSnapshot.docs.forEach((doc) => {
+    const data = doc.data() as { date?: Timestamp };
+    if (data.date) yearSet.add(getYear(data.date.toDate()));
+  });
+
+  convertsSnapshot.docs.forEach((doc) => {
+    const data = doc.data() as { baptismDate?: Timestamp };
+    if (data.baptismDate) yearSet.add(getYear(data.baptismDate.toDate()));
+  });
+
+  futureMembersSnapshot.docs.forEach((doc) => {
+    const data = doc.data() as { baptismDate?: Timestamp };
+    if (data.baptismDate) yearSet.add(getYear(data.baptismDate.toDate()));
+  });
+
+  membersSnapshot.docs.forEach((doc) => {
+    const data = doc.data() as { baptismDate?: Timestamp };
+    if (data.baptismDate) yearSet.add(getYear(data.baptismDate.toDate()));
+  });
+
+  return Array.from(yearSet).sort((a, b) => b - a);
 }
 
 async function getActivitiesForYear(year: number): Promise<Activity[]> {
@@ -185,6 +237,7 @@ const reportQuestions = [
 
 export default function ReportsPage() {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -193,9 +246,19 @@ export default function ReportsPage() {
   const [suggestions, setSuggestions] = useState<SuggestedActivities | null>(null);
   const [isGenerating, startGenerating] = useTransition();
   const [isGeneratingReport, startGeneratingReport] = useTransition();
+  const [availableYears, setAvailableYears] = useState<number[] | null>(null);
   const currentYear = getYear(new Date());
   const yearParam = Number(searchParams.get('year'));
   const selectedYear = Number.isInteger(yearParam) && yearParam >= 1900 && yearParam <= 2100 ? yearParam : currentYear;
+  const yearOptions = (availableYears && availableYears.length > 0)
+    ? availableYears.map(String)
+    : [String(selectedYear)];
+
+  const handleYearChange = (year: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('year', year);
+    router.replace(`/reports?${params.toString()}`);
+  };
 
   const [answers, setAnswers] = useState<Partial<AnnualReportAnswers>>({});
   const [loadingAnswers, setLoadingAnswers] = useState(true);
@@ -228,6 +291,33 @@ export default function ReportsPage() {
         handleGenerateSuggestions();
     });
   }, [authLoading, user, fetchInitialData]);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const years = await getAvailableReportYears();
+        if (cancelled) return;
+        setAvailableYears(years);
+
+        if (years.length > 0 && !years.includes(selectedYear)) {
+          const params = new URLSearchParams(searchParams.toString());
+          params.set('year', String(years[0]));
+          router.replace(`/reports?${params.toString()}`);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        logger.error({ error, message: 'Error loading available report years' });
+        setAvailableYears([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user, router, searchParams, selectedYear]);
 
   const handleGenerateSuggestions = async (refresh = false) => {
     startGenerating(async () => {
@@ -395,40 +485,56 @@ export default function ReportsPage() {
                             </CardDescription>
                         </div>
                     </div>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button disabled={isGeneratingReport}>
-                                {isGeneratingReport ? <><RefreshCw className="mr-2 h-4 w-4 animate-spin" />Generando...</> : <><Download className="mr-2 h-4 w-4" />Descargar Reporte</>}
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Descargar reporte</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Elige el año del informe que deseas descargar.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <div className="grid gap-2">
-                                <AlertDialogAction
-                                    className="w-full h-11"
-                                    disabled={isGeneratingReport}
-                                    onClick={() => generateReportForYear(currentYear)}
-                                >
-                                    Año actual ({currentYear})
-                                </AlertDialogAction>
-                                <AlertDialogAction
-                                    className="w-full h-11"
-                                    disabled={isGeneratingReport}
-                                    onClick={() => generateReportForYear(currentYear - 1)}
-                                >
-                                    Año pasado ({currentYear - 1})
-                                </AlertDialogAction>
-                                <AlertDialogCancel className="w-full h-11">
-                                    Cancelar
-                                </AlertDialogCancel>
-                            </div>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                    <div className="flex items-center gap-3">
+                        <div className="w-40">
+                            <Select value={String(selectedYear)} onValueChange={handleYearChange} disabled={availableYears === null}>
+                                <SelectTrigger aria-label="Filtrar por año">
+                                    <SelectValue placeholder="Año" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {yearOptions.map((year) => (
+                                        <SelectItem key={year} value={year}>
+                                            {year}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button disabled={isGeneratingReport}>
+                                    {isGeneratingReport ? <><RefreshCw className="mr-2 h-4 w-4 animate-spin" />Generando...</> : <><Download className="mr-2 h-4 w-4" />Descargar Reporte</>}
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Descargar reporte</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Elige el año del informe que deseas descargar.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <div className="grid gap-2">
+                                    <AlertDialogAction
+                                        className="w-full h-11"
+                                        disabled={isGeneratingReport}
+                                        onClick={() => generateReportForYear(currentYear)}
+                                    >
+                                        Año actual ({currentYear})
+                                    </AlertDialogAction>
+                                    <AlertDialogAction
+                                        className="w-full h-11"
+                                        disabled={isGeneratingReport}
+                                        onClick={() => generateReportForYear(currentYear - 1)}
+                                    >
+                                        Año pasado ({currentYear - 1})
+                                    </AlertDialogAction>
+                                    <AlertDialogCancel className="w-full h-11">
+                                        Cancelar
+                                    </AlertDialogCancel>
+                                </div>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
                 </div>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -633,14 +739,14 @@ export default function ReportsPage() {
                                     <TableCell className="text-right"><Skeleton className="h-8 w-8 inline-block" /></TableCell>
                                     </TableRow>
                                 ))
-                            ) : baptisms.filter(b => b.source === 'Automático').length === 0 ? (
+                            ) : baptisms.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={4} className="h-24 text-center">
                                         No hay miembros bautizados registrados para este año.
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                baptisms.filter(b => b.source === 'Automático').map((item) => (
+                                baptisms.map((item) => (
                                     <TableRow key={item.id}>
                                         <TableCell className="font-medium">{item.name}</TableCell>
                                         <TableCell>{format(item.date.toDate(), 'd LLLL yyyy', { locale: es })}</TableCell>
@@ -671,10 +777,10 @@ export default function ReportsPage() {
                 <div className="md:hidden space-y-4">
                     {loading ? (
                         Array.from({ length: 1 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)
-                    ) : baptisms.filter(b => b.source === 'Automático').length === 0 ? (
+                    ) : baptisms.length === 0 ? (
                          <p className="text-center text-sm text-muted-foreground py-8">No hay miembros bautizados registrados.</p>
                     ) : (
-                         baptisms.filter(b => b.source === 'Automático').map((item) => (
+                         baptisms.map((item) => (
                             <Card key={item.id}>
                                 <CardContent className="pt-4">
                                     <div className="flex justify-between items-start">
