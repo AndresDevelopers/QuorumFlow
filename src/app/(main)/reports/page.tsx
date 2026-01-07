@@ -98,7 +98,9 @@ async function getBaptismsForYear(year: number): Promise<Baptism[]> {
             id: doc.id,
             name: data.name,
             date: data.baptismDate,
-            source: 'Futuro Miembro'
+            source: 'Futuro Miembro',
+            photoURL: data.photoURL,
+            baptismPhotos: data.baptismPhotos || []
         } as Baptism
     });
 
@@ -110,12 +112,14 @@ async function getBaptismsForYear(year: number): Promise<Baptism[]> {
     );
     const convertsSnapshot = await getDocs(convertsQuery);
     const fromConverts = convertsSnapshot.docs.map(doc => {
-        const data = doc.data() as Convert;
+        const data = doc.data() as Convert & { baptismPhotos?: string[] };
         return {
             id: doc.id,
             name: data.name,
             date: data.baptismDate,
-            source: 'Nuevo Converso'
+            source: 'Nuevo Converso',
+            photoURL: data.photoURL,
+            baptismPhotos: data.baptismPhotos || []
         } as Baptism
     });
 
@@ -132,7 +136,9 @@ async function getBaptismsForYear(year: number): Promise<Baptism[]> {
             id: doc.id,
             name: data.name,
             date: data.date,
-            source: 'Manual'
+            source: 'Manual',
+            photoURL: data.photoURL,
+            baptismPhotos: data.baptismPhotos || []
         } as Baptism
     });
 
@@ -149,7 +155,9 @@ async function getBaptismsForYear(year: number): Promise<Baptism[]> {
             id: doc.id,
             name: `${data.firstName} ${data.lastName}`,
             date: data.baptismDate,
-            source: 'Automático'
+            source: 'Automático',
+            photoURL: data.photoURL,
+            baptismPhotos: data.baptismPhotos || []
         } as Baptism
     });
     
@@ -638,6 +646,9 @@ export default function ReportsPage() {
                                         <TableCell>{format(item.date.toDate(), 'd LLLL yyyy', { locale: es })}</TableCell>
                                         <TableCell>{item.source}</TableCell>
                                         <TableCell className="text-right">
+                                            {item.baptismPhotos && item.baptismPhotos.length > 0 && (
+                                                <Camera className="h-4 w-4 inline-block mr-2 text-muted-foreground" />
+                                            )}
                                             {item.source === 'Manual' && (
                                                 <Button variant="ghost" size="icon" asChild>
                                                     <Link href={`/reports/edit-baptism?id=${item.id}`}><Pencil className="h-4 w-4" /></Link>
@@ -675,6 +686,9 @@ export default function ReportsPage() {
                                              <p className="text-xs text-muted-foreground">Origen: {item.source}</p>
                                         </div>
                                         <div className="flex items-center gap-1">
+                                            {item.baptismPhotos && item.baptismPhotos.length > 0 && (
+                                                <Camera className="h-4 w-4 inline-block mr-2 text-muted-foreground" />
+                                            )}
                                             {item.source === 'Manual' && (
                                                 <Button variant="ghost" size="icon" asChild>
                                                     <Link href={`/reports/edit-baptism?id=${item.id}`}><Pencil className="h-4 w-4" /></Link>

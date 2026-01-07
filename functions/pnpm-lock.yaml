@@ -32,10 +32,19 @@ importers:
       pizzip:
         specifier: ^3.2.0
         version: 3.2.0
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
       web-push:
         specifier: ^3.6.7
         version: 3.6.7
+      webp-wasm:
+        specifier: ^1.0.6
+        version: 1.0.6
     devDependencies:
+      '@types/pngjs':
+        specifier: ^6.0.5
+        version: 6.0.5
       '@types/web-push':
         specifier: ^3.6.4
         version: 3.6.4
@@ -296,6 +305,9 @@ packages:
 
   '@types/normalize-package-data@2.4.4':
     resolution: {integrity: sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==}
+
+  '@types/pngjs@6.0.5':
+    resolution: {integrity: sha512-0k5eKfrA83JOZPppLtS2C7OUtyNAl2wKNxfyYl9Q5g9lPkgBl/9hNyAu6HuEH2J4XmIv2znEpkDd0SaZVxW6iQ==}
 
   '@types/qs@6.14.0':
     resolution: {integrity: sha512-eOunJqu0K1923aExK6y8p6fsihYEn/BYuQ4g0CxAAgFc4b/ZLN4CrsRZ55srTdqoiLzU2B2evC+apEIxprEzkQ==}
@@ -1535,6 +1547,10 @@ packages:
   pizzip@3.2.0:
     resolution: {integrity: sha512-X4NPNICxCfIK8VYhF6wbksn81vTiziyLbvKuORVAmolvnUzl1A1xmz9DAWKxPRq9lZg84pJOOAMq3OE61bD8IQ==}
 
+  pngjs@7.0.0:
+    resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
+    engines: {node: '>=14.19.0'}
+
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
     engines: {node: '>= 0.4'}
@@ -1914,6 +1930,9 @@ packages:
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
 
+  webp-wasm@1.0.6:
+    resolution: {integrity: sha512-RqBXDs/pwLc4dCChFfOw9FvBULRW6o/XGKMSbkWaPuTVtQ0oQx12A/k0rtiKF9fSsb9dxzOFGT7kE2R3jxMszA==}
+
   websocket-driver@0.7.4:
     resolution: {integrity: sha512-b17KeDIQVjvb0ssuSDF2cYXSg2iztliJ4B9WdsuB6J952qCPKmnVq4DyW5motImXHDC1cBT/1UezrJVsKw5zjg==}
     engines: {node: '>=0.8.0'}
@@ -2275,6 +2294,10 @@ snapshots:
       undici-types: 7.16.0
 
   '@types/normalize-package-data@2.4.4': {}
+
+  '@types/pngjs@6.0.5':
+    dependencies:
+      '@types/node': 24.10.1
 
   '@types/qs@6.14.0': {}
 
@@ -3814,6 +3837,8 @@ snapshots:
     dependencies:
       pako: 2.1.0
 
+  pngjs@7.0.0: {}
+
   possible-typed-array-names@1.1.0: {}
 
   prelude-ls@1.2.1: {}
@@ -4330,6 +4355,8 @@ snapshots:
       - supports-color
 
   webidl-conversions@3.0.1: {}
+
+  webp-wasm@1.0.6: {}
 
   websocket-driver@0.7.4:
     dependencies:

@@ -9,6 +9,8 @@ import * as webpush from "web-push";
 import ModernImageModule from "./modules/modern-image-module";
 import axios from "axios";
 import { NotificationDispatcher } from "./modules/notification-dispatcher";
+import * as webp from "webp-wasm";
+import { PNG } from "pngjs";
 
 admin.initializeApp();
 
@@ -165,6 +167,61 @@ const slugify = (value: string): string =>
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "");
 
+const normalizeUrlKey = (value: string): string =>
+    value.replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+
+const countNonEmptyUrls = (urls?: string[]): number =>
+    Array.isArray(urls) ? urls.filter((url) => typeof url === "string" && url.trim().length > 0).length : 0;
+
+const isWebpBuffer = (buffer: Buffer): boolean => {
+    if (buffer.length < 12) return false;
+    return buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP";
+};
+
+const convertWebpToPngBuffer = async (buffer: Buffer): Promise<Buffer> => {
+    const decoded = await webp.decode(buffer);
+    const png = new PNG({ width: decoded.width, height: decoded.height });
+    png.data = Buffer.from(decoded.data);
+    return PNG.sync.write(png);
+};
+
+const normalizeImageForDocx = async (buffer: Buffer): Promise<Buffer> => {
+    if (buffer.length === 0) return buffer;
+    if (isWebpBuffer(buffer)) {
+        try {
+            return await convertWebpToPngBuffer(buffer);
+        } catch (error) {
+            functions.logger.error("Error converting WEBP to PNG for report", { error });
+            return buffer;
+        }
+    }
+    return buffer;
+};
+
+const pickPreferredBaptism = (
+    existing: Baptism | undefined,
+    candidate: Baptism,
+    sourcePriority: Record<string, number>
+): Baptism => {
+    if (!existing) return candidate;
+
+    const existingPhotos = countNonEmptyUrls(existing.baptismPhotos);
+    const candidatePhotos = countNonEmptyUrls(candidate.baptismPhotos);
+
+    if (candidatePhotos !== existingPhotos) {
+        return candidatePhotos > existingPhotos ? candidate : existing;
+    }
+
+    const existingPriority = sourcePriority[existing.source] ?? Number.MAX_SAFE_INTEGER;
+    const candidatePriority = sourcePriority[candidate.source] ?? Number.MAX_SAFE_INTEGER;
+
+    if (candidatePriority !== existingPriority) {
+        return candidatePriority < existingPriority ? candidate : existing;
+    }
+
+    return existing;
+};
+
 const createImageModuleFromUrls = async (urls: string[]): Promise<ImageModuleInstance> => {
     const buffers = await fetchImageBuffers(urls);
 
@@ -174,7 +231,7 @@ const createImageModuleFromUrls = async (urls: string[]): Promise<ImageModuleIns
             if (typeof tagValue !== "string" || !tagValue) {
                 return Buffer.alloc(0);
             }
-            return buffers.get(tagValue) ?? Buffer.alloc(0);
+            return buffers.get(normalizeUrlKey(tagValue)) ?? Buffer.alloc(0);
         },
         getSize: () => {
             return [MAX_DOC_IMAGE_WIDTH, MAX_DOC_IMAGE_HEIGHT];
@@ -188,28 +245,47 @@ const createImageModuleFromUrls = async (urls: string[]): Promise<ImageModuleIns
  * - https://firebasestorage.googleapis.com/v0/b/BUCKET/o/PATH?token=...
  * - gs://BUCKET/PATH
  */
-const extractStoragePathFromUrl = (url: string): string | null => {
+const extractStorageLocationFromUrl = (url: string): { bucket: string | null; path: string } | null => {
     try {
+        const normalizedUrl = normalizeUrlKey(url);
+
+        if (normalizedUrl.startsWith("gs://")) {
+            const parts = normalizedUrl.replace("gs://", "").split("/");
+            const bucket = parts.shift() ?? null;
+            const path = parts.join("/");
+            if (!bucket || !path) return null;
+            return { bucket, path };
+        }
+
         // Formato: https://firebasestorage.googleapis.com/v0/b/BUCKET/o/ENCODED_PATH?...
         if (url.includes("firebasestorage.googleapis.com")) {
-            const match = url.match(/\/o\/([^?]+)/);
+            const match = normalizedUrl.match(/\/v0\/b\/([^/]+)\/o\/([^?]+)/);
             if (match) {
-                // Decodificar la ruta (puede tener %2F en lugar de /)
-                const encodedPath = match[1];
+                const bucket = match[1] ?? null;
+                const encodedPath = match[2];
                 const decodedPath = decodeURIComponent(encodedPath);
-                functions.logger.debug("Extracted storage path", { url, encodedPath, decodedPath });
-                return decodedPath;
+                if (!decodedPath) return null;
+                functions.logger.debug("Extracted storage location", { bucket, encodedPath, decodedPath });
+                return { bucket, path: decodedPath };
             }
         }
-        // Formato: gs://BUCKET/PATH
-        if (url.startsWith("gs://")) {
-            const parts = url.replace("gs://", "").split("/");
-            parts.shift(); // Remover el bucket
-            return parts.join("/");
+
+        try {
+            const parsed = new URL(normalizedUrl);
+            if (parsed.hostname === "storage.googleapis.com" || parsed.hostname === "storage.cloud.google.com") {
+                const pathname = parsed.pathname.replace(/^\/+/, "");
+                const [bucket, ...rest] = pathname.split("/");
+                const path = rest.join("/");
+                if (!bucket || !path) return null;
+                return { bucket, path };
+            }
+        } catch {
+            // ignore
         }
+
         return null;
     } catch (error) {
-        functions.logger.error("Error extracting storage path", { url, error });
+        functions.logger.error("Error extracting storage location", { url, error });
         return null;
     }
 };
@@ -219,40 +295,43 @@ const fetchImageBuffers = async (urls: string[]): Promise<Map<string, Buffer>> =
         return new Map();
     }
 
-    const bucket = storage.bucket();
-
     const entries = await Promise.all(urls.map(async (url) => {
+        const normalizedUrl = normalizeUrlKey(url);
         try {
             // Intentar extraer la ruta del Storage desde la URL
-            const storagePath = extractStoragePathFromUrl(url);
+            const location = extractStorageLocationFromUrl(normalizedUrl);
             
-            if (storagePath) {
+            if (location?.path) {
                 // Descargar directamente usando Firebase Admin SDK (acceso privilegiado)
-                const file = bucket.file(storagePath);
+                const targetBucket = location.bucket ? storage.bucket(location.bucket) : storage.bucket();
+                const file = targetBucket.file(location.path);
                 const [exists] = await file.exists();
                 
                 if (exists) {
                     const [buffer] = await file.download();
-                    functions.logger.info("Image downloaded via Admin SDK", { storagePath });
-                    return [url, buffer] as const;
+                    const normalizedBuffer = await normalizeImageForDocx(buffer);
+                    functions.logger.info("Image downloaded via Admin SDK", { storagePath: location.path });
+                    return [normalizedUrl, normalizedBuffer] as const;
                 } else {
-                    functions.logger.warn("File not found in Storage", { storagePath, url });
+                    functions.logger.warn("File not found in Storage", { storagePath: location.path, url: normalizedUrl });
                 }
             }
             
             // Fallback: usar axios para URLs externas o si no se pudo extraer la ruta
-            const response = await axios.get<ArrayBuffer>(url, {
+            const response = await axios.get<ArrayBuffer>(normalizedUrl, {
                 responseType: "arraybuffer",
                 headers: {
                     Accept: "image/*",
                 },
                 timeout: 30000, // 30 segundos de timeout
             });
-            functions.logger.info("Image downloaded via HTTP", { url });
-            return [url, Buffer.from(response.data)] as const;
+            functions.logger.info("Image downloaded via HTTP", { url: normalizedUrl });
+            const buffer = Buffer.from(response.data);
+            const normalizedBuffer = await normalizeImageForDocx(buffer);
+            return [normalizedUrl, normalizedBuffer] as const;
         } catch (error) {
-            functions.logger.error("Error downloading image for report", { url, error });
-            return [url, Buffer.alloc(0)] as const;
+            functions.logger.error("Error downloading image for report", { url: normalizedUrl, error });
+            return [normalizedUrl, Buffer.alloc(0)] as const;
         }
     }));
 
@@ -374,6 +453,10 @@ const prepareBaptismsDocData = async (baptisms: Baptism[]): Promise<{
                 photos: baptism.baptismPhotos
             });
             allImageUrls.push(...baptism.baptismPhotos.filter((url): url is string => !!url));
+        }
+
+        if (allImageUrls.length === 0 && baptism.photoURL && baptism.photoURL.trim()) {
+            allImageUrls.push(baptism.photoURL.trim());
         }
 
         const images: BaptismDocImage[] = allImageUrls.map((url, index) => ({
@@ -570,16 +653,9 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
             const key = `${normalizedName}|${dateKey}`;
 
             const existing = baptismMap.get(key);
-            if (!existing || sourcePriority[baptism.source] < sourcePriority[existing.source]) {
-                // Mantener el que tiene mayor prioridad o más fotos
-                const shouldReplace = !existing || 
-                    sourcePriority[baptism.source] < sourcePriority[existing.source] ||
-                    (sourcePriority[baptism.source] === sourcePriority[existing.source] && 
-                     (baptism.baptismPhotos?.length || 0) > (existing.baptismPhotos?.length || 0));
-                
-                if (shouldReplace) {
-                    baptismMap.set(key, baptism);
-                }
+            const preferred = pickPreferredBaptism(existing, baptism, sourcePriority);
+            if (preferred !== existing) {
+                baptismMap.set(key, preferred);
             }
         });
 
@@ -857,16 +933,9 @@ export const generateReport = functions.https.onCall(async (data: any, context: 
             const key = `${normalizedName}|${dateKey}`;
 
             const existing = baptismMap.get(key);
-            if (!existing || sourcePriority[baptism.source] < sourcePriority[existing.source]) {
-                // Mantener el que tiene mayor prioridad o más fotos
-                const shouldReplace = !existing || 
-                    sourcePriority[baptism.source] < sourcePriority[existing.source] ||
-                    (sourcePriority[baptism.source] === sourcePriority[existing.source] && 
-                     (baptism.baptismPhotos?.length || 0) > (existing.baptismPhotos?.length || 0));
-                
-                if (shouldReplace) {
-                    baptismMap.set(key, baptism);
-                }
+            const preferred = pickPreferredBaptism(existing, baptism, sourcePriority);
+            if (preferred !== existing) {
+                baptismMap.set(key, preferred);
             }
         });
 

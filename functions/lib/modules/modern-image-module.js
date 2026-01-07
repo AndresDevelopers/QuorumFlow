@@ -17,6 +17,42 @@ function normalizeTagKey(value) {
         .replace(/[\u200B-\u200D\uFEFF]/g, "")
         .trim();
 }
+function detectImageExtensionFromBuffer(buffer) {
+    if (buffer.length < 12)
+        return null;
+    if (buffer.length >= 8 &&
+        buffer[0] === 0x89 &&
+        buffer[1] === 0x50 &&
+        buffer[2] === 0x4e &&
+        buffer[3] === 0x47 &&
+        buffer[4] === 0x0d &&
+        buffer[5] === 0x0a &&
+        buffer[6] === 0x1a &&
+        buffer[7] === 0x0a) {
+        return "png";
+    }
+    if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+        return "jpg";
+    }
+    if (buffer.length >= 6) {
+        const signature = buffer.subarray(0, 6).toString("ascii");
+        if (signature === "GIF87a" || signature === "GIF89a")
+            return "gif";
+    }
+    if (buffer.length >= 2 && buffer[0] === 0x42 && buffer[1] === 0x4d) {
+        return "bmp";
+    }
+    if (buffer.length >= 4) {
+        const tiffLittleEndian = buffer[0] === 0x49 && buffer[1] === 0x49 && buffer[2] === 0x2a && buffer[3] === 0x00;
+        const tiffBigEndian = buffer[0] === 0x4d && buffer[1] === 0x4d && buffer[2] === 0x00 && buffer[3] === 0x2a;
+        if (tiffLittleEndian || tiffBigEndian)
+            return "tiff";
+    }
+    if (buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP") {
+        return "webp";
+    }
+    return null;
+}
 function resolveImageContentType(extension) {
     const normalized = extension.toLowerCase();
     if (normalized === "jpg" || normalized === "jpeg")
@@ -219,7 +255,7 @@ class ModernImageModule {
         }
         const size = this.resolveSizeSync(this.options.getSize(buffer, value, part.value));
         const manager = this.createRelationshipManager(options.filePath);
-        const rId = manager.addImage(this.createImageName(value), buffer);
+        const rId = manager.addImage(this.createImageName(value, buffer), buffer);
         const xml = this.renderImageXml(part.centered ?? this.options.centered, rId, size);
         return this.toRendered(xml);
     }
@@ -242,7 +278,7 @@ class ModernImageModule {
                 return this.toRendered(this.getFallbackTag());
             }
             return Promise.resolve(this.options.getSize(buffer, value, part.value)).then((size) => {
-                const rId = manager.addImage(this.createImageName(value), buffer);
+                const rId = manager.addImage(this.createImageName(value, buffer), buffer);
                 const xml = this.renderImageXml(part.centered ?? this.options.centered, rId, this.normalizeSize(size));
                 return this.toRendered(xml);
             });
@@ -281,12 +317,9 @@ class ModernImageModule {
     }
     renderImageXml(centered, rId, sizeInPixels) {
         const [width, height] = sizeInPixels.map((dimension) => convertPixelsToEmus(dimension));
-        if (centered) {
-            return this.getCenteredXml(rId, String(width), String(height));
-        }
-        return this.getInlineXml(rId, String(width), String(height));
+        return this.getParagraphXml(centered, rId, String(width), String(height));
     }
-    getInlineXml(rId, width, height) {
+    getDrawingXml(rId, width, height) {
         return `
             <w:drawing>
                 <wp:inline distT="0" distB="0" distL="0" distR="0">
@@ -327,21 +360,22 @@ class ModernImageModule {
             </w:drawing>
         `.split(/\s{2,}/).join("");
     }
-    getCenteredXml(rId, width, height) {
+    getParagraphXml(centered, rId, width, height) {
+        const paragraphProperties = centered
+            ? `<w:pPr><w:jc w:val="center"/></w:pPr>`
+            : "";
         return `
             <w:p>
-                <w:pPr>
-                    <w:jc w:val="center"/>
-                </w:pPr>
+                ${paragraphProperties}
                 <w:r>
                     <w:rPr/>
-                    ${this.getInlineXml(rId, width, height)}
+                    ${this.getDrawingXml(rId, width, height)}
                 </w:r>
             </w:p>
         `.split(/\s{2,}/).join("");
     }
-    createImageName(tagValue) {
-        const extension = this.resolveExtension(tagValue);
+    createImageName(tagValue, buffer) {
+        const extension = detectImageExtensionFromBuffer(buffer) ?? this.resolveExtension(tagValue);
         const name = `report-image-${this.imageNumber}.${extension}`;
         this.imageNumber += 1;
         return name;

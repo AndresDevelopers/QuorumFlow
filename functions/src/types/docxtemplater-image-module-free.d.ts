@@ -11,3 +11,14 @@ declare module 'docxtemplater-image-module-free' {
 
   export = ImageModule;
 }
+
+declare module "webp-wasm" {
+  export type DecodedImageData = {
+    data: Uint8ClampedArray;
+    width: number;
+    height: number;
+  };
+
+  export function decode(input: Buffer | ArrayBuffer): Promise<DecodedImageData>;
+  export function load(): Promise<void>;
+}

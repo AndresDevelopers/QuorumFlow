@@ -2,19 +2,39 @@
 
 import { useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 
 export function ServiceWorkerRegistration() {
   const { toast } = useToast();
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-      const registerSW = async () => {
+      const registerSW = async (): Promise<(() => void) | undefined> => {
         try {
+          const hadControllerOnMount = Boolean(navigator.serviceWorker.controller);
+          let hasShownUpdateToast = false;
+
+          const showUpdateToast = (title: string, description: string) => {
+            if (hasShownUpdateToast) return;
+            hasShownUpdateToast = true;
+            toast({
+              title,
+              description,
+              duration: Infinity,
+              action: (
+                <ToastAction
+                  altText="Recargar"
+                  onClick={() => window.location.reload()}
+                >
+                  Recargar
+                </ToastAction>
+              ),
+            });
+          };
+
           const registration = await navigator.serviceWorker.register('/sw.js', {
             scope: '/'
           });
-
-          console.log('[SW] Service worker registered successfully:', registration);
 
           // Listen for updates
           registration.addEventListener('updatefound', () => {
@@ -22,8 +42,10 @@ export function ServiceWorkerRegistration() {
             if (newWorker) {
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // New service worker is available - handled by UpdateNotification component
-                  console.log('[SW] New service worker available');
+                  showUpdateToast(
+                    "Actualización disponible",
+                    "Recarga cuando termines para aplicar la nueva versión."
+                  );
                 }
               });
             }
@@ -31,35 +53,54 @@ export function ServiceWorkerRegistration() {
 
           // Check for waiting service worker
           if (registration.waiting) {
-            // Update notification handled by UpdateNotification component
-            console.log('[SW] Waiting service worker found');
+            showUpdateToast(
+              "Actualización disponible",
+              "Recarga cuando termines para aplicar la nueva versión."
+            );
           }
 
-          // Listen for controlling service worker change
-          navigator.serviceWorker.addEventListener('controllerchange', () => {
-            console.log('[SW] Controller changed, reloading page');
-            window.location.reload();
-          });
+          const handleControllerChange = () => {
+            if (!hadControllerOnMount) {
+              return;
+            }
+            showUpdateToast(
+              "Actualización aplicada",
+              "Recarga cuando termines para asegurar consistencia."
+            );
+          };
 
-          // Listen for messages from service worker
-          navigator.serviceWorker.addEventListener('message', (event) => {
-            console.log('[SW] Message from service worker:', event.data);
-            
+          const handleServiceWorkerMessage = (event: MessageEvent) => {
             if (event.data?.type === 'SYNC_COMPLETE') {
               toast({
                 title: "Sincronización Completa",
                 description: `${event.data.syncedCount} elementos sincronizados correctamente.`,
               });
             }
-          });
+          };
+
+          navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+          navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+
+          return () => {
+            navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+            navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
+          };
 
         } catch (error) {
-          console.error('[SW] Service worker registration failed:', error);
+          toast({
+            title: "Error",
+            description: "No se pudo registrar el service worker.",
+            variant: "destructive",
+          });
+          return undefined;
         }
       };
 
       // Register service worker
-      registerSW();
+      let cleanupServiceWorkerListeners: (() => void) | undefined;
+      void registerSW().then((cleanup) => {
+        cleanupServiceWorkerListeners = cleanup;
+      });
 
       // Handle page visibility change to sync when app becomes visible
       const handleVisibilityChange = () => {
@@ -74,6 +115,7 @@ export function ServiceWorkerRegistration() {
 
       return () => {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
+        cleanupServiceWorkerListeners?.();
       };
     }
   }, [toast]);

@@ -5,7 +5,7 @@ import { useTransition, useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { newConvertFriendsCollection } from '@/lib/collections';
 import type { Convert, NewConvertFriendship } from '@/lib/types';
 import logger from '@/lib/logger';
@@ -32,17 +32,18 @@ import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { MemberSelector } from '@/components/members/member-selector';
 
-const friendshipSchema = z.object({
-  friends: z
-    .array(
-      z.object({
-        name: z.string().min(2, 'El nombre es requerido.'),
-      })
-    )
-    .min(1, 'Se requiere al menos un amigo.'),
+const friendSchema = z.object({
+  name: z.string().min(2, 'El nombre es requerido.'),
 });
 
-type FormValues = z.infer<typeof friendshipSchema>;
+const getFriendshipSchema = (allowEmptyFriends: boolean) =>
+  z.object({
+    friends: z.array(friendSchema).min(allowEmptyFriends ? 0 : 1, 'Se requiere al menos un amigo.'),
+  });
+
+type FormValues = {
+  friends: Array<{ name: string }>;
+};
 
 interface FriendshipFormProps {
   isOpen: boolean;
@@ -64,7 +65,7 @@ export function FriendshipForm({
   const [isPending, startTransition] = useTransition();
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(friendshipSchema),
+    resolver: zodResolver(getFriendshipSchema(isEditMode)),
     defaultValues: {
       friends: [{ name: '' }],
     },
@@ -89,14 +90,24 @@ export function FriendshipForm({
   const onSubmit = (values: FormValues) => {
     startTransition(async () => {
       try {
-        const friendNames = values.friends.map((f) => f.name);
+        const friendNames = values.friends
+          .map((f) => f.name.trim())
+          .filter((name) => name.length > 0);
         if (isEditMode && friendship) {
           const friendshipRef = doc(newConvertFriendsCollection, friendship.id);
-          await updateDoc(friendshipRef, { friends: friendNames });
-          toast({
-            title: 'Éxito',
-            description: 'Asignación de amistad actualizada.',
-          });
+          if (friendNames.length === 0) {
+            await deleteDoc(friendshipRef);
+            toast({
+              title: 'Éxito',
+              description: 'Asignación de amistad eliminada.',
+            });
+          } else {
+            await updateDoc(friendshipRef, { friends: friendNames });
+            toast({
+              title: 'Éxito',
+              description: 'Asignación de amistad actualizada.',
+            });
+          }
         } else if (convert) {
           await addDoc(newConvertFriendsCollection, {
             convertId: convert.id,
@@ -156,6 +167,7 @@ export function FriendshipForm({
                               onValueChange={(memberId) => field.onChange(memberId)}
                               placeholder={`Seleccionar amigo ${index + 1}`}
                               statusFilter={["active"]}
+                              allowClear={false}
                             />
                           </div>
                           <Button
@@ -163,7 +175,6 @@ export function FriendshipForm({
                             variant="outline"
                             size="icon"
                             onClick={() => remove(index)}
-                            disabled={fields.length <= 1}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
