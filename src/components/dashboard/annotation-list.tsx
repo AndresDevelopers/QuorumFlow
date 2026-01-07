@@ -47,6 +47,7 @@ import { CheckCircle, NotebookPen, PlusCircle, Trash2, Pencil } from 'lucide-rea
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { EditAnnotationDialog } from './edit-annotation-dialog';
+import { useAuth } from '@/contexts/auth-context';
 
 interface AnnotationListProps {
   title: string;
@@ -59,6 +60,7 @@ interface AnnotationListProps {
   showCouncilView?: boolean;
   onResolveAnnotation?: (id: string) => void;
   onDeleteAnnotation?: (id: string) => void;
+  currentUserId?: string;
 }
 
 export function AnnotationList({
@@ -72,7 +74,10 @@ export function AnnotationList({
   showCouncilView = false,
   onResolveAnnotation,
   onDeleteAnnotation,
+  currentUserId,
 }: AnnotationListProps) {
+  const { userRole } = useAuth();
+  const isSecretary = userRole === 'secretary';
   const [open, setOpen] = useState(false);
   const [newAnnotation, setNewAnnotation] = useState('');
   const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -82,6 +87,7 @@ export function AnnotationList({
 
   const handleAddAnnotation = async () => {
     if (newAnnotation.trim() === '') return;
+    if (!currentUserId) return;
     try {
       await addDoc(annotationsCollection, {
         text: newAnnotation,
@@ -89,6 +95,7 @@ export function AnnotationList({
         isCouncilAction: false,
         isResolved: false,
         createdAt: serverTimestamp(),
+        userId: currentUserId,
       });
       setNewAnnotation('');
       setOpen(false);
@@ -194,54 +201,62 @@ export function AnnotationList({
           </p>
         ) : (
           <ul className="space-y-3">
-            {annotations.map((item) => (
-              <li
-                key={item.id}
-                className="flex items-center justify-between rounded-md border p-3"
-              >
-                <div className="flex items-start gap-3">
-                  {!showCouncilView && (
-                     <Checkbox
+            {annotations.map((item) => {
+              const canManage = isSecretary || (currentUserId && item.userId === currentUserId);
+
+              return (
+                <li
+                  key={item.id}
+                  className="flex items-center justify-between rounded-md border p-3"
+                >
+                  <div className="flex items-start gap-3">
+                    {!showCouncilView && canManage && (
+                      <Checkbox
                         id={`council-${item.id}`}
                         checked={item.isCouncilAction}
                         onCheckedChange={() => handleToggleCouncilAction(item.id, item.isCouncilAction)}
                         aria-label="Marcar para consejo"
-                        />
-                  )}
-                  <div>
-                     <p className="text-sm font-medium">{item.text}</p>
-                     <p className="text-xs text-muted-foreground">
+                      />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">{item.text}</p>
+                      <p className="text-xs text-muted-foreground">
                         {format(item.createdAt.toDate(), 'd LLL yyyy, h:mm a', { locale: es })}
-                        {showCouncilView && ` - Creado en: ${item.source === 'dashboard' ? 'Dashboard' : 'Consejo'}`}
-                     </p>
+                        {showCouncilView &&
+                          ` - Creado en: ${item.source === 'dashboard' ? 'Dashboard' : 'Consejo'}`}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-1">
-                      {showCouncilView && onResolveAnnotation && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onResolveAnnotation(item.id)}
-                        >
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Resolver
-                        </Button>                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEditAnnotation(item)}
-                      title="Editar anotación"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                      {onDeleteAnnotation && (
-                           <Button variant="ghost" size="icon" onClick={() => handleDeleteTrigger(item)}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                           </Button>
-                      )}
-                </div>
-              </li>
-            ))}
+                  <div className="flex items-center gap-1">
+                    {showCouncilView && onResolveAnnotation && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onResolveAnnotation(item.id)}
+                      >
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Resolver
+                      </Button>
+                    )}
+                    {canManage && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEditAnnotation(item)}
+                        title="Editar anotación"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {onDeleteAnnotation && canManage && (
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteTrigger(item)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </CardContent>

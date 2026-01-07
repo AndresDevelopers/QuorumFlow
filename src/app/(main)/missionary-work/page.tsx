@@ -101,6 +101,7 @@ import {
   Trash2,
   Pencil,
   Mic,
+  Loader2,
 } from 'lucide-react';
 import {
   addDoc,
@@ -780,7 +781,17 @@ function ImagesTab({
   const { toast } = useToast();
   const { user } = useAuth();
   const [isPending, startTransition] = useTransition();
-  const [uploadedFiles, setUploadedFiles] = useState<{ file: File; url: string; description: string; isGenerating: boolean }[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<
+    {
+      id: string;
+      file: File;
+      previewUrl: string;
+      url: string | null;
+      description: string;
+      status: 'uploading' | 'processing' | 'ready';
+      progress: number;
+    }[]
+  >([]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -789,33 +800,72 @@ function ImagesTab({
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('image/')) continue;
 
+      const id = `${Date.now()}-${Math.random().toString(16).slice(2)}-${file.name}`;
+      const previewUrl = URL.createObjectURL(file);
+      setUploadedFiles((prev) => [
+        ...prev,
+        {
+          id,
+          file,
+          previewUrl,
+          url: null,
+          description: '',
+          status: 'uploading',
+          progress: 0,
+        },
+      ]);
+
       // Upload to Firebase Storage
-      const storageRef = ref(storage, `missionary-images/${Date.now()}-${file.name}`);
+      const storageRef = ref(storage, `missionary-images/${id}`);
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       uploadTask.on('state_changed',
         (snapshot) => {
-          // Progress
+          const progress = snapshot.totalBytes
+            ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)
+            : 0;
+
+          setUploadedFiles((prev) =>
+            prev.map((item) => (item.id === id ? { ...item, progress } : item))
+          );
         },
         (error) => {
           console.error('Upload error:', error);
           toast({ title: 'Error', description: 'Error al subir la imagen.', variant: 'destructive' });
+          setUploadedFiles((prev) =>
+            prev.map((item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    status: 'ready',
+                    progress: 0,
+                    description: 'Error al subir la imagen.',
+                  }
+                : item
+            )
+          );
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          setUploadedFiles((prev) =>
+            prev.map((item) =>
+              item.id === id
+                ? { ...item, url: downloadURL, status: 'processing', progress: 100 }
+                : item
+            )
+          );
 
           // Convert to base64 for AI
           const reader = new FileReader();
           reader.onload = async (e) => {
             const base64 = e.target?.result as string;
-            setUploadedFiles(prev => [...prev, { file, url: downloadURL, description: '', isGenerating: true }]);
 
             try {
               const result = await analyzeImage({ imageData: base64 });
-              setUploadedFiles(prev =>
-                prev.map(item =>
-                  item.url === downloadURL
-                    ? { ...item, description: result.description, isGenerating: false }
+              setUploadedFiles((prev) =>
+                prev.map((item) =>
+                  item.id === id
+                    ? { ...item, description: result.description, status: 'ready' }
                     : item
                 )
               );
@@ -824,10 +874,10 @@ function ImagesTab({
               const errorMessage = error.message?.includes('API key') || error.message?.includes('GEMINI_API_KEY')
                 ? 'API key de IA no configurada. Configure GEMINI_API_KEY en su archivo .env.local'
                 : 'Error al generar descripción automática';
-              setUploadedFiles(prev =>
-                prev.map(item =>
-                  item.url === downloadURL
-                    ? { ...item, description: errorMessage, isGenerating: false }
+              setUploadedFiles((prev) =>
+                prev.map((item) =>
+                  item.id === id
+                    ? { ...item, description: errorMessage, status: 'ready' }
                     : item
                 )
               );
@@ -839,8 +889,17 @@ function ImagesTab({
     }
   };
 
-  const handleSave = async (item: { file: File; url: string; description: string; isGenerating: boolean }) => {
-    if (item.isGenerating) return;
+  const handleSave = async (item: {
+    id: string;
+    file: File;
+    previewUrl: string;
+    url: string | null;
+    description: string;
+    status: 'uploading' | 'processing' | 'ready';
+    progress: number;
+  }) => {
+    if (item.status !== 'ready') return;
+    if (!item.url) return;
     if (!missionaryImagesCollection) {
       toast({ title: 'Error', description: 'Colección no disponible.', variant: 'destructive' });
       return;
@@ -855,7 +914,13 @@ function ImagesTab({
           createdBy: user?.uid || 'unknown',
         });
         toast({ title: 'Éxito', description: 'Imagen guardada.' });
-        setUploadedFiles(prev => prev.filter(i => i.url !== item.url));
+        setUploadedFiles((prev) => {
+          const toRemove = prev.find((i) => i.id === item.id);
+          if (toRemove?.previewUrl) {
+            URL.revokeObjectURL(toRemove.previewUrl);
+          }
+          return prev.filter((i) => i.id !== item.id);
+        });
         onRefresh();
       } catch (error) {
         logger.error({ error, message: 'Error saving missionary image' });
@@ -864,8 +929,14 @@ function ImagesTab({
     });
   };
 
-  const handleDeletePending = (url: string) => {
-    setUploadedFiles(prev => prev.filter(i => i.url !== url));
+  const handleDeletePending = (id: string) => {
+    setUploadedFiles((prev) => {
+      const toRemove = prev.find((i) => i.id === id);
+      if (toRemove?.previewUrl) {
+        URL.revokeObjectURL(toRemove.previewUrl);
+      }
+      return prev.filter((i) => i.id !== id);
+    });
   };
 
   const handleEdit = async (id: string, newDescription: string) => {
@@ -925,8 +996,22 @@ function ImagesTab({
             <Label htmlFor="image-upload">
               <Button size="sm" asChild>
                 <span>
-                  <PlusCircle className="mr-2" />
-                  Subir Imágenes
+                  {uploadedFiles.some((file) => file.status === 'uploading') ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Subiendo...
+                    </>
+                  ) : uploadedFiles.some((file) => file.status === 'processing') ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Procesando...
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="mr-2" />
+                      Subir Imágenes
+                    </>
+                  )}
                 </span>
               </Button>
             </Label>
@@ -944,37 +1029,55 @@ function ImagesTab({
                 <h3 className="text-lg font-semibold mb-4">Imágenes Pendientes</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {uploadedFiles.map((item) => (
-                    <Card key={item.url}>
+                    <Card key={item.id}>
                       <CardContent className="p-4">
                         <Image
-                          src={item.url}
+                          src={item.url ?? item.previewUrl}
                           alt="Uploaded"
                           width={480}
                           height={128}
                           className="w-full h-32 object-cover rounded mb-2"
                           unoptimized
                         />
+                        {item.status === 'uploading' && (
+                          <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Subiendo imagen... {item.progress}%
+                          </div>
+                        )}
+                        {item.status === 'processing' && (
+                          <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Procesando el texto de la imagen...
+                          </div>
+                        )}
                         <Textarea
                           value={item.description}
                           onChange={(e) => setUploadedFiles(prev =>
-                            prev.map(i => i.url === item.url ? { ...i, description: e.target.value } : i)
+                            prev.map(i => i.id === item.id ? { ...i, description: e.target.value } : i)
                           )}
-                          placeholder={item.isGenerating ? "Generando descripción..." : "Descripción"}
-                          disabled={item.isGenerating}
+                          placeholder={
+                            item.status === 'uploading'
+                              ? 'Subiendo imagen...'
+                              : item.status === 'processing'
+                                ? 'Procesando el texto de la imagen...'
+                                : 'Descripción'
+                          }
+                          disabled={item.status !== 'ready'}
                           className="mb-2"
                         />
                         <div className="flex gap-2">
                           <Button
                             size="sm"
                             onClick={() => handleSave(item)}
-                            disabled={item.isGenerating || isPending}
+                            disabled={item.status !== 'ready' || !item.url || isPending}
                           >
                             Guardar
                           </Button>
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => handleDeletePending(item.url)}
+                            onClick={() => handleDeletePending(item.id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

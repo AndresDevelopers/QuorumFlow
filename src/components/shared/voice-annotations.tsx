@@ -45,6 +45,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { EditAnnotationDialog } from '../dashboard/edit-annotation-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/auth-context';
 
 declare global {
   interface Window {
@@ -81,6 +82,8 @@ export function VoiceAnnotations({
   currentUserId,
 }: VoiceAnnotationsProps) {
   const { toast } = useToast();
+  const { userRole } = useAuth();
+  const isSecretary = userRole === 'secretary';
   const [open, setOpen] = useState(false);
   const [newAnnotation, setNewAnnotation] = useState('');
   const [isAlertOpen, setIsAlertOpen] = useState(false);
@@ -382,15 +385,17 @@ export function VoiceAnnotations({
                         Resolver
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEditAnnotation(item)}
-                      title="Editar anotación"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    {onDeleteAnnotation && currentUserId && (item.userId === currentUserId || !item.userId) && (
+                    {(isSecretary || (currentUserId && item.userId === currentUserId)) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEditAnnotation(item)}
+                        title="Editar anotación"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {onDeleteAnnotation && (isSecretary || (currentUserId && item.userId === currentUserId)) && (
                       <Button
                         variant="ghost"
                         size="icon"

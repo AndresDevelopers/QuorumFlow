@@ -45,3 +45,7 @@ yarn-error.log*
 
 #Ignore vscode AI rules
 .github\instructions\codacy.instructions.md
+
+#Map
+sw.js.map
+workbox-3c9d0171.js.map

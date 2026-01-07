@@ -25,6 +25,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, Trash2, Mic, MicOff, CheckCircle } from 'lucide-react';
+import { useAuth } from '@/contexts/auth-context';
 
 declare global {
     interface Window {
@@ -78,6 +79,8 @@ export function AnnotationManager({
     currentUserId,
 }: AnnotationManagerProps) {
     const { toast } = useToast();
+    const { userRole } = useAuth();
+    const isSecretary = userRole === 'secretary';
     const [isDialogOpen, setDialogOpen] = useState(false);
     const [inputValue, setInputValue] = useState('');
     const [errors, setErrors] = useState<{ description?: string[] }>({});
@@ -358,7 +361,7 @@ export function AnnotationManager({
                                             Resuelta
                                         </Button>
                                     )}
-                                    {currentUserId && (item.userId === currentUserId || !item.userId) && (
+                                    {(isSecretary || (currentUserId && item.userId === currentUserId)) && (
                                         <Button
                                             variant="ghost"
                                             size="icon"
