@@ -68,6 +68,35 @@ function base64ToDocxBlob(base64: string): Blob {
   return new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
 }
 
+function countNonEmptyUrls(urls: unknown): number {
+  if (!Array.isArray(urls)) return 0;
+  return urls.filter((url) => typeof url === 'string' && url.trim() !== '').length;
+}
+
+function pickPreferredBaptism(
+  existing: Baptism | undefined,
+  candidate: Baptism,
+  sourcePriority: Record<string, number>
+): Baptism {
+  if (!existing) return candidate;
+
+  const existingPhotos = countNonEmptyUrls(existing.baptismPhotos);
+  const candidatePhotos = countNonEmptyUrls(candidate.baptismPhotos);
+
+  if (candidatePhotos !== existingPhotos) {
+    return candidatePhotos > existingPhotos ? candidate : existing;
+  }
+
+  const existingPriority = sourcePriority[existing.source] ?? Number.MAX_SAFE_INTEGER;
+  const candidatePriority = sourcePriority[candidate.source] ?? Number.MAX_SAFE_INTEGER;
+
+  if (candidatePriority !== existingPriority) {
+    return candidatePriority < existingPriority ? candidate : existing;
+  }
+
+  return existing;
+}
+
 async function getAvailableReportYears(): Promise<number[]> {
   const [
     activitiesSnapshot,
@@ -213,8 +242,30 @@ async function getBaptismsForYear(year: number): Promise<Baptism[]> {
         } as Baptism
     });
     
-    const allBaptisms = [...fromFutureMembers, ...fromConverts, ...fromManual, ...fromMembers];
-    return allBaptisms.sort((a,b) => b.date.toMillis() - a.date.toMillis());
+    const allBaptisms = [...fromFutureMembers, ...fromConverts, ...fromManual, ...fromMembers]
+      .filter((b) => b.date);
+
+    const sourcePriority: Record<string, number> = {
+      Manual: 1,
+      'Nuevo Converso': 2,
+      'Futuro Miembro': 3,
+      Automático: 4,
+    };
+
+    const baptismMap = new Map<string, Baptism>();
+    allBaptisms.forEach((baptism) => {
+      const normalizedName = baptism.name.trim().toLowerCase().replace(/\s+/g, ' ');
+      const dateKey = baptism.date.toDate().toISOString().split('T')[0];
+      const key = `${normalizedName}|${dateKey}`;
+
+      const existing = baptismMap.get(key);
+      const preferred = pickPreferredBaptism(existing, baptism, sourcePriority);
+      if (preferred !== existing) {
+        baptismMap.set(key, preferred);
+      }
+    });
+
+    return Array.from(baptismMap.values()).sort((a, b) => b.date.toMillis() - a.date.toMillis());
 }
 
 async function getAnnualReportAnswers(year: number): Promise<AnnualReportAnswers | null> {
