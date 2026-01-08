@@ -493,21 +493,33 @@ export async function getMembersForSelector(includeInactive = false): Promise<Me
   }
 }
 
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+function assertValidImageFile(file: File): void {
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`El archivo ${file.name} supera los 20MB.`);
+  }
+  if (!file.type || !file.type.startsWith('image/')) {
+    throw new Error(`El archivo ${file.name} no es una imagen válida.`);
+  }
+}
+
 // Upload member photo to storage
 export async function uploadMemberPhoto(file: File, userId: string): Promise<string> {
   try {
+    assertValidImageFile(file);
     const storage = getStorageInstance();
 
     // Create a unique filename with timestamp
     const timestamp = new Date().getTime();
-    const fileExt = file.name.split('.').pop();
-    const fileName = `members/${userId}-${timestamp}.${fileExt}`;
+    const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+    const fileName = `members/${userId}/${timestamp}_${safeName}`;
 
     // Create a reference to the file
     const storageRef = ref(storage, fileName);
 
     // Upload the file
-    const snapshot = await uploadBytes(storageRef, file);
+    const snapshot = await uploadBytes(storageRef, file, { contentType: file.type });
 
     // Get the download URL
     const downloadURL = await getDownloadURL(snapshot.ref);
@@ -538,12 +550,13 @@ export async function uploadBaptismPhotos(files: File[], userId: string): Promis
     const storage = getStorageInstance();
 
     const uploadPromises = files.map(async (file, index) => {
+      assertValidImageFile(file);
       const timestamp = new Date().getTime();
-      const fileExt = file.name.split('.').pop();
-      const fileName = `baptism_photos/${userId}-${timestamp}-${index}.${fileExt}`;
+      const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+      const fileName = `baptism_photos/${userId}/${timestamp}_${index}_${safeName}`;
 
       const storageRef = ref(storage, fileName);
-      const snapshot = await uploadBytes(storageRef, file);
+      const snapshot = await uploadBytes(storageRef, file, { contentType: file.type });
       const downloadURL = await getDownloadURL(snapshot.ref);
 
       return downloadURL;

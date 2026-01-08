@@ -43,6 +43,9 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import React from 'react';
 import { MemberSelector } from '@/components/members/member-selector';
+import { useAuth } from '@/contexts/auth-context';
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 const baptismSchema = z.object({
   name: z.string().min(2, { message: 'El nombre es requerido.' }),
@@ -57,6 +60,7 @@ type FormValues = z.infer<typeof baptismSchema>;
 export default function AddBaptismPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
@@ -69,14 +73,27 @@ export default function AddBaptismPage() {
   });
 
   const onSubmit = async (values: FormValues) => {
+    if (!user) {
+      toast({ title: 'Error', description: 'Debes iniciar sesión para subir imágenes.', variant: 'destructive' });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const photoURLs = [];
       if (values.photos) {
         const storage = getStorage();
         for (const photo of values.photos) {
-          const storageRef = ref(storage, `baptisms/${Date.now()}-${photo.name}`);
-          await uploadBytes(storageRef, photo);
+          if (photo.size > MAX_FILE_SIZE) {
+            throw new Error(`El archivo ${photo.name} supera los 20MB.`);
+          }
+          if (!photo.type || !photo.type.startsWith('image/')) {
+            throw new Error(`El archivo ${photo.name} no es una imagen válida.`);
+          }
+
+          const safeName = photo.name.replace(/[^\w.\-]+/g, '_');
+          const storageRef = ref(storage, `baptisms/manual/${user.uid}/${Date.now()}_${safeName}`);
+          await uploadBytes(storageRef, photo, { contentType: photo.type });
           const downloadURL = await getDownloadURL(storageRef);
           photoURLs.push(downloadURL);
         }
@@ -98,7 +115,7 @@ export default function AddBaptismPage() {
       logger.error({ error: e, message: 'Error adding manual baptism', data: values });
       toast({
         title: 'Error',
-        description: 'Hubo un error al agregar el bautismo.',
+        description: e instanceof Error ? e.message : 'Hubo un error al agregar el bautismo.',
         variant: 'destructive',
       });
     } finally {
@@ -109,8 +126,28 @@ export default function AddBaptismPage() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       const files = Array.from(event.target.files);
-      setSelectedFiles(files);
-      form.setValue('photos', files);
+      const acceptedFiles = files.filter(file => {
+        if (file.size > MAX_FILE_SIZE) {
+          toast({
+            title: 'Archivo demasiado grande',
+            description: `El archivo ${file.name} supera los 20MB.`,
+            variant: 'destructive',
+          });
+          return false;
+        }
+        if (!file.type || !file.type.startsWith('image/')) {
+          toast({
+            title: 'Archivo inválido',
+            description: `El archivo ${file.name} no es una imagen válida.`,
+            variant: 'destructive',
+          });
+          return false;
+        }
+        return true;
+      });
+
+      setSelectedFiles(acceptedFiles);
+      form.setValue('photos', acceptedFiles);
     }
   };
 

@@ -139,6 +139,8 @@ async function getAvailableReportYears(): Promise<number[]> {
     if (data.baptismDate) yearSet.add(getYear(data.baptismDate.toDate()));
   });
 
+  yearSet.add(getYear(new Date()));
+
   return Array.from(yearSet).sort((a, b) => b - a);
 }
 

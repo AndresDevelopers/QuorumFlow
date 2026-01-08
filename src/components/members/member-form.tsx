@@ -633,24 +633,18 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         // Get previous ministering teachers before update
         const previousTeachers = member.ministeringTeachers || [];
         
-        // Update existing member via API
-        const response = await fetch(`/api/members/${member.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(memberData),
+        await updateMember(member.id, {
+          firstName: values.firstName.trim(),
+          lastName: values.lastName.trim(),
+          status: values.status,
+          phoneNumber: values.phoneNumber?.trim() ? values.phoneNumber.trim() : undefined,
+          birthDate: values.birthDate ? Timestamp.fromDate(values.birthDate) : undefined,
+          baptismDate: values.baptismDate ? Timestamp.fromDate(values.baptismDate) : undefined,
+          photoURL: photoURL as any,
+          baptismPhotos: baptismPhotoURLs,
+          ordinances: values.ordinances || [],
+          ministeringTeachers: values.ministeringTeachers || [],
         });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          console.error('API Error response:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorData
-          });
-          throw new Error(`Failed to update member: ${errorData.details || errorData.error || response.statusText}`);
-        }
 
         // Sync ministering assignments if teachers changed
         const currentTeachers = values.ministeringTeachers || [];
@@ -673,39 +667,23 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         });
         console.log('✅ Member updated successfully:', { memberId: member.id, updatedData: memberData });
       } else {
-        // Create new member via API
         const newMember = {
           firstName: values.firstName.trim(),
           lastName: values.lastName.trim(),
           status: values.status,
-          phoneNumber: values.phoneNumber?.trim() || undefined,
-          birthDate: values.birthDate ? values.birthDate.toISOString() : undefined,
-          baptismDate: values.baptismDate ? values.baptismDate.toISOString() : undefined,
+          phoneNumber: values.phoneNumber?.trim() ? values.phoneNumber.trim() : undefined,
+          birthDate: values.birthDate ? Timestamp.fromDate(values.birthDate) : undefined,
+          baptismDate: values.baptismDate ? Timestamp.fromDate(values.baptismDate) : undefined,
           photoURL: photoURL as any,
           baptismPhotos: baptismPhotoURLs,
           ordinances: values.ordinances || [],
           ministeringTeachers: values.ministeringTeachers || [],
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+          createdBy: user.uid,
         };
 
-        const response = await fetch('/api/members', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(newMember),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          console.error('API Error response:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorData
-          });
-          throw new Error(`Failed to create member: ${errorData.details || errorData.error || response.statusText}`);
-        }
-
-        const { id: newMemberId } = await response.json();
+        const newMemberId = await createMember(newMember as any);
 
         // Actualizar el registro de converso con el memberId si existe
         if (convertDocRef && updateDocDynamic) {

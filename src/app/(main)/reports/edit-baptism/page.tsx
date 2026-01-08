@@ -20,10 +20,14 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Camera, Trash2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/auth-context';
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 export default function EditBaptismPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -100,13 +104,24 @@ export default function EditBaptismPage() {
   };
 
   const uploadPhoto = async (file: File, path: string): Promise<string> => {
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error(`El archivo ${file.name} supera los 20MB.`);
+    }
+    if (!file.type || !file.type.startsWith('image/')) {
+      throw new Error(`El archivo ${file.name} no es una imagen válida.`);
+    }
+
     const storageRef = ref(storage, `${path}/${uuidv4()}_${file.name}`);
-    await uploadBytes(storageRef, file);
+    await uploadBytes(storageRef, file, { contentType: file.type });
     return getDownloadURL(storageRef);
   };
 
   const handleUploadPhoto = async () => {
     if (!photoFile || !baptism) return;
+    if (!user) {
+      toast({ title: 'Error', description: 'Debes iniciar sesión para subir imágenes.', variant: 'destructive' });
+      return;
+    }
     
     try {
       setUploading(true);
@@ -133,7 +148,7 @@ export default function EditBaptismPage() {
       console.error('Error uploading photo:', error);
       toast({
         title: 'Error',
-        description: 'No se pudo subir la foto de perfil.',
+        description: error instanceof Error ? error.message : 'No se pudo subir la foto de perfil.',
         variant: 'destructive',
       });
     } finally {
@@ -143,6 +158,10 @@ export default function EditBaptismPage() {
 
   const handleUploadBaptismPhotos = async () => {
     if (baptismPhotoFiles.length === 0 || !baptism) return;
+    if (!user) {
+      toast({ title: 'Error', description: 'Debes iniciar sesión para subir imágenes.', variant: 'destructive' });
+      return;
+    }
     
     try {
       setUploadingBaptismPhotos(true);
@@ -164,7 +183,7 @@ export default function EditBaptismPage() {
       console.error('Error uploading baptism photos:', error);
       toast({
         title: 'Error',
-        description: 'No se pudieron subir las fotos del bautismo.',
+        description: error instanceof Error ? error.message : 'No se pudieron subir las fotos del bautismo.',
         variant: 'destructive',
       });
     } finally {
@@ -201,6 +220,10 @@ export default function EditBaptismPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!baptism) return;
+    if (!user) {
+      toast({ title: 'Error', description: 'Debes iniciar sesión para guardar cambios.', variant: 'destructive' });
+      return;
+    }
     
     try {
       setSaving(true);
@@ -252,7 +275,7 @@ export default function EditBaptismPage() {
       console.error('Error updating baptism:', error);
       toast({
         title: 'Error',
-        description: 'No se pudo actualizar el registro de bautismo.',
+        description: error instanceof Error ? error.message : 'No se pudo actualizar el registro de bautismo.',
         variant: 'destructive',
       });
     } finally {
