@@ -41,6 +41,8 @@ export const leadershipRoles: readonly UserRole[] = [
 
 export const settingsAdminRole: UserRole = 'secretary';
 
+export const roleVisibilityDocId = 'role_visibility';
+
 export const canManageSettings = (role: UserRole): boolean =>
   role === settingsAdminRole;
 

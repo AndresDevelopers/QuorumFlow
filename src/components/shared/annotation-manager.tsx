@@ -26,6 +26,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { PlusCircle, Trash2, Mic, MicOff, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
+import { doc, getDoc } from 'firebase/firestore';
+import { usersCollection } from '@/lib/collections';
 
 declare global {
     interface Window {
@@ -86,6 +88,7 @@ export function AnnotationManager({
     const [errors, setErrors] = useState<{ description?: string[] }>({});
     const [isPending, setIsPending] = useState(false);
     const [deleteItem, setDeleteItem] = useState<AnnotationItem | null>(null);
+    const [userNames, setUserNames] = useState<Record<string, string>>({});
 
     // Voice recognition states
     const [isRecording, setIsRecording] = useState(false);
@@ -180,6 +183,49 @@ export function AnnotationManager({
             }
         };
     }, [isRecording]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const fetchUserNames = async () => {
+            const uniqueUserIds = Array.from(
+                new Set(
+                    items
+                        .map((item) => item.userId)
+                        .filter((id): id is string => Boolean(id))
+                )
+            );
+            const missingUserIds = uniqueUserIds.filter((id) => !userNames[id]);
+
+            if (missingUserIds.length === 0) return;
+
+            try {
+                const entries = await Promise.all(
+                    missingUserIds.map(async (id) => {
+                        const userDocRef = doc(usersCollection, id);
+                        const userDoc = await getDoc(userDocRef);
+                        if (!userDoc.exists()) {
+                            return [id, 'Usuario'] as const;
+                        }
+                        const data = userDoc.data() as { name?: string; displayName?: string };
+                        return [id, data.name ?? data.displayName ?? 'Usuario'] as const;
+                    })
+                );
+
+                if (isMounted) {
+                    setUserNames((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
+                }
+            } catch (error) {
+                console.error('Error fetching annotation user names:', error);
+            }
+        };
+
+        fetchUserNames();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [items, userNames]);
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -338,15 +384,22 @@ export function AnnotationManager({
                                             disabled={isPending}
                                         />
                                     )}
-                                    <Label
-                                        htmlFor={item.id}
-                                        className={`flex-1 ${item.isCompleted
-                                            ? 'line-through text-muted-foreground'
-                                            : ''
-                                            }`}
-                                    >
-                                        {item.description}
-                                    </Label>
+                                    <div className="flex-1">
+                                        <Label
+                                            htmlFor={item.id}
+                                            className={`${item.isCompleted
+                                                ? 'line-through text-muted-foreground'
+                                                : ''
+                                                }`}
+                                        >
+                                            {item.description}
+                                        </Label>
+                                        {item.userId && (
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Por: {userNames[item.userId] ?? 'Usuario'}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-1">
                                     {showResolveButton && onResolve && (

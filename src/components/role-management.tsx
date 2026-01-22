@@ -12,6 +12,7 @@ import {
   normalizeRole,
   type UserRole,
 } from '@/lib/roles';
+import { navigationItems } from '@/lib/navigation';
 import {
   Card,
   CardContent,
@@ -36,6 +37,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
@@ -44,6 +46,7 @@ interface UserData {
   name: string;
   email: string;
   role: UserRole;
+  visiblePages: string[];
   createdAt?: Timestamp;
 }
 
@@ -55,6 +58,10 @@ export default function RoleManagement() {
   const [isSaving, setIsSaving] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
+  const defaultVisiblePages = useMemo(
+    () => navigationItems.map((item) => item.href),
+    []
+  );
 
   const roleMeta = useMemo<
     Record<
@@ -115,6 +122,54 @@ export default function RoleManagement() {
     checkUserRole();
   }, [firebaseUser]);
 
+  const updateUserVisibility = async (userId: string, pages: string[]) => {
+    if (!firebaseUser) return;
+
+    setIsSaving(userId);
+
+    try {
+      const userDocRef = doc(usersCollection, userId);
+      await updateDoc(userDocRef, {
+        visiblePages: pages,
+        updatedAt: Timestamp.now(),
+      });
+
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.uid === userId ? { ...user, visiblePages: pages } : user
+        )
+      );
+    } catch (error) {
+      logger.error({ error, message: 'Error saving user visibility', userId });
+      toast({
+        title: 'Error',
+        description: 'No se pudo guardar la visibilidad del usuario.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(null);
+    }
+  };
+
+  const handleVisibilityToggle = (
+    userId: string,
+    href: string,
+    checked: boolean
+  ) => {
+    setUsers((prev) =>
+      prev.map((user) => {
+        if (user.uid !== userId) return user;
+
+        const current = user.visiblePages ?? [];
+        const next = checked
+          ? Array.from(new Set([...current, href]))
+          : current.filter((item) => item !== href);
+
+        return { ...user, visiblePages: next };
+      })
+    );
+  };
+
   // Cargar todos los usuarios
   useEffect(() => {
     const fetchUsers = async () => {
@@ -135,6 +190,9 @@ export default function RoleManagement() {
             name: data.name || 'Sin nombre',
             email: data.email || 'Sin email',
             role: normalizeRole(data.role),
+            visiblePages: Array.isArray(data.visiblePages)
+              ? data.visiblePages
+              : defaultVisiblePages,
             createdAt: data.createdAt,
           });
         });
@@ -160,7 +218,7 @@ export default function RoleManagement() {
     };
 
     fetchUsers();
-  }, [hasAccess, toast]);
+  }, [defaultVisiblePages, hasAccess, toast]);
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
     if (!firebaseUser) return;
@@ -236,7 +294,7 @@ export default function RoleManagement() {
           pantalla.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         {isLoading ? (
           <div className="space-y-4">
             <Skeleton className="h-10 w-full" />
@@ -292,24 +350,78 @@ export default function RoleManagement() {
                       {roleMeta[user.role].description}
                     </p>
                   </div>
-                  {isSaving === user.uid && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Actualizando
-                      rol...
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Lugares visibles
+                    </Label>
+                    <div className="grid gap-2">
+                      {navigationItems.map((item) => (
+                        <label
+                          key={item.href}
+                          className="flex items-center gap-2 rounded-md border px-3 py-2 text-xs"
+                        >
+                          <Checkbox
+                            checked={user.visiblePages.includes(item.href)}
+                            onCheckedChange={(value) =>
+                              handleVisibilityToggle(
+                                user.uid,
+                                item.href,
+                                value === true
+                              )
+                            }
+                          />
+                          <span className="text-foreground">{item.label}</span>
+                        </label>
+                      ))}
                     </div>
-                  )}
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          updateUserVisibility(user.uid, defaultVisiblePages)
+                        }
+                        disabled={isSaving === user.uid}
+                      >
+                        Todo
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => updateUserVisibility(user.uid, [])}
+                        disabled={isSaving === user.uid}
+                      >
+                        Ninguno
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          updateUserVisibility(user.uid, user.visiblePages)
+                        }
+                        disabled={isSaving === user.uid}
+                      >
+                        Guardar
+                      </Button>
+                      {isSaving === user.uid && (
+                        <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Guardando...
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
             <div className="hidden md:block">
               <div className="overflow-x-auto rounded-md border">
-                <Table className="min-w-[640px]">
+                <Table className="min-w-[980px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nombre</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead className="w-48">Rol</TableHead>
-                      <TableHead className="w-20 text-center">Acciones</TableHead>
+                      <TableHead>Lugares visibles</TableHead>
+                      <TableHead className="w-32 text-center">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -340,10 +452,63 @@ export default function RoleManagement() {
                             {roleMeta[user.role].description}
                           </p>
                         </TableCell>
+                        <TableCell>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            {navigationItems.map((item) => (
+                              <label
+                                key={item.href}
+                                className="flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
+                              >
+                                <Checkbox
+                                  checked={user.visiblePages.includes(item.href)}
+                                  onCheckedChange={(value) =>
+                                    handleVisibilityToggle(
+                                      user.uid,
+                                      item.href,
+                                      value === true
+                                    )
+                                  }
+                                />
+                                <span className="text-foreground">
+                                  {item.label}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-center">
-                          {isSaving === user.uid && (
-                            <Loader2 className="h-4 w-4 animate-spin mx-auto" />
-                          )}
+                          <div className="flex flex-col items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                updateUserVisibility(user.uid, defaultVisiblePages)
+                              }
+                              disabled={isSaving === user.uid}
+                            >
+                              Todo
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateUserVisibility(user.uid, [])}
+                              disabled={isSaving === user.uid}
+                            >
+                              Ninguno
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                updateUserVisibility(user.uid, user.visiblePages)
+                              }
+                              disabled={isSaving === user.uid}
+                            >
+                              Guardar
+                            </Button>
+                            {isSaving === user.uid && (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

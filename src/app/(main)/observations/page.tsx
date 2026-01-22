@@ -79,7 +79,7 @@ import { getMembersByStatus } from '@/lib/members-data';
 
 import { fetchHealthConcerns, createHealthConcern, deleteHealthConcern, updateHealthConcern } from '@/lib/health-concerns';
 
-import { format } from 'date-fns';
+import { format, subMonths } from 'date-fns';
 
 import { es } from 'date-fns/locale';
 
@@ -205,6 +205,8 @@ export default function ObservationsPage() {
   const withoutMinisteringRef = useRef<HTMLDivElement>(null);
 
   const inactiveRef = useRef<HTMLDivElement>(null);
+
+  const inactiveNewConvertsRef = useRef<HTMLDivElement>(null);
 
   const familyFocusCompanionshipsRef = useRef<HTMLDivElement>(null);
 
@@ -861,6 +863,13 @@ export default function ObservationsPage() {
 
   const inactiveMembers = members.filter(member => member.status === 'inactive');
 
+  const twentyFourMonthsAgo = subMonths(new Date(), 24);
+  const inactiveNewConverts = members.filter(member =>
+    member.status === 'inactive' &&
+    member.baptismDate?.toDate &&
+    member.baptismDate.toDate() > twentyFourMonthsAgo
+  );
+
 
 
   // Filter companionships where companions are less active or inactive
@@ -1019,6 +1028,8 @@ export default function ObservationsPage() {
 
     withoutMinistering: membersWithoutMinistering.length,
 
+    inactiveNewConverts: inactiveNewConverts.length,
+
     inactive: inactiveMembers.length,
 
     familyFocusCompanionships: familyFocusCompanionships.length,
@@ -1135,25 +1146,27 @@ export default function ObservationsPage() {
 
          </Card>
 
+        <Card className="cursor-pointer" onClick={() => inactiveNewConvertsRef.current?.scrollIntoView({ behavior: 'smooth' })}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Nuevos Conversos Inactivos</CardTitle>
+            <UserX className="h-4 w-4 text-amber-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">{observationCounts.inactiveNewConverts}</div>
+            <p className="text-xs text-muted-foreground">conversos recientes marcados como inactivos</p>
+          </CardContent>
+        </Card>
+
         <Card className="cursor-pointer" onClick={() => inactiveRef.current?.scrollIntoView({ behavior: 'smooth' })}>
-
-           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-
-             <CardTitle className="text-sm font-medium">Inactivos</CardTitle>
-
-             <UserX className="h-4 w-4 text-red-600" />
-
-           </CardHeader>
-
-           <CardContent>
-
-             <div className="text-2xl font-bold text-red-600">{observationCounts.inactive}</div>
-
-             <p className="text-xs text-muted-foreground">miembros inactivos</p>
-
-           </CardContent>
-
-         </Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Inactivos</CardTitle>
+            <UserX className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{observationCounts.inactive}</div>
+            <p className="text-xs text-muted-foreground">miembros inactivos</p>
+          </CardContent>
+        </Card>
 
         <Card className="cursor-pointer" onClick={() => familyFocusCompanionshipsRef.current?.scrollIntoView({ behavior: 'smooth' })}>
 
@@ -2810,6 +2823,158 @@ export default function ObservationsPage() {
       </Card>
 
 
+
+      {/* Sección Nuevos Conversos Inactivos */}
+      <Card ref={inactiveNewConvertsRef}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserX className="h-5 w-5 text-amber-600" />
+            Nuevos Conversos Inactivos
+          </CardTitle>
+          <CardDescription>
+            Conversos bautizados en los últimos 24 meses que están marcados como inactivos.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Fecha de Bautismo</TableHead>
+                  <TableHead>Última Actividad</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-8 w-24" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : inactiveNewConverts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center">
+                      No hay nuevos conversos inactivos.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  inactiveNewConverts.map((member) => (
+                    <TableRow key={member.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-3">
+                          {member.photoURL ? (
+                            <Image
+                              src={member.photoURL}
+                              alt={`${member.firstName} ${member.lastName}`}
+                              width={32}
+                              height={32}
+                              className="w-8 h-8 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                              <Users className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          )}
+                          <span>{member.firstName} {member.lastName}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {member.baptismDate
+                          ? format(member.baptismDate.toDate(), 'd MMM yyyy', { locale: es })
+                          : 'No especificada'}
+                      </TableCell>
+                      <TableCell>
+                        {member.lastActiveDate
+                          ? format(member.lastActiveDate.toDate(), 'd MMM yyyy', { locale: es })
+                          : 'Nunca'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewProfile(member.id)}
+                          title="Ver perfil"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="md:hidden space-y-4">
+            {loading ? (
+              Array.from({ length: 2 }).map((_, i) => (
+                <Skeleton key={i} className="h-32 w-full" />
+              ))
+            ) : inactiveNewConverts.length === 0 ? (
+              <div className="text-center py-12">
+                <UserX className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">
+                  No hay nuevos conversos inactivos.
+                </p>
+              </div>
+            ) : (
+              inactiveNewConverts.map((member) => (
+                <Card key={member.id}>
+                  <CardContent className="pt-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        {member.photoURL ? (
+                          <Image
+                            src={member.photoURL}
+                            alt={`${member.firstName} ${member.lastName}`}
+                            width={40}
+                            height={40}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                            <Users className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                        )}
+                        <div>
+                          <h3 className="font-semibold">{member.firstName} {member.lastName}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Bautismo: {member.baptismDate
+                              ? format(member.baptismDate.toDate(), 'd MMM yyyy', { locale: es })
+                              : 'No especificada'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Última actividad: {member.lastActiveDate
+                        ? format(member.lastActiveDate.toDate(), 'd MMM yyyy', { locale: es })
+                        : 'Nunca'}
+                    </p>
+
+                    <div className="flex justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewProfile(member.id)}
+                      >
+                        <Eye className="mr-2 h-4 w-4" />
+                        Ver Perfil
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Sección Miembros Inactivos */}
 

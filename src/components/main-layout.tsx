@@ -4,22 +4,7 @@
 import { type ReactNode, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Home,
-  Users,
-  HeartHandshake,
-  BookUser,
-  Gavel,
-  FileText,
-  Settings,
-  Cake,
-  LogOut,
-  Library,
-  HandHeart,
-  Wrench,
-  UserCheck,
-  AlertTriangle,
-} from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -59,21 +44,9 @@ import { ChangelogDialog } from "./changelog-dialog";
 import { UpdateNotification } from "./update-notification";
 import { Toaster } from "@/components/ui/toaster";
 import { InstallPrompt } from "@/components/install-prompt";
-
-const navItems = [
-  { href: "/", i18nKey: "Dashboard", icon: Home },
-  { href: "/members", i18nKey: "Members", icon: UserCheck },
-  { href: "/observations", i18nKey: "Observations", icon: AlertTriangle },
-  { href: "/converts", i18nKey: "Converts", icon: HeartHandshake },
-  { href: "/future-members", i18nKey: "Future Members", icon: BookUser },
-  { href: "/ministering", i18nKey: "Ministering", icon: Users },
-  { href: "/birthdays", i18nKey: "Birthdays", icon: Cake },
-  { href: "/family-search", i18nKey: "FamilySearch", icon: Library },
-  { href: "/missionary-work", i18nKey: "Missionary Work", icon: HandHeart },
-  { href: "/service", i18nKey: "Service", icon: Wrench },
-  { href: "/council", i18nKey: "Council", icon: Gavel },
-  { href: "/reports", i18nKey: "Reports", icon: FileText },
-];
+import { navigationItems } from "@/lib/navigation";
+import { usersCollection } from "@/lib/collections";
+import { doc, getDoc } from "firebase/firestore";
 
 function Logo() {
   return (
@@ -190,7 +163,9 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { t } = useI18n();
   const { setOpenMobile } = useSidebar();
+  const { user, userRole } = useAuth();
   const [version, setVersion] = useState("");
+  const [visibleNavItems, setVisibleNavItems] = useState(navigationItems);
 
   useEffect(() => {
     fetch("/version.json")
@@ -201,7 +176,54 @@ export function MainLayout({ children }: { children: ReactNode }) {
       .catch((error) => console.error("Error fetching version:", error));
   }, []);
 
-  const translatedNavItems = navItems.map((item) => ({
+  useEffect(() => {
+    if (!user) {
+      setVisibleNavItems(navigationItems);
+      return;
+    }
+
+    let isMounted = true;
+
+    const fetchVisibility = async () => {
+      try {
+        const userDocRef = doc(usersCollection, user.uid);
+        const snapshot = await getDoc(userDocRef);
+
+        if (!isMounted) return;
+
+        if (!snapshot.exists()) {
+          setVisibleNavItems(navigationItems);
+          return;
+        }
+
+        const data = snapshot.data() as {
+          visiblePages?: string[];
+        };
+        const allowed = data.visiblePages;
+
+        if (Array.isArray(allowed) && allowed.length > 0) {
+          setVisibleNavItems(
+            navigationItems.filter((item) => allowed.includes(item.href))
+          );
+        } else {
+          setVisibleNavItems(navigationItems);
+        }
+      } catch (error) {
+        console.error("Error fetching user visibility", error);
+        if (isMounted) {
+          setVisibleNavItems(navigationItems);
+        }
+      }
+    };
+
+    fetchVisibility();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user, userRole]);
+
+  const translatedNavItems = visibleNavItems.map((item) => ({
     ...item,
     label: t(item.i18nKey) || item.i18nKey,
   }));

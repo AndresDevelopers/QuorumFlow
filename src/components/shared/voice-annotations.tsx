@@ -5,10 +5,11 @@ import type { Annotation } from '@/lib/types';
 import {
   addDoc,
   doc,
+  getDoc,
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore';
-import { annotationsCollection } from '@/lib/collections';
+import { annotationsCollection, usersCollection } from '@/lib/collections';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -90,6 +91,7 @@ export function VoiceAnnotations({
   const [selectedAnnotation, setSelectedAnnotation] = useState<Annotation | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [annotationToEdit, setAnnotationToEdit] = useState<Annotation | null>(null);
+  const [userNames, setUserNames] = useState<Record<string, string>>({});
   
   // Voice recognition states
   const [isRecording, setIsRecording] = useState(false);
@@ -194,6 +196,45 @@ export function VoiceAnnotations({
       }
     };
   }, [isRecording]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchUserNames = async () => {
+      const uniqueUserIds = Array.from(
+        new Set(annotations.map((annotation) => annotation.userId).filter(Boolean))
+      );
+      const missingUserIds = uniqueUserIds.filter((id) => !userNames[id]);
+
+      if (missingUserIds.length === 0) return;
+
+      try {
+        const entries = await Promise.all(
+          missingUserIds.map(async (id) => {
+            const userDocRef = doc(usersCollection, id);
+            const userDoc = await getDoc(userDocRef);
+            if (!userDoc.exists()) {
+              return [id, 'Usuario'] as const;
+            }
+            const data = userDoc.data() as { name?: string; displayName?: string };
+            return [id, data.name ?? data.displayName ?? 'Usuario'] as const;
+          })
+        );
+
+        if (isMounted) {
+          setUserNames((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
+        }
+      } catch (error) {
+        console.error('Error fetching annotation user names:', error);
+      }
+    };
+
+    fetchUserNames();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [annotations, userNames]);
 
   const handleAddAnnotation = async () => {
     if (newAnnotation.trim() === '') return;
@@ -368,6 +409,7 @@ export function VoiceAnnotations({
                       <p className="text-sm font-medium">{item.text}</p>
                       <p className="text-xs text-muted-foreground">
                         {format(item.createdAt.toDate(), 'd LLL yyyy, h:mm a', { locale: es })}
+                        {item.userId && ` · Por: ${userNames[item.userId] ?? 'Usuario'}`}
                         {showCouncilView && ` - Creado en: ${item.source === 'dashboard' ? 'Dashboard' : 
                           item.source === 'council' ? 'Consejo' : 
                           item.source === 'family-search' ? 'FamilySearch' : 'Obra Misional'}`}

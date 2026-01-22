@@ -241,7 +241,7 @@ export default function MembersPage() {
                 Agregar Miembro
               </Button>
             </DialogTrigger>
-            <DialogContent className="w-full max-w-[90vw] overflow-y-auto sm:max-h-[90vh] sm:max-w-2xl">
+            <DialogContent className="left-0 top-0 h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none p-4 sm:left-[50%] sm:top-1/2 sm:h-auto sm:w-full sm:max-w-2xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6">
               <DialogHeader>
                 <DialogTitle>
                   {editingMember ? 'Editar Miembro' : 'Agregar Nuevo Miembro'}

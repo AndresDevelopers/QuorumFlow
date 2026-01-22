@@ -1,3 +1,8 @@
+---
+type: "always_apply"
+description: "Rules General"
+---
+
 ## **🚨 MANDATOS CRÍTICOS (CALIDAD Y SEGURIDAD)**
 
 1. **Eficiencia DRY**: **ANTES** de escribir código, analiza el proyecto para reutilizar lógica. Máximo 3% de duplicidad.  

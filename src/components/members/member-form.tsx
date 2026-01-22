@@ -65,7 +65,7 @@ const memberFormSchema = z.object({
   birthDate: z.date().optional(),
   baptismDate: z.date().optional(),
   status: z.enum(['active', 'less_active', 'inactive'] as const),
-  photoURL: z.string().optional(),
+  photoURL: z.string().nullable().optional(),
   baptismPhotos: z.array(z.string()).optional(),
   ordinances: z.array(z.enum(['baptism', 'confirmation', 'elder_ordination', 'endowment', 'sealed_spouse', 'high_priest_ordination'] as const)).optional(),
   ministeringTeachers: z.array(z.string()).optional(),
@@ -674,7 +674,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           phoneNumber: values.phoneNumber?.trim() ? values.phoneNumber.trim() : undefined,
           birthDate: values.birthDate ? Timestamp.fromDate(values.birthDate) : undefined,
           baptismDate: values.baptismDate ? Timestamp.fromDate(values.baptismDate) : undefined,
-          photoURL: photoURL as any,
+          photoURL: photoURL || undefined,
           baptismPhotos: baptismPhotoURLs,
           ordinances: values.ordinances || [],
           ministeringTeachers: values.ministeringTeachers || [],
@@ -803,7 +803,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       </AlertDialog>
 
       <Form key={member?.id || 'new'} {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
         {/* Photo Upload */}
         <div className="space-y-4">
           <Label>Foto de Perfil (Opcional)</Label>

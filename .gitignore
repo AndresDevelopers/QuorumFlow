@@ -49,3 +49,6 @@ yarn-error.log*
 #Map
 sw.js.map
 workbox-3c9d0171.js.map
+
+#Ignore windsurf AI rules
+.windsurfrules
