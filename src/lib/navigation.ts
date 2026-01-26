@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   BookUser,
   Cake,
+  ClipboardList,
   FileText,
   Gavel,
   HandHeart,
@@ -49,4 +50,5 @@ export const navigationItems: NavigationItem[] = [
   { href: "/service", i18nKey: "Service", label: "Servicio", icon: Wrench },
   { href: "/council", i18nKey: "Council", label: "Consejo", icon: Gavel },
   { href: "/reports", i18nKey: "Reports", label: "Reportes", icon: FileText },
+  { href: "/reports/activities", i18nKey: "Activities", label: "Actividades", icon: ClipboardList },
 ];

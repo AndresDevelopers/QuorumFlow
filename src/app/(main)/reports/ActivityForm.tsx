@@ -206,7 +206,7 @@ export function ActivityForm({ activity }: ActivityFormProps) {
           description: 'La actividad ha sido registrada exitosamente.',
         });
       }
-      router.push('/reports');
+      router.push('/reports/activities');
       router.refresh();
     } catch (e: any) {
       logger.error({ error: e, message: 'Error saving activity', data: values });
@@ -416,7 +416,7 @@ export function ActivityForm({ activity }: ActivityFormProps) {
           </CardContent>
           <CardFooter className="flex justify-end gap-2">
             <Button variant="outline" asChild>
-              <Link href="/reports">Cancelar</Link>
+              <Link href="/reports/activities">Cancelar</Link>
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Guardando...' : isEditMode ? 'Guardar Cambios' : 'Guardar Actividad'}

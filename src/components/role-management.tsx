@@ -13,7 +13,7 @@ import {
   type UserRole,
 } from '@/lib/roles';
 import { navigationItems } from '@/lib/navigation';
-import { textSections, getTextSectionsByCategory, type TextSection } from '@/lib/text-sections';
+import { textSections, type TextSection } from '@/lib/text-sections';
 import {
   Card,
   CardContent,
@@ -48,7 +48,6 @@ interface UserData {
   email: string;
   role: UserRole;
   visiblePages: string[];
-  visibleTexts?: string[];
   createdAt?: Timestamp;
 }
 
@@ -64,8 +63,6 @@ export default function RoleManagement() {
     () => navigationItems.map((item) => item.href),
     []
   );
-  const textSectionsByCategory = useMemo(() => getTextSectionsByCategory(), []);
-
   const roleMeta = useMemo<
     Record<
       UserRole,
@@ -129,7 +126,7 @@ export default function RoleManagement() {
     checkUserRole();
   }, [firebaseUser]);
 
-  const updateUserVisibility = async (userId: string, pages: string[], texts?: string[]) => {
+  const updateUserVisibility = async (userId: string, pages: string[]) => {
     if (!firebaseUser) return;
 
     setIsSaving(userId);
@@ -141,15 +138,11 @@ export default function RoleManagement() {
         updatedAt: Timestamp.now(),
       };
       
-      if (texts) {
-        updateData.visibleTexts = texts;
-      }
-
       await updateDoc(userDocRef, updateData);
 
       setUsers((prev) =>
         prev.map((user) =>
-          user.uid === userId ? { ...user, visiblePages: pages, visibleTexts: texts } : user
+          user.uid === userId ? { ...user, visiblePages: pages } : user
         )
       );
     } catch (error) {
@@ -183,25 +176,6 @@ export default function RoleManagement() {
     );
   };
 
-  const handleTextVisibilityToggle = (
-    userId: string,
-    textId: string,
-    checked: boolean
-  ) => {
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.uid !== userId) return user;
-
-        const current = user.visibleTexts ?? [];
-        const next = checked
-          ? Array.from(new Set([...current, textId]))
-          : current.filter((item) => item !== textId);
-
-        return { ...user, visibleTexts: next };
-      })
-    );
-  };
-
   // Cargar todos los usuarios
   useEffect(() => {
     const fetchUsers = async () => {
@@ -225,9 +199,6 @@ export default function RoleManagement() {
             visiblePages: Array.isArray(data.visiblePages)
               ? data.visiblePages
               : defaultVisiblePages,
-            visibleTexts: Array.isArray(data.visibleTexts)
-              ? data.visibleTexts
-              : [],
             createdAt: data.createdAt,
           });
         });
@@ -431,7 +402,7 @@ export default function RoleManagement() {
                       <Button
                         size="sm"
                         onClick={() =>
-                          updateUserVisibility(user.uid, user.visiblePages, user.visibleTexts)
+                          updateUserVisibility(user.uid, user.visiblePages)
                         }
                         disabled={isSaving === user.uid}
                       >
@@ -444,36 +415,6 @@ export default function RoleManagement() {
                       )}
                     </div>
                   </div>
-                  {user.role === 'other' && (
-                    <div className="flex flex-col gap-2">
-                      <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Secciones de texto visibles
-                      </Label>
-                      <div className="grid gap-2">
-                        {textSections.map((section) => (
-                          <label
-                            key={section.id}
-                            className="flex items-center gap-2 rounded-md border px-3 py-2 text-xs"
-                          >
-                            <Checkbox
-                              checked={user.visibleTexts?.includes(section.id) || false}
-                              onCheckedChange={(value) =>
-                                handleTextVisibilityToggle(
-                                  user.uid,
-                                  section.id,
-                                  value === true
-                                )
-                              }
-                            />
-                            <div className="flex flex-col">
-                              <span className="text-foreground font-medium">{section.label}</span>
-                              <span className="text-muted-foreground text-xs">{section.description}</span>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -565,7 +506,7 @@ export default function RoleManagement() {
                               <Button
                                 size="sm"
                                 onClick={() =>
-                                  updateUserVisibility(user.uid, user.visiblePages, user.visibleTexts)
+                                  updateUserVisibility(user.uid, user.visiblePages)
                                 }
                                 disabled={isSaving === user.uid}
                               >
@@ -577,40 +518,6 @@ export default function RoleManagement() {
                             </div>
                           </TableCell>
                         </TableRow>
-                        {user.role === 'other' && (
-                          <TableRow>
-                            <TableCell colSpan={5} className="p-4 bg-muted/20">
-                              <div className="space-y-3">
-                                <Label className="text-sm font-medium">
-                                  Secciones de texto visibles para {user.name}
-                                </Label>
-                                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                  {textSections.map((section) => (
-                                    <label
-                                      key={section.id}
-                                      className="flex items-center gap-2 rounded-md border px-3 py-2 text-xs"
-                                    >
-                                      <Checkbox
-                                        checked={user.visibleTexts?.includes(section.id) || false}
-                                        onCheckedChange={(value) =>
-                                          handleTextVisibilityToggle(
-                                            user.uid,
-                                            section.id,
-                                            value === true
-                                          )
-                                        }
-                                      />
-                                      <div className="flex flex-col">
-                                        <span className="text-foreground font-medium">{section.label}</span>
-                                        <span className="text-muted-foreground text-xs">{section.description}</span>
-                                      </div>
-                                    </label>
-                                  ))}
-                                </div>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
                       </React.Fragment>
                     ))}
                   </TableBody>

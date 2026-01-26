@@ -8,6 +8,7 @@
   "Ministering": "Ministering",
   "Council": "Council",
   "Reports": "Reports",
+  "Activities": "Activities",
   "Birthdays": "Birthdays",
   "FamilySearch": "FamilySearch",
   "Missionary Work": "Missionary Work",
@@ -55,6 +56,8 @@
   "No member data available": "No member data available",
   "Quick Settings": "Quick Settings",
   "Customize your experience.": "Customize your experience.",
+  "activities.pageTitle": "Registered Activities",
+  "activities.pageDescription": "Review and manage quorum activities for the selected year.",
 
   "login.title": "Login",
   "login.description": "Enter your email below to login to your account.",

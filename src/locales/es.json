@@ -8,6 +8,7 @@
   "Ministering": "Ministración",
   "Council": "Consejo",
   "Reports": "Reportes",
+  "Activities": "Actividades",
   "Birthdays": "Cumpleaños",
   "FamilySearch": "FamilySearch",
   "Missionary Work": "Obra Misional",
@@ -53,6 +54,8 @@
   "No member data available": "No hay datos de miembros disponibles",
   "Quick Settings": "Ajustes Rápidos",
   "Customize your experience.": "Personaliza tu experiencia.",
+  "activities.pageTitle": "Actividades Registradas",
+  "activities.pageDescription": "Revisa y administra las actividades del quórum por año.",
 
   "login.title": "Iniciar Sesión",
   "login.description": "Ingresa tu correo electrónico para acceder a tu cuenta.",
