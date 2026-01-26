@@ -49,9 +49,11 @@ import { usersCollection } from "@/lib/collections";
 import { doc, getDoc } from "firebase/firestore";
 
 function Logo() {
+  const { mainPage } = useAuth();
+  
   return (
     <Link
-      href="/"
+      href={mainPage}
       className="flex items-center gap-2 font-semibold text-foreground"
     >
       <svg

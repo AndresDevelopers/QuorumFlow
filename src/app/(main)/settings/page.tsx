@@ -61,6 +61,7 @@ import {
   normalizeRole,
   type UserRole,
 } from '@/lib/roles';
+import { navigationItems } from '@/lib/navigation';
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: "El nombre es requerido." }),
@@ -107,12 +108,15 @@ export default function SettingsPage() {
   const [hasSettingsAccess, setHasSettingsAccess] = useState(false);
   const [canManageRoles, setCanManageRoles] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('user');
+  const [mainPage, setMainPage] = useState<string>('/');
+  const [visiblePages, setVisiblePages] = useState<string[]>([]);
   const roleFriendlyNames = useMemo<Record<UserRole, string>>(
     () => ({
       user: 'Miembro',
       counselor: 'Consejero',
       president: 'Presidente',
       secretary: 'Secretario',
+      other: 'Otro',
     }),
     []
   );
@@ -178,6 +182,17 @@ export default function SettingsPage() {
         if (userDoc.exists()) {
           const userData = userDoc.data();
           normalizedRole = normalizeRole(userData.role);
+          const userVisiblePages = Array.isArray(userData.visiblePages) ? userData.visiblePages : navigationItems.map(item => item.href);
+          setVisiblePages(userVisiblePages);
+          
+          // If current main page is not in visible pages, select first visible page
+          const currentMainPage = userData.mainPage || '/';
+          if (!userVisiblePages.includes(currentMainPage) && userVisiblePages.length > 0) {
+            setMainPage(userVisiblePages[0]);
+          } else {
+            setMainPage(currentMainPage);
+          }
+          
           form.reset({
             name: userData.name || firebaseUser.displayName || '',
             birthDate: userData.birthDate
@@ -278,6 +293,7 @@ export default function SettingsPage() {
             name: values.name,
             birthDate: Timestamp.fromDate(values.birthDate),
             photoURL: finalPhotoURL,
+            mainPage: mainPage,
         }, { merge: true });
 
         toast({ title: 'Éxito', description: 'Tu perfil ha sido actualizado.' });
@@ -578,6 +594,39 @@ export default function SettingsPage() {
               </CardFooter>
             </form>
           </Form>
+        </Card>
+        <Card className="h-full">
+          <CardHeader>
+            <CardTitle>Página Principal</CardTitle>
+            <CardDescription>
+              Selecciona la página que se mostrará al iniciar sesión.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="main-page-select" className="text-sm font-medium">
+                Página de inicio
+              </Label>
+              <select
+                id="main-page-select"
+                value={mainPage}
+                onChange={(e) => setMainPage(e.target.value)}
+                aria-label="Seleccionar página de inicio"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                {navigationItems
+                  .filter((item) => visiblePages.includes(item.href))
+                  .map((item) => (
+                    <option key={item.href} value={item.href}>
+                      {item.label}
+                    </option>
+                  ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Esta será la primera página que verás al iniciar sesión.
+              </p>
+            </div>
+          </CardContent>
         </Card>
         <Card className="h-full">
           <CardHeader>

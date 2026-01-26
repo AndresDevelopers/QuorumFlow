@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { usersCollection } from '@/lib/collections';
 import { doc, getDoc, getDocs, updateDoc, Timestamp } from 'firebase/firestore';
@@ -13,6 +13,7 @@ import {
   type UserRole,
 } from '@/lib/roles';
 import { navigationItems } from '@/lib/navigation';
+import { textSections, getTextSectionsByCategory, type TextSection } from '@/lib/text-sections';
 import {
   Card,
   CardContent,
@@ -47,6 +48,7 @@ interface UserData {
   email: string;
   role: UserRole;
   visiblePages: string[];
+  visibleTexts?: string[];
   createdAt?: Timestamp;
 }
 
@@ -62,6 +64,7 @@ export default function RoleManagement() {
     () => navigationItems.map((item) => item.href),
     []
   );
+  const textSectionsByCategory = useMemo(() => getTextSectionsByCategory(), []);
 
   const roleMeta = useMemo<
     Record<
@@ -88,6 +91,10 @@ export default function RoleManagement() {
       secretary: {
         label: 'Secretario',
         description: 'Control total y gestión de permisos.',
+      },
+      other: {
+        label: 'Otro',
+        description: 'Acceso personalizado con selección de textos específicos.',
       },
     }),
     []
@@ -122,21 +129,27 @@ export default function RoleManagement() {
     checkUserRole();
   }, [firebaseUser]);
 
-  const updateUserVisibility = async (userId: string, pages: string[]) => {
+  const updateUserVisibility = async (userId: string, pages: string[], texts?: string[]) => {
     if (!firebaseUser) return;
 
     setIsSaving(userId);
 
     try {
       const userDocRef = doc(usersCollection, userId);
-      await updateDoc(userDocRef, {
+      const updateData: any = {
         visiblePages: pages,
         updatedAt: Timestamp.now(),
-      });
+      };
+      
+      if (texts) {
+        updateData.visibleTexts = texts;
+      }
+
+      await updateDoc(userDocRef, updateData);
 
       setUsers((prev) =>
         prev.map((user) =>
-          user.uid === userId ? { ...user, visiblePages: pages } : user
+          user.uid === userId ? { ...user, visiblePages: pages, visibleTexts: texts } : user
         )
       );
     } catch (error) {
@@ -170,6 +183,25 @@ export default function RoleManagement() {
     );
   };
 
+  const handleTextVisibilityToggle = (
+    userId: string,
+    textId: string,
+    checked: boolean
+  ) => {
+    setUsers((prev) =>
+      prev.map((user) => {
+        if (user.uid !== userId) return user;
+
+        const current = user.visibleTexts ?? [];
+        const next = checked
+          ? Array.from(new Set([...current, textId]))
+          : current.filter((item) => item !== textId);
+
+        return { ...user, visibleTexts: next };
+      })
+    );
+  };
+
   // Cargar todos los usuarios
   useEffect(() => {
     const fetchUsers = async () => {
@@ -193,6 +225,9 @@ export default function RoleManagement() {
             visiblePages: Array.isArray(data.visiblePages)
               ? data.visiblePages
               : defaultVisiblePages,
+            visibleTexts: Array.isArray(data.visibleTexts)
+              ? data.visibleTexts
+              : [],
             createdAt: data.createdAt,
           });
         });
@@ -396,7 +431,7 @@ export default function RoleManagement() {
                       <Button
                         size="sm"
                         onClick={() =>
-                          updateUserVisibility(user.uid, user.visiblePages)
+                          updateUserVisibility(user.uid, user.visiblePages, user.visibleTexts)
                         }
                         disabled={isSaving === user.uid}
                       >
@@ -409,6 +444,36 @@ export default function RoleManagement() {
                       )}
                     </div>
                   </div>
+                  {user.role === 'other' && (
+                    <div className="flex flex-col gap-2">
+                      <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Secciones de texto visibles
+                      </Label>
+                      <div className="grid gap-2">
+                        {textSections.map((section) => (
+                          <label
+                            key={section.id}
+                            className="flex items-center gap-2 rounded-md border px-3 py-2 text-xs"
+                          >
+                            <Checkbox
+                              checked={user.visibleTexts?.includes(section.id) || false}
+                              onCheckedChange={(value) =>
+                                handleTextVisibilityToggle(
+                                  user.uid,
+                                  section.id,
+                                  value === true
+                                )
+                              }
+                            />
+                            <div className="flex flex-col">
+                              <span className="text-foreground font-medium">{section.label}</span>
+                              <span className="text-muted-foreground text-xs">{section.description}</span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -426,91 +491,127 @@ export default function RoleManagement() {
                   </TableHeader>
                   <TableBody>
                     {users.map((user) => (
-                      <TableRow key={user.uid}>
-                        <TableCell className="font-medium">{user.name}</TableCell>
-                        <TableCell className="break-all">{user.email}</TableCell>
-                        <TableCell>
-                          <Select
-                            value={user.role}
-                            onValueChange={(newRole) =>
-                              handleRoleChange(user.uid, normalizeRole(newRole))
-                            }
-                            disabled={isSaving === user.uid}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Selecciona un rol" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {assignableRoles.map((roleOption) => (
-                                <SelectItem key={roleOption} value={roleOption}>
-                                  {roleMeta[roleOption].label}
-                                </SelectItem>
+                      <React.Fragment key={user.uid}>
+                        <TableRow>
+                          <TableCell className="font-medium">{user.name}</TableCell>
+                          <TableCell className="break-all">{user.email}</TableCell>
+                          <TableCell>
+                            <Select
+                              value={user.role}
+                              onValueChange={(newRole) =>
+                                handleRoleChange(user.uid, normalizeRole(newRole))
+                              }
+                              disabled={isSaving === user.uid}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Selecciona un rol" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {assignableRoles.map((roleOption) => (
+                                  <SelectItem key={roleOption} value={roleOption}>
+                                    {roleMeta[roleOption].label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              {roleMeta[user.role].description}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {navigationItems.map((item) => (
+                                <label
+                                  key={item.href}
+                                  className="flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
+                                >
+                                  <Checkbox
+                                    checked={user.visiblePages.includes(item.href)}
+                                    onCheckedChange={(value) =>
+                                      handleVisibilityToggle(
+                                        user.uid,
+                                        item.href,
+                                        value === true
+                                      )
+                                    }
+                                  />
+                                  <span className="text-foreground">
+                                    {item.label}
+                                  </span>
+                                </label>
                               ))}
-                            </SelectContent>
-                          </Select>
-                          <p className="text-xs text-muted-foreground">
-                            {roleMeta[user.role].description}
-                          </p>
-                        </TableCell>
-                        <TableCell>
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            {navigationItems.map((item) => (
-                              <label
-                                key={item.href}
-                                className="flex items-center gap-2 rounded-md border px-2 py-1 text-xs"
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex flex-col items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  updateUserVisibility(user.uid, defaultVisiblePages)
+                                }
+                                disabled={isSaving === user.uid}
                               >
-                                <Checkbox
-                                  checked={user.visiblePages.includes(item.href)}
-                                  onCheckedChange={(value) =>
-                                    handleVisibilityToggle(
-                                      user.uid,
-                                      item.href,
-                                      value === true
-                                    )
-                                  }
-                                />
-                                <span className="text-foreground">
-                                  {item.label}
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex flex-col items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                updateUserVisibility(user.uid, defaultVisiblePages)
-                              }
-                              disabled={isSaving === user.uid}
-                            >
-                              Todo
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => updateUserVisibility(user.uid, [])}
-                              disabled={isSaving === user.uid}
-                            >
-                              Ninguno
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() =>
-                                updateUserVisibility(user.uid, user.visiblePages)
-                              }
-                              disabled={isSaving === user.uid}
-                            >
-                              Guardar
-                            </Button>
-                            {isSaving === user.uid && (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                                Todo
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateUserVisibility(user.uid, [])}
+                                disabled={isSaving === user.uid}
+                              >
+                                Ninguno
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  updateUserVisibility(user.uid, user.visiblePages, user.visibleTexts)
+                                }
+                                disabled={isSaving === user.uid}
+                              >
+                                Guardar
+                              </Button>
+                              {isSaving === user.uid && (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {user.role === 'other' && (
+                          <TableRow>
+                            <TableCell colSpan={5} className="p-4 bg-muted/20">
+                              <div className="space-y-3">
+                                <Label className="text-sm font-medium">
+                                  Secciones de texto visibles para {user.name}
+                                </Label>
+                                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                  {textSections.map((section) => (
+                                    <label
+                                      key={section.id}
+                                      className="flex items-center gap-2 rounded-md border px-3 py-2 text-xs"
+                                    >
+                                      <Checkbox
+                                        checked={user.visibleTexts?.includes(section.id) || false}
+                                        onCheckedChange={(value) =>
+                                          handleTextVisibilityToggle(
+                                            user.uid,
+                                            section.id,
+                                            value === true
+                                          )
+                                        }
+                                      />
+                                      <div className="flex flex-col">
+                                        <span className="text-foreground font-medium">{section.label}</span>
+                                        <span className="text-muted-foreground text-xs">{section.description}</span>
+                                      </div>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
                     ))}
                   </TableBody>
                 </Table>

@@ -143,7 +143,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         birthDate: birthDateValue,
         baptismDate: baptismDateValue,
         status: member.status || 'active',
-        photoURL: (member.photoURL && member.photoURL.trim()) || undefined,
+        photoURL: (member.photoURL && member.photoURL.trim()) ?? undefined,
         baptismPhotos: member.baptismPhotos || [],
         ordinances: member.ordinances || [],
         ministeringTeachers: member.ministeringTeachers || []
@@ -585,10 +585,9 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       let updateDocDynamic = null;
 
       if (isRecentBaptism && values.baptismDate) {
-        const convertData = {
+        const convertData: any = {
           name: `${values.firstName.trim()} ${values.lastName.trim()}`,
           baptismDate: Timestamp.fromDate(values.baptismDate),
-          photoURL: photoURL || undefined,
           councilCompleted: false,
           observation: 'Registrado automáticamente desde Miembros',
           createdAt: Timestamp.now(),
@@ -596,14 +595,23 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           memberId: member?.id || '', // Se actualizará después para nuevos miembros
         };
 
-        const baptismData = {
+        // Only add photoURL if it exists
+        if (photoURL) {
+          convertData.photoURL = photoURL;
+        }
+
+        const baptismData: any = {
           name: `${values.firstName.trim()} ${values.lastName.trim()}`,
           date: Timestamp.fromDate(values.baptismDate),
           source: 'Automático',
-          photoURL: photoURL || undefined,
           baptismPhotos: baptismPhotoURLs,
           createdAt: Timestamp.now(),
         };
+
+        // Only add photoURL if it exists
+        if (photoURL) {
+          baptismData.photoURL = photoURL;
+        }
 
         // Importar dinámicamente para evitar dependencias circulares
         const { addDoc, collection, query, where, getDocs, deleteDoc, doc, updateDoc: updateDocImported } = await import('firebase/firestore');
@@ -667,14 +675,13 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         });
         console.log('✅ Member updated successfully:', { memberId: member.id, updatedData: memberData });
       } else {
-        const newMember = {
+        const newMember: any = {
           firstName: values.firstName.trim(),
           lastName: values.lastName.trim(),
           status: values.status,
           phoneNumber: values.phoneNumber?.trim() ? values.phoneNumber.trim() : undefined,
           birthDate: values.birthDate ? Timestamp.fromDate(values.birthDate) : undefined,
           baptismDate: values.baptismDate ? Timestamp.fromDate(values.baptismDate) : undefined,
-          photoURL: photoURL || undefined,
           baptismPhotos: baptismPhotoURLs,
           ordinances: values.ordinances || [],
           ministeringTeachers: values.ministeringTeachers || [],
@@ -682,6 +689,11 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           updatedAt: Timestamp.now(),
           createdBy: user.uid,
         };
+
+        // Only add photoURL if it exists
+        if (photoURL) {
+          newMember.photoURL = photoURL;
+        }
 
         const newMemberId = await createMember(newMember as any);
 

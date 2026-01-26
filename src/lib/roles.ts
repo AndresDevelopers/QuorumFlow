@@ -1,4 +1,4 @@
-export type UserRole = 'user' | 'counselor' | 'president' | 'secretary';
+export type UserRole = 'user' | 'counselor' | 'president' | 'secretary' | 'other';
 
 export const normalizeRole = (role?: unknown): UserRole => {
   if (typeof role !== 'string') {
@@ -23,6 +23,10 @@ export const normalizeRole = (role?: unknown): UserRole => {
     return 'counselor';
   }
 
+  if (normalized === 'other' || normalized === 'otro') {
+    return 'other';
+  }
+
   return 'user';
 };
 
@@ -31,6 +35,7 @@ export const assignableRoles: readonly UserRole[] = [
   'counselor',
   'president',
   'secretary',
+  'other',
 ];
 
 export const leadershipRoles: readonly UserRole[] = [

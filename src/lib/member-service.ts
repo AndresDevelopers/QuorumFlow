@@ -138,10 +138,9 @@ export async function createConvertRecords(
 
   const fullName = `${formData.firstName.trim()} ${formData.lastName.trim()}`;
 
-  const convertData = {
+  const convertData: any = {
     name: fullName,
     baptismDate: Timestamp.fromDate(formData.baptismDate),
-    photoURL: photoURL || undefined,
     councilCompleted: false,
     observation: 'Registrado automáticamente desde Miembros',
     createdAt: Timestamp.now(),
@@ -149,14 +148,23 @@ export async function createConvertRecords(
     memberId: memberId || '',
   };
 
-  const baptismData = {
+  // Only add photoURL if it exists
+  if (photoURL) {
+    convertData.photoURL = photoURL;
+  }
+
+  const baptismData: any = {
     name: fullName,
     date: Timestamp.fromDate(formData.baptismDate),
     source: 'Automático' as const,
-    photoURL: photoURL || undefined,
     baptismPhotos: baptismPhotoURLs,
     createdAt: Timestamp.now(),
   };
+
+  // Only add photoURL if it exists
+  if (photoURL) {
+    baptismData.photoURL = photoURL;
+  }
 
   const convertDocRef = await addDoc(collection(firestore, 'converts'), convertData);
   await addDoc(collection(firestore, 'c_bautismos'), baptismData);

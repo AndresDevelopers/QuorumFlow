@@ -21,6 +21,7 @@ interface AuthContextType {
   loading: boolean;
   firebaseUser: FirebaseUser | null;
   userRole: UserRole | null;
+  mainPage: string;
   refreshAuth: () => Promise<void>;
 }
 
@@ -38,6 +39,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [mainPage, setMainPage] = useState<string>('/');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -71,6 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         const data = userDoc.data();
         setUserRole(normalizeRole(data.role));
+        setMainPage(data.mainPage || '/');
       } catch {
         setUserRole(normalizeRole(undefined));
       }
@@ -91,7 +94,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const value = { user, loading, firebaseUser, userRole, refreshAuth };
+  const value = { user, loading, firebaseUser, userRole, mainPage, refreshAuth };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
