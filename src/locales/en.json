@@ -311,6 +311,8 @@
   "memberProfile.birthDate": "Birth Date",
   "memberProfile.baptismDate": "Baptism Date",
   "memberProfile.phoneNumber": "Phone Number",
+  "memberProfile.memberId": "Member ID / ID Card",
+  "memberProfile.memberIdDescription": "Optional. Member identifier or ID card.",
   "memberProfile.photo": "Profile Photo",
   "memberProfile.baptismPhotos": "Baptism Photos",
   "memberProfile.ministeringTeachers": "Ministering Teachers",

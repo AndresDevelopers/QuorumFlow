@@ -13,7 +13,7 @@ import logger from '@/lib/logger';
 
 // Dynamically import Sentry only if available
 let Sentry: any = null;
-if (typeof window !== 'undefined') {
+if (typeof globalThis.window !== 'undefined') {
   try {
     Sentry = require('@sentry/nextjs');
   } catch (error) {
@@ -35,7 +35,7 @@ function getErrorMessage(error: any): string {
     try {
       return JSON.stringify(error, null, 2);
     } catch (e) {
-      // Ignore serialization errors
+      logger.warn({ error: e, message: 'Failed to serialize error for display' });
     }
   }
   return 'Ocurrió un error desconocido.';

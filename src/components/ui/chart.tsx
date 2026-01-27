@@ -92,6 +92,18 @@ ${colorConfig
   })
   .join("\n")}
 }
+${colorConfig
+  .map(
+    ([key]) => `
+${prefix} [data-chart=${id}] .chart-tooltip-indicator[data-series="${key}"] {
+  --color-bg: var(--color-${key});
+  --color-border: var(--color-${key});
+}
+${prefix} [data-chart=${id}] .chart-legend-swatch[data-series="${key}"] {
+  background-color: var(--color-${key});
+}`
+  )
+  .join("\n")}
 `
           )
           .join("\n"),
@@ -188,7 +200,7 @@ const ChartTooltipContent = React.forwardRef<
           {payload.map((item: any, index: number) => {
             const key = `${nameKey || item.name || item.dataKey || "value"}`
             const itemConfig = getPayloadConfigFromPayload(config, item, key)
-            const indicatorColor = color || item.payload.fill || item.color
+            const indicatorKey = key
 
             return (
               <div
@@ -207,8 +219,9 @@ const ChartTooltipContent = React.forwardRef<
                     ) : (
                       !hideIndicator && (
                         <div
+                          data-series={indicatorKey}
                           className={cn(
-                            "shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]",
+                            "chart-tooltip-indicator shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]",
                             {
                               "h-2.5 w-2.5": indicator === "dot",
                               "w-1": indicator === "line",
@@ -217,10 +230,6 @@ const ChartTooltipContent = React.forwardRef<
                               "my-0.5": nestLabel && indicator === "dashed",
                             }
                           )}
-                          style={{
-                            "--color-bg": indicatorColor,
-                            "--color-border": indicatorColor,
-                          } as React.CSSProperties}
                         />
                       )
                     )}
@@ -298,8 +307,8 @@ const ChartLegendContent = React.forwardRef<
                 <itemConfig.icon />
               ) : (
                 <div
-                  className="h-2 w-2 shrink-0 rounded-[2px]"
-                  style={{ backgroundColor: item.color } as React.CSSProperties}
+                  data-series={key}
+                  className="chart-legend-swatch h-2 w-2 shrink-0 rounded-[2px]"
                 />
               )}
               {itemConfig?.label}

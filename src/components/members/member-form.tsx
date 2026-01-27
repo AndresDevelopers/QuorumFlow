@@ -48,9 +48,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import type { Member, MemberStatus, Ordinance } from '@/lib/types';
 import { OrdinanceLabels } from '@/lib/types';
-import { createMember, updateMember, uploadMemberPhoto, uploadBaptismPhotos, getMembersForSelector, searchMembersByName } from '@/lib/members-data';
+import { createMember, updateMember, uploadMemberPhoto, uploadBaptismPhotos, getMembersForSelector, searchMembersByName, getMemberById } from '@/lib/members-data';
 import { syncMinisteringAssignments, getPreviousMinisteringTeachers } from '@/lib/ministering-sync';
 import { Timestamp } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
@@ -61,15 +62,38 @@ const memberFormSchema = z.object({
   firstName: z.string().min(1, 'El nombre es requerido'),
   lastName: z.string().min(1, 'El apellido es requerido'),
   phoneNumber: z.string().optional(),
+  memberId: z.string().optional(),
   address: z.string().optional(),
   birthDate: z.date().optional(),
   baptismDate: z.date().optional(),
   status: z.enum(['active', 'less_active', 'inactive'] as const),
   photoURL: z.string().nullable().optional(),
   baptismPhotos: z.array(z.string()).optional(),
-  ordinances: z.array(z.enum(['baptism', 'confirmation', 'elder_ordination', 'endowment', 'sealed_spouse', 'high_priest_ordination'] as const)).optional(),
+  ordinances: z.array(z.enum(['baptism', 'confirmation', 'elder_ordination', 'endowment', 'sealed_spouse', 'high_priest_ordination', 'aronico_ordination'] as const)).optional(),
   ministeringTeachers: z.array(z.string()).optional(),
 });
+
+const normalizeMemberStatus = (status?: string | null): MemberStatus => {
+  if (!status) return 'active';
+
+  const normalized = status.toLowerCase().trim();
+  if (['inactive', 'inactivo'].includes(normalized)) return 'inactive';
+  if (['less_active', 'less active', 'menos activo', 'menos_activo'].includes(normalized)) {
+    return 'less_active';
+  }
+  if (['active', 'activo'].includes(normalized)) return 'active';
+
+  return 'active';
+};
+
+const deriveMemberStatus = (member?: Member | null): MemberStatus => {
+  if (!member) return 'active';
+
+  if (member.inactiveSince) return 'inactive';
+  if (member.lessActiveObservation || member.lessActiveCompletedAt) return 'less_active';
+
+  return normalizeMemberStatus(member.status);
+};
 
 type MemberFormValues = z.infer<typeof memberFormSchema>;
 
@@ -81,7 +105,9 @@ interface MemberFormProps {
 export function MemberForm({ member, onClose }: MemberFormProps) {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { t } = useI18n();
   const [loading, setLoading] = useState(false);
+  const [resolvedMember, setResolvedMember] = useState<Member | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [baptismPhotoFiles, setBaptismPhotoFiles] = useState<File[]>([]);
@@ -106,6 +132,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       firstName: '',
       lastName: '',
       phoneNumber: '',
+      memberId: '',
       status: 'active',
       photoURL: undefined,
       baptismDate: undefined,
@@ -114,12 +141,40 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
     },
   });
 
+  // Cargar datos reales del miembro (por ID) para asegurar estado correcto
+  useEffect(() => {
+    let isActive = true;
+
+    if (!member?.id) {
+      setResolvedMember(member ?? null);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    getMemberById(member.id)
+      .then((freshMember) => {
+        if (isActive) {
+          setResolvedMember(freshMember ?? member);
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setResolvedMember(member);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [member]);
+
   // Cargar datos del miembro al formulario
   useEffect(() => {
     console.log('🔄 Loading member data in form:', {
-      member,
-      hasMember: !!member,
-      memberId: member?.id
+      member: resolvedMember ?? member,
+      hasMember: !!(resolvedMember ?? member),
+      memberId: resolvedMember?.id ?? member?.id
     });
 
     // Reset loading state when member changes
@@ -131,40 +186,44 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
     setAllowContinueWithDuplicate(false);
     setDuplicateDecisionMade(false);
 
-    if (member) {
+    const currentMember = resolvedMember ?? member;
+
+    if (currentMember) {
       // Convertir Timestamps a Date y preparar valores para el formulario
-      const birthDateValue = safeGetDate((member as any).birthDate) ?? undefined;
-      const baptismDateValue = safeGetDate((member as any).baptismDate) ?? undefined;
+      const birthDateValue = safeGetDate((currentMember as any).birthDate) ?? undefined;
+      const baptismDateValue = safeGetDate((currentMember as any).baptismDate) ?? undefined;
       
       const valuesToSet = {
-        firstName: member.firstName || '',
-        lastName: member.lastName || '',
-        phoneNumber: member.phoneNumber || '',
+        firstName: currentMember.firstName || '',
+        lastName: currentMember.lastName || '',
+        phoneNumber: currentMember.phoneNumber || '',
+        memberId: currentMember.memberId || '',
         birthDate: birthDateValue,
         baptismDate: baptismDateValue,
-        status: member.status || 'active',
-        photoURL: (member.photoURL && member.photoURL.trim()) ?? undefined,
-        baptismPhotos: member.baptismPhotos || [],
-        ordinances: member.ordinances || [],
-        ministeringTeachers: member.ministeringTeachers || []
+        status: deriveMemberStatus(currentMember),
+        photoURL: (currentMember.photoURL && currentMember.photoURL.trim()) ?? undefined,
+        baptismPhotos: currentMember.baptismPhotos || [],
+        ordinances: currentMember.ordinances || [],
+        ministeringTeachers: currentMember.ministeringTeachers || []
       };
 
       console.log('📝 Setting form values:', valuesToSet);
-      console.log('📷 Photo URL:', member.photoURL);
-      console.log('📅 Birth date:', { raw: member.birthDate, converted: birthDateValue });
-      console.log('🎂 Baptism date:', { raw: member.baptismDate, converted: baptismDateValue });
-      console.log('🎯 Status value:', { raw: member.status, final: valuesToSet.status });
+      console.log('📷 Photo URL:', currentMember.photoURL);
+      console.log('📅 Birth date:', { raw: currentMember.birthDate, converted: birthDateValue });
+      console.log('🎂 Baptism date:', { raw: currentMember.baptismDate, converted: baptismDateValue });
+      console.log('🎯 Status value:', { raw: currentMember.status, final: valuesToSet.status });
 
       // Reset form with new values and trigger validation
       form.reset(valuesToSet);
+      form.setValue('status', valuesToSet.status, { shouldValidate: true });
 
       // Set photo preview - treat empty strings as no photo
-      const photoUrl = member.photoURL && member.photoURL.trim() ? member.photoURL : null;
+      const photoUrl = currentMember.photoURL && currentMember.photoURL.trim() ? currentMember.photoURL : null;
       setPhotoPreview(photoUrl);
       setPhotoFile(null); // Clear any selected file when loading existing member
       
       // Set baptism photos
-      setBaptismPhotoPreviews(member.baptismPhotos || []);
+      setBaptismPhotoPreviews(currentMember.baptismPhotos || []);
       setBaptismPhotoFiles([]); // Clear any selected files when loading existing member
       
       // Actualizar los estados locales de los inputs de fecha
@@ -180,6 +239,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         firstName: '',
         lastName: '',
         phoneNumber: '',
+        memberId: '',
         status: 'active',
         photoURL: undefined,
         birthDate: undefined,
@@ -188,6 +248,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         ordinances: [],
         ministeringTeachers: [],
       });
+      form.setValue('status', 'active', { shouldValidate: true });
       setPhotoPreview(null);
       setPhotoFile(null);
       setBaptismPhotoPreviews([]);
@@ -203,7 +264,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       setAllowContinueWithDuplicate(false);
       setDuplicateDecisionMade(false);
     }
-  }, [member, form]);
+  }, [member, resolvedMember, form]);
 
   // Cargar miembros disponibles para ministrantes
   const loadAvailableMembers = useCallback(async () => {
@@ -286,6 +347,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
 
   const watchedFirstName = useWatch({ control: form.control, name: 'firstName' });
   const watchedLastName = useWatch({ control: form.control, name: 'lastName' });
+  const watchedStatus = useWatch({ control: form.control, name: 'status' });
 
   // Efecto para verificar duplicados automáticamente al escribir
   useEffect(() => {
@@ -560,6 +622,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         status: values.status,
         // Manejar campos opcionales: usar el valor del formulario si está presente, sino undefined para limpiar
         phoneNumber: values.phoneNumber?.trim() ? values.phoneNumber.trim() : undefined,
+        memberId: values.memberId?.trim() ? values.memberId.trim() : undefined,
         birthDate: values.birthDate ? values.birthDate.toISOString() : undefined,
         baptismDate: values.baptismDate ? values.baptismDate.toISOString() : undefined,
         photoURL: photoURL as any,
@@ -646,6 +709,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           lastName: values.lastName.trim(),
           status: values.status,
           phoneNumber: values.phoneNumber?.trim() ? values.phoneNumber.trim() : undefined,
+          memberId: values.memberId?.trim() ? values.memberId.trim() : undefined,
           birthDate: values.birthDate ? Timestamp.fromDate(values.birthDate) : undefined,
           baptismDate: values.baptismDate ? Timestamp.fromDate(values.baptismDate) : undefined,
           photoURL: photoURL as any,
@@ -680,6 +744,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           lastName: values.lastName.trim(),
           status: values.status,
           phoneNumber: values.phoneNumber?.trim() ? values.phoneNumber.trim() : undefined,
+          memberId: values.memberId?.trim() ? values.memberId.trim() : undefined,
           birthDate: values.birthDate ? Timestamp.fromDate(values.birthDate) : undefined,
           baptismDate: values.baptismDate ? Timestamp.fromDate(values.baptismDate) : undefined,
           baptismPhotos: baptismPhotoURLs,
@@ -927,6 +992,27 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
               </FormControl>
               <FormDescription>
                 Opcional. Incluye el código de país si es necesario.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Member ID */}
+        <FormField
+          control={form.control}
+          name="memberId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('memberProfile.memberId')}</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Ej: 123456"
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription>
+                {t('memberProfile.memberIdDescription')}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -1207,7 +1293,10 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Estado de Actividad *</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
+              <Select
+                onValueChange={field.onChange}
+                value={normalizeMemberStatus(watchedStatus)}
+              >
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona el estado" />

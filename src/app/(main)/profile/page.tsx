@@ -21,6 +21,7 @@ import { es } from 'date-fns/locale';
 
 interface UserProfileData {
     birthDate?: Timestamp;
+    memberId?: string | null;
 }
 
 export default function ProfilePage() {
@@ -95,6 +96,11 @@ export default function ProfilePage() {
                     {profileData?.birthDate && (
                         <CardDescription>
                             Nacimiento: {format(profileData.birthDate.toDate(), 'd LLLL yyyy', { locale: es })}
+                        </CardDescription>
+                    )}
+                    {profileData?.memberId && (
+                        <CardDescription>
+                            Cédula de miembro: {profileData.memberId}
                         </CardDescription>
                     )}
                 </>

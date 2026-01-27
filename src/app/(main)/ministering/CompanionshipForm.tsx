@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -54,9 +54,10 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
    // New state for dual mode functionality
    // En modo edición, iniciar en modo manual para mostrar los valores existentes
    const [companionEntryMode, setCompanionEntryMode] = useState<'manual' | 'automatic'>(isEditMode ? 'manual' : 'automatic');
-   const [familyEntryMode, setFamilyEntryMode] = useState<'manual' | 'automatic'>(isEditMode ? 'manual' : 'automatic');
+  const [familyEntryMode, setFamilyEntryMode] = useState<'manual' | 'automatic'>(isEditMode ? 'manual' : 'automatic');
    const [members, setMembers] = useState<Member[]>([]);
-   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const entryModeInitializedRef = useRef(false);
 
   const defaultValues = isEditMode
   ? {
@@ -90,26 +91,46 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
     loadMembers();
   }, [loadMembers]);
 
+  useEffect(() => {
+    if (!isEditMode || entryModeInitializedRef.current || members.length === 0 || !companionship) {
+      return;
+    }
+
+    const companionsMatch = companionship.companions.every((companion) =>
+      members.some((member) => `${member.firstName} ${member.lastName}` === companion)
+    );
+
+    const familiesMatch = companionship.families.every((family) =>
+      members.some((member) => `Familia ${member.lastName}` === family.name)
+    );
+
+    if (companionsMatch) {
+      setCompanionEntryMode('automatic');
+    }
+
+    if (familiesMatch) {
+      setFamilyEntryMode('automatic');
+    }
+
+    entryModeInitializedRef.current = true;
+  }, [companionship, isEditMode, members]);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(companionshipSchema),
     defaultValues,
   });
 
-  // Handle member selection for companions
-  const handleCompanionMemberSelect = (memberId: string, index: number) => {
-    const member = members.find(m => m.id === memberId);
-    if (member) {
-      form.setValue(`companions.${index}.value`, `${member.firstName} ${member.lastName}`);
-    }
+  const getCompanionMemberId = (name: string) => {
+    if (!name) return '';
+    const member = members.find(m => `${m.firstName} ${m.lastName}` === name);
+    return member?.id ?? '';
   };
 
-  // Handle member selection for families
-  const handleFamilyMemberSelect = (memberId: string, index: number) => {
-    const member = members.find(m => m.id === memberId);
-    if (member) {
-      // Use family name format (could be last name or full name based on your preference)
-      form.setValue(`families.${index}.value`, `Familia ${member.lastName}`);
-    }
+  const getFamilyMemberId = (familyName: string) => {
+    if (!familyName) return '';
+    const lastName = familyName.replace('Familia ', '').trim();
+    const member = members.find(m => m.lastName === lastName);
+    return member?.id ?? '';
   };
 
   // Handle entry mode changes
@@ -312,28 +333,39 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
             <div className="space-y-4">
               <div>
                 <Label className="text-base font-medium">Método de Registro - Compañeros</Label>
-                <p className="text-sm text-muted-foreground">Selecciona cómo deseas registrar los compañeros</p>
+                <p className="text-sm text-muted-foreground">
+                  {isEditMode
+                    ? 'Selecciona cómo deseas registrar los compañeros'
+                    : 'Registro automático habilitado para nuevos compañerismos'}
+                </p>
               </div>
-              <RadioGroup
-                value={companionEntryMode}
-                onValueChange={(value) => handleCompanionModeChange(value as 'manual' | 'automatic')}
-                className="flex flex-col space-y-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="manual" id="companion-manual" />
-                  <Label htmlFor="companion-manual" className="flex items-center gap-2 cursor-pointer">
-                    <Edit3 className="h-4 w-4" />
-                    Manual - Ingresar nombres manualmente
-                  </Label>
+              {isEditMode ? (
+                <RadioGroup
+                  value={companionEntryMode}
+                  onValueChange={(value) => handleCompanionModeChange(value as 'manual' | 'automatic')}
+                  className="flex flex-col space-y-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="manual" id="companion-manual" />
+                    <Label htmlFor="companion-manual" className="flex items-center gap-2 cursor-pointer">
+                      <Edit3 className="h-4 w-4" />
+                      Manual - Ingresar nombres manualmente
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="automatic" id="companion-automatic" />
+                    <Label htmlFor="companion-automatic" className="flex items-center gap-2 cursor-pointer">
+                      <UserCheck className="h-4 w-4" />
+                      Automático - Seleccionar miembros existentes
+                    </Label>
+                  </div>
+                </RadioGroup>
+              ) : (
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                  <UserCheck className="h-4 w-4" />
+                  <span>Automático - Seleccionar miembros existentes</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="automatic" id="companion-automatic" />
-                  <Label htmlFor="companion-automatic" className="flex items-center gap-2 cursor-pointer">
-                    <UserCheck className="h-4 w-4" />
-                    Automático - Seleccionar miembros existentes
-                  </Label>
-                </div>
-              </RadioGroup>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -347,28 +379,40 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
                     <FormItem>
                       <div className="flex items-center gap-2">
                         {companionEntryMode === 'automatic' ? (
-                          <Select onValueChange={(value) => handleCompanionMemberSelect(value, index)} disabled={loadingMembers}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder={loadingMembers ? "Cargando..." : `Seleccionar compañero ${index + 1}`} />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {members.map((member) => (
-                                <SelectItem key={member.id} value={member.id}>
-                                  <div className="flex items-center gap-2">
-                                    <Avatar className="h-6 w-6">
-                                      <AvatarImage src={member.photoURL} />
-                                      <AvatarFallback className="text-xs">
-                                        {member.firstName.charAt(0)}{member.lastName.charAt(0)}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    {member.firstName} {member.lastName}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <>
+                            <Select
+                              value={getCompanionMemberId(field.value)}
+                              onValueChange={(value) => {
+                                const member = members.find(m => m.id === value);
+                                if (member) {
+                                  field.onChange(`${member.firstName} ${member.lastName}`);
+                                }
+                              }}
+                              disabled={loadingMembers}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder={loadingMembers ? "Cargando..." : `Seleccionar compañero ${index + 1}`} />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {members.map((member) => (
+                                  <SelectItem key={member.id} value={member.id}>
+                                    <div className="flex items-center gap-2">
+                                      <Avatar className="h-6 w-6">
+                                        <AvatarImage src={member.photoURL} />
+                                        <AvatarFallback className="text-xs">
+                                          {member.firstName.charAt(0)}{member.lastName.charAt(0)}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      {member.firstName} {member.lastName}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <input type="hidden" {...field} />
+                          </>
                         ) : (
                           <FormControl>
                             <Input {...field} placeholder={`Compañero ${index + 1}`} />
@@ -428,28 +472,40 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
                     <FormItem>
                       <div className="flex items-center gap-2">
                         {familyEntryMode === 'automatic' ? (
-                          <Select onValueChange={(value) => handleFamilyMemberSelect(value, index)} disabled={loadingMembers}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder={loadingMembers ? "Cargando..." : `Seleccionar familia ${index + 1}`} />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {members.map((member) => (
-                                <SelectItem key={member.id} value={member.id}>
-                                  <div className="flex items-center gap-2">
-                                    <Avatar className="h-6 w-6">
-                                      <AvatarImage src={member.photoURL} />
-                                      <AvatarFallback className="text-xs">
-                                        {member.firstName.charAt(0)}{member.lastName.charAt(0)}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    Familia {member.lastName}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <>
+                            <Select
+                              value={getFamilyMemberId(field.value)}
+                              onValueChange={(value) => {
+                                const member = members.find(m => m.id === value);
+                                if (member) {
+                                  field.onChange(`Familia ${member.lastName}`);
+                                }
+                              }}
+                              disabled={loadingMembers}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder={loadingMembers ? "Cargando..." : `Seleccionar familia ${index + 1}`} />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {members.map((member) => (
+                                  <SelectItem key={member.id} value={member.id}>
+                                    <div className="flex items-center gap-2">
+                                      <Avatar className="h-6 w-6">
+                                        <AvatarImage src={member.photoURL} />
+                                        <AvatarFallback className="text-xs">
+                                          {member.firstName.charAt(0)}{member.lastName.charAt(0)}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      Familia {member.lastName}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <input type="hidden" {...field} />
+                          </>
                         ) : (
                           <FormControl>
                             <Input {...field} placeholder={`Familia ${index + 1}`} />

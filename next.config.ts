@@ -11,7 +11,7 @@ if (isSentryEnabled) {
     const sentryModule = require('@sentry/nextjs');
     withSentryConfig = sentryModule.withSentryConfig;
   } catch (error) {
-    console.warn('⚠️ Sentry module not found. Building without Sentry integration.');
+    console.warn('⚠️ Sentry module not found. Building without Sentry integration.', error);
   }
 }
 

@@ -84,6 +84,42 @@ export function BirthdayForm({ isOpen, onOpenChange, onFormSubmit, birthday }: B
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [entryMode, setEntryMode] = useState<'manual' | 'automatic'>('manual');
 
+  const renderMemberOptions = () => {
+    if (loadingMembers) {
+      return (
+        <SelectItem value="loading" disabled>
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>{t('birthdayForm.loadingMembers')}</span>
+          </div>
+        </SelectItem>
+      );
+    }
+
+    if (members.length === 0) {
+      return (
+        <SelectItem value="no-members" disabled>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Users className="h-4 w-4" />
+            <span>{t('birthdayForm.noMembers')}</span>
+          </div>
+        </SelectItem>
+      );
+    }
+
+    return members.map((member) => (
+      <SelectItem key={member.id} value={member.id}>
+        <div className="flex items-center gap-3">
+          <Avatar className="h-6 w-6">
+            <AvatarImage src={member.photoURL} data-ai-hint="member avatar" />
+            <AvatarFallback className="text-xs">{member.firstName.charAt(0)}</AvatarFallback>
+          </Avatar>
+          <span>{member.firstName} {member.lastName}</span>
+        </div>
+      </SelectItem>
+    ));
+  };
+
   const form = useForm<FormValues>({
     resolver: zodResolver(birthdaySchema),
     defaultValues: { 
@@ -169,10 +205,44 @@ export function BirthdayForm({ isOpen, onOpenChange, onFormSubmit, birthday }: B
   
   const removeImage = () => {
     setSelectedFile(null);
-    setPreviewUrl(isEditMode ? null : null); // Keep existing image in edit mode until save
+    setPreviewUrl(null); // Keep existing image in edit mode until save
     if (fileInputRef.current) {
         fileInputRef.current.value = '';
     }
+  };
+
+  const removeStoredImage = async (photoUrl?: string | null) => {
+    if (!photoUrl?.startsWith('https://firebasestorage.googleapis.com')) {
+      return;
+    }
+
+    const oldImageRef = ref(storage, photoUrl);
+    await deleteObject(oldImageRef).catch(err => logger.warn({ err, message: 'Image could not be deleted' }));
+  };
+
+  const uploadNewImage = async (file: File) => {
+    const storageRef = ref(storage, `profile_pictures/birthdays/${user?.uid}/${Date.now()}_${file.name}`);
+    await uploadBytes(storageRef, file);
+    return getDownloadURL(storageRef);
+  };
+
+  const resolvePhotoUrl = async () => {
+    if (selectedFile) {
+      const uploadedUrl = await uploadNewImage(selectedFile);
+
+      if (isEditMode) {
+        await removeStoredImage(birthday?.photoURL ?? null);
+      }
+
+      return uploadedUrl;
+    }
+
+    if (isEditMode && !previewUrl) {
+      await removeStoredImage(birthday?.photoURL ?? null);
+      return null;
+    }
+
+    return birthday?.photoURL ?? null;
   };
 
   // Handle entry mode change
@@ -222,28 +292,9 @@ export function BirthdayForm({ isOpen, onOpenChange, onFormSubmit, birthday }: B
     }
     
     setIsSubmitting(true);
-    let finalPhotoURL = birthday?.photoURL || null;
 
     try {
-        // Handle image upload if a new file is selected
-        if (selectedFile) {
-            const storageRef = ref(storage, `profile_pictures/birthdays/${user.uid}/${Date.now()}_${selectedFile.name}`);
-            await uploadBytes(storageRef, selectedFile);
-            finalPhotoURL = await getDownloadURL(storageRef);
-
-            // If it's edit mode and there was an old photo, delete it
-            if (isEditMode && birthday?.photoURL && birthday.photoURL.startsWith('https://firebasestorage.googleapis.com')) {
-                 const oldImageRef = ref(storage, birthday.photoURL);
-                 await deleteObject(oldImageRef).catch(err => logger.warn({err, message: "Old image could not be deleted"}));
-            }
-        } else if (isEditMode && !previewUrl && birthday?.photoURL) {
-            // Handle image removal
-            if (birthday.photoURL.startsWith('https://firebasestorage.googleapis.com')) {
-                const oldImageRef = ref(storage, birthday.photoURL);
-                await deleteObject(oldImageRef).catch(err => logger.warn({err, message: "Image to be removed could not be deleted"}));
-            }
-            finalPhotoURL = null;
-        }
+      const finalPhotoURL = await resolvePhotoUrl();
 
       const dataToSave = {
         name: values.name,
@@ -345,35 +396,7 @@ export function BirthdayForm({ isOpen, onOpenChange, onFormSubmit, birthday }: B
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {loadingMembers ? (
-                              <SelectItem value="loading" disabled>
-                                <div className="flex items-center gap-2">
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  <span>{t('birthdayForm.loadingMembers')}</span>
-                                </div>
-                              </SelectItem>
-                            ) : members.length === 0 ? (
-                              <SelectItem value="no-members" disabled>
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                  <Users className="h-4 w-4" />
-                                  <span>{t('birthdayForm.noMembers')}</span>
-                                </div>
-                              </SelectItem>
-                            ) : (
-                              members.map((member) => (
-                                <SelectItem key={member.id} value={member.id}>
-                                  <div className="flex items-center gap-3">
-                                    <Avatar className="h-6 w-6">
-                                      <AvatarImage src={member.photoURL} data-ai-hint="member avatar" />
-                                      <AvatarFallback className="text-xs">
-                                        {member.firstName.charAt(0)}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    <span>{member.firstName} {member.lastName}</span>
-                                  </div>
-                                </SelectItem>
-                              ))
-                            )}
+                            {renderMemberOptions()}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -475,9 +498,9 @@ export function BirthdayForm({ isOpen, onOpenChange, onFormSubmit, birthday }: B
 
                           if (match) {
                             const [, dayStr, monthStr, yearStr] = match;
-                            const day = parseInt(dayStr, 10);
-                            const month = parseInt(monthStr, 10) - 1; // JavaScript months are 0-indexed
-                            const year = parseInt(yearStr, 10);
+                            const day = Number.parseInt(dayStr, 10);
+                            const month = Number.parseInt(monthStr, 10) - 1; // JavaScript months are 0-indexed
+                            const year = Number.parseInt(yearStr, 10);
                             const currentYear = new Date().getFullYear();
 
                             // Validate ranges

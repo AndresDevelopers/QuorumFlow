@@ -19,6 +19,8 @@ export async function removeMinisteringTeachersFromFamilies(
   familyNames: string[]
 ): Promise<void> {
   try {
+    const normalizedCompanions = companionNames.map(name => name.trim().toLowerCase());
+
     console.log('🔄 Removing ministering teachers from families:', {
       companions: companionNames,
       families: familyNames
@@ -42,7 +44,7 @@ export async function removeMinisteringTeachersFromFamilies(
           if (member.ministeringTeachers && member.ministeringTeachers.length > 0) {
             // Filtrar los maestros que pertenecen a este compañerismo
             const updatedTeachers = member.ministeringTeachers.filter(
-              teacher => !companionNames.includes(teacher)
+              teacher => !normalizedCompanions.includes(teacher.trim().toLowerCase())
             );
 
             // Solo actualizar si hubo cambios

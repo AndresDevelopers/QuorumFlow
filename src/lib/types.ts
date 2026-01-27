@@ -210,7 +210,8 @@ export type Ordinance =
     | 'elder_ordination' 
     | 'endowment' 
     | 'sealed_spouse' 
-    | 'high_priest_ordination';
+    | 'high_priest_ordination'
+    | 'aronico_ordination';
 
 export const OrdinanceLabels: Record<Ordinance, string> = {
     baptism: 'Bautismo',
@@ -218,7 +219,8 @@ export const OrdinanceLabels: Record<Ordinance, string> = {
     elder_ordination: 'Ordenado élder',
     endowment: 'Investidura',
     sealed_spouse: 'Sellado(a) al cónyuge',
-    high_priest_ordination: 'Ordenado sumo sacerdote'
+    high_priest_ordination: 'Ordenado sumo sacerdote',
+    aronico_ordination: 'Ordenado Aarónico'
 };
 
 export type Member = {
@@ -230,6 +232,7 @@ export type Member = {
     baptismDate?: Timestamp; // Fecha de bautismo del miembro
     baptismPhotos?: string[]; // Fotos del bautismo
     phoneNumber?: string;
+    memberId?: string;
     address?: string; // Dirección del miembro
     status: MemberStatus;
     ordinances?: Ordinance[]; // Ordenanzas recibidas

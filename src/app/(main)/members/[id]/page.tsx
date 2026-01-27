@@ -18,7 +18,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
-import type { Member } from '@/lib/types';
+import type { Member, MemberStatus } from '@/lib/types';
 import { OrdinanceLabels } from '@/lib/types';
 import { getMemberById } from '@/lib/members-data';
 import { format } from 'date-fns';
@@ -40,6 +40,19 @@ const statusConfig = {
     variant: 'destructive' as const,
     color: 'text-red-600'
   }
+};
+
+const normalizeMemberStatus = (status?: unknown): MemberStatus => {
+  if (typeof status !== 'string') return 'active';
+
+  const normalized = status.toLowerCase().trim();
+  if (['inactive', 'inactivo'].includes(normalized)) return 'inactive';
+  if (['less_active', 'less active', 'menos activo', 'menos_activo'].includes(normalized)) {
+    return 'less_active';
+  }
+  if (['active', 'activo'].includes(normalized)) return 'active';
+
+  return 'active';
 };
 
 export default function MemberProfilePage() {
@@ -152,7 +165,7 @@ export default function MemberProfilePage() {
     );
   }
 
-  const statusInfo = statusConfig[member.status];
+  const statusInfo = statusConfig[normalizeMemberStatus(member.status)];
 
   return (
     <section className="page-section">
@@ -301,6 +314,14 @@ export default function MemberProfilePage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {member.memberId && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  {t('memberProfile.memberId')}
+                </label>
+                <p className="text-sm">{member.memberId}</p>
+              </div>
+            )}
             {member.baptismDate && (
               <div>
                 <label className="text-sm font-medium text-muted-foreground">

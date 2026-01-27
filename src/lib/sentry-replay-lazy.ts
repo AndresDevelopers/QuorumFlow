@@ -11,7 +11,7 @@ try {
   sentryModule = require('@sentry/nextjs');
   getCurrentHub = sentryModule.getCurrentHub;
 } catch (error) {
-  // Sentry is optional
+  console.warn('⚠️ Sentry module not found. Session Replay disabled.', error);
 }
 
 interface ReplayOptions {

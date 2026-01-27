@@ -385,6 +385,8 @@
   "memberProfile.birthDate": "Fecha de Nacimiento",
   "memberProfile.baptismDate": "Fecha de Bautismo",
   "memberProfile.phoneNumber": "Número de Teléfono",
+  "memberProfile.memberId": "ID de Miembro / Cédula",
+  "memberProfile.memberIdDescription": "Opcional. Identificador o cédula del miembro.",
   "memberProfile.photo": "Foto de Perfil",
   "memberProfile.baptismPhotos": "Fotos de Bautismo",
   "memberProfile.ministeringTeachers": "Maestros Ministrantes",

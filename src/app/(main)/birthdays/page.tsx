@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useEffect, useState, useTransition, useRef, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { getDocs, Timestamp, deleteDoc, doc, query, orderBy, collection, where } from 'firebase/firestore';
+import { getDocs, Timestamp, deleteDoc, doc, query, orderBy, where } from 'firebase/firestore';
 import { birthdaysCollection, membersCollection, storage } from '@/lib/collections';
 import type { Birthday, Member } from '@/lib/types';
 import { deleteObject, ref } from 'firebase/storage';
@@ -37,7 +37,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { PlusCircle, Trash2, Pencil } from 'lucide-react';
+import { Trash2, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -94,7 +94,9 @@ async function getBirthdays(): Promise<Birthday[]> {
   }
 }
 
-function getUpcomingBirthdays(birthdays: Birthday[]): Birthday[] {
+type BirthdayWithNext = Birthday & { nextBirthday: Date };
+
+function getUpcomingBirthdays(birthdays: Birthday[]): BirthdayWithNext[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
@@ -112,7 +114,7 @@ function getUpcomingBirthdays(birthdays: Birthday[]): Birthday[] {
 
 export default function BirthdaysPage() {
   const { user, loading: authLoading } = useAuth();
-  const [birthdays, setBirthdays] = useState<Birthday[]>([]);
+  const [birthdays, setBirthdays] = useState<BirthdayWithNext[]>([]);
   const [loading, setLoading] = useState(true);
 
   const { toast } = useToast();
@@ -178,8 +180,81 @@ export default function BirthdaysPage() {
     const today = new Date();
     const twoWeeksFromNow = new Date();
     twoWeeksFromNow.setDate(today.getDate() + 14);
-    return (b as any).nextBirthday >= today && (b as any).nextBirthday <= twoWeeksFromNow;
+    return b.nextBirthday >= today && b.nextBirthday <= twoWeeksFromNow;
   });
+
+  const loadingRowIds = ['loading-1', 'loading-2', 'loading-3'];
+
+  let tableContent: React.ReactNode;
+
+  if (loading) {
+    tableContent = loadingRowIds.map((rowId) => (
+      <TableRow key={rowId}>
+        <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+        <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+        <TableCell className="text-right"><Skeleton className="h-8 w-8 inline-block" /></TableCell>
+      </TableRow>
+    ));
+  } else if (birthdays.length === 0) {
+    tableContent = (
+      <TableRow>
+        <TableCell colSpan={3} className="h-24 text-center">
+          {t('birthdays.noData')}
+        </TableCell>
+      </TableRow>
+    );
+  } else {
+    tableContent = birthdays.map((item) => (
+      <TableRow key={item.id}>
+        <TableCell className="font-medium">
+            <div className="flex items-center gap-3">
+                <Avatar className="h-8 w-8">
+                    <AvatarImage src={item.photoURL} data-ai-hint="person avatar" />
+                    <AvatarFallback>{item.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <span>{item.name}</span>
+            </div>
+        </TableCell>
+        <TableCell>
+          {format(item.nextBirthday, "d 'de' LLLL", { locale: es })}
+        </TableCell>
+        <TableCell className="text-right flex gap-2 justify-end">
+          {item.isMember ? (
+            <Button variant="ghost" size="icon" asChild>
+              <Link href={`/members?edit=${item.memberId}`} title={t('birthdays.editMember')}><Pencil className="h-4 w-4" /></Link>
+            </Button>
+          ) : (
+            <Button variant="ghost" size="icon" asChild>
+              <Link href={`/birthdays/${item.id}/edit`}><Pencil className="h-4 w-4" /></Link>
+            </Button>
+          )}
+          {(item.isMember === false || item.isMember === undefined) && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Eliminar cumpleaños">
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{t('birthdays.deleteDialogTitle')}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {t('birthdays.deleteDialogDescription').replace('{name}', item.name)}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t('birthdays.cancel')}</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => handleDelete(item)} className="bg-destructive hover:bg-destructive/90">
+                    {t('birthdays.delete')}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </TableCell>
+      </TableRow>
+    ));
+  }
 
   return (
     <section className="page-section">
@@ -253,72 +328,7 @@ export default function BirthdaysPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                    <TableCell className="text-right"><Skeleton className="h-8 w-8 inline-block" /></TableCell>
-                  </TableRow>
-                ))
-              ) : birthdays.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={3} className="h-24 text-center">
-                    {t('birthdays.noData')}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                birthdays.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">
-                        <div className="flex items-center gap-3">
-                            <Avatar className="h-8 w-8">
-                                <AvatarImage src={item.photoURL} data-ai-hint="person avatar" />
-                                <AvatarFallback>{item.name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <span>{item.name}</span>
-                        </div>
-                    </TableCell>
-                    <TableCell>
-                      {format((item as any).nextBirthday, "d 'de' LLLL", { locale: es })}
-                    </TableCell>
-                    <TableCell className="text-right flex gap-2 justify-end">
-                      {item.isMember ? (
-                        <Button variant="ghost" size="icon" asChild>
-                          <Link href={`/members?edit=${item.memberId}`} title={t('birthdays.editMember')}><Pencil className="h-4 w-4" /></Link>
-                        </Button>
-                      ) : (
-                        <Button variant="ghost" size="icon" asChild>
-                          <Link href={`/birthdays/${item.id}/edit`}><Pencil className="h-4 w-4" /></Link>
-                        </Button>
-                      )}
-                      {(item.isMember === false || item.isMember === undefined) && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" aria-label="Eliminar cumpleaños">
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>{t('birthdays.deleteDialogTitle')}</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {t('birthdays.deleteDialogDescription').replace('{name}', item.name)}
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>{t('birthdays.cancel')}</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDelete(item)} className="bg-destructive hover:bg-destructive/90">
-                                {t('birthdays.delete')}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
+              {tableContent}
             </TableBody>
           </Table>
         </CardContent>

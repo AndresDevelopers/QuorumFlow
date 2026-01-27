@@ -68,6 +68,7 @@ const profileSchema = z.object({
   birthDate: z.date({
     required_error: "La fecha de nacimiento es requerida.",
   }),
+  memberId: z.string().trim().optional(),
 });
 
 type FormValues = z.infer<typeof profileSchema>;
@@ -159,6 +160,7 @@ export default function SettingsPage() {
     resolver: zodResolver(profileSchema),
     defaultValues: {
       name: '',
+      memberId: '',
     },
   });
 
@@ -199,10 +201,12 @@ export default function SettingsPage() {
             birthDate: userData.birthDate
               ? (userData.birthDate as Timestamp).toDate()
               : undefined,
+            memberId: userData.memberId || '',
           });
         } else {
           form.reset({
             name: firebaseUser.displayName || '',
+            memberId: '',
           });
         }
 
@@ -295,6 +299,7 @@ export default function SettingsPage() {
             birthDate: Timestamp.fromDate(values.birthDate),
             photoURL: finalPhotoURL,
             mainPage: mainPage,
+            memberId: values.memberId?.trim() || null,
         }, { merge: true });
 
         toast({
@@ -651,6 +656,19 @@ export default function SettingsPage() {
                                     />
                                     </PopoverContent>
                                 </Popover>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="memberId"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>ID o cédula de miembro (opcional)</FormLabel>
+                                <FormControl>
+                                    <Input {...field} placeholder="Ej: 123456" />
+                                </FormControl>
                                 <FormMessage />
                                 </FormItem>
                             )}

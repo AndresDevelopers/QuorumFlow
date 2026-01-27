@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { onSnapshot } from 'firebase/firestore';
 import { membersCollection } from '@/lib/collections';
-import type { Member } from '@/lib/types';
+import type { Member, MemberStatus } from '@/lib/types';
 import { useAuth } from '@/contexts/auth-context';
 import { useToast } from '@/hooks/use-toast';
 
@@ -14,6 +14,30 @@ interface UseMembersSyncOptions {
   enableInitialFetch?: boolean; // Whether to fetch data on mount
   enableRealtimeSync?: boolean; // Whether to enable real-time Firestore listener
 }
+
+const normalizeMemberStatus = (status?: unknown): MemberStatus => {
+  if (typeof status !== 'string') return 'active';
+
+  const normalized = status.toLowerCase().trim();
+  if (['inactive', 'inactivo'].includes(normalized)) return 'inactive';
+  if (['less_active', 'less active', 'menos activo', 'menos_activo'].includes(normalized)) {
+    return 'less_active';
+  }
+  if (['active', 'activo'].includes(normalized)) return 'active';
+
+  return 'active';
+};
+
+const deriveMemberStatus = (memberData: Record<string, unknown>): MemberStatus => {
+  if (memberData.status) {
+    return normalizeMemberStatus(memberData.status);
+  }
+
+  if (memberData.inactiveSince) return 'inactive';
+  if (memberData.lessActiveObservation || memberData.lessActiveCompletedAt) return 'less_active';
+
+  return 'active';
+};
 
 interface UseMembersSyncReturn {
   members: Member[];
@@ -279,10 +303,14 @@ export function useMembersSync(options: UseMembersSyncOptions = {}): UseMembersS
         membersCollection,
         (snapshot) => {
           console.log('🔄 Firestore update detected');
-          const updatedMembers = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          } as Member));
+          const updatedMembers = snapshot.docs.map((doc) => {
+            const memberData = doc.data();
+            return {
+              id: doc.id,
+              ...memberData,
+              status: deriveMemberStatus(memberData),
+            } as Member;
+          });
 
           setMembers(updatedMembers);
           setLastSyncTime(new Date());

@@ -4,6 +4,30 @@ import { unstable_cache, revalidateTag } from 'next/cache';
 import { Member, MemberStatus } from '@/lib/types';
 import { createMember } from '@/lib/members-data';
 
+const normalizeMemberStatus = (status?: unknown): MemberStatus => {
+  if (typeof status !== 'string') return 'active';
+
+  const normalized = status.toLowerCase().trim();
+  if (['inactive', 'inactivo'].includes(normalized)) return 'inactive';
+  if (['less_active', 'less active', 'menos activo', 'menos_activo'].includes(normalized)) {
+    return 'less_active';
+  }
+  if (['active', 'activo'].includes(normalized)) return 'active';
+
+  return 'active';
+};
+
+const deriveMemberStatus = (memberData: Record<string, unknown>): MemberStatus => {
+  if (memberData.status) {
+    return normalizeMemberStatus(memberData.status);
+  }
+
+  if (memberData.inactiveSince) return 'inactive';
+  if (memberData.lessActiveObservation || memberData.lessActiveCompletedAt) return 'less_active';
+
+  return 'active';
+};
+
 function coerceToTimestamp(value: unknown): Timestamp | null | undefined {
   if (value === undefined) return undefined;
   if (value === null || value === '') return null;
@@ -59,7 +83,7 @@ const getMembersCached = unstable_cache(
       const memberData = doc.data();
       const processedMemberData = {
         ...memberData,
-        status: memberData.status || 'active'
+        status: deriveMemberStatus(memberData)
       };
       members.push({
         id: doc.id,
@@ -118,7 +142,7 @@ export async function GET(request: Request) {
 
         const processedMemberData = {
           ...memberData,
-          status: memberData.status || 'active'
+          status: deriveMemberStatus(memberData)
         };
         members.push({
           id: doc.id,
