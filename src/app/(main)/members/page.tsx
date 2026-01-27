@@ -61,6 +61,9 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { safeGetDate, safeFormatDate } from '@/lib/date-utils';
 
+const resolveOrdinanceLabel = (ordinance: string) =>
+  OrdinanceLabels[ordinance as keyof typeof OrdinanceLabels] ?? ordinance;
+
 const statusConfig = {
   active: {
     label: 'Activo',
@@ -441,9 +444,9 @@ export default function MembersPage() {
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {member.ordinances && member.ordinances.length > 0 ? (
-                              member.ordinances.map((ordinance) => (
-                                <Badge key={ordinance} variant="outline" className="text-xs">
-                                  {OrdinanceLabels[ordinance]}
+                              member.ordinances.map((ordinance, index) => (
+                                <Badge key={`${ordinance}-${index}`} variant="outline" className="text-xs">
+                                  {resolveOrdinanceLabel(ordinance)}
                                 </Badge>
                               ))
                             ) : (
@@ -606,9 +609,9 @@ export default function MembersPage() {
                         <div className="mb-3">
                           <p className="text-sm font-medium mb-2">Ordenanzas:</p>
                           <div className="flex flex-wrap gap-1">
-                            {member.ordinances.map((ordinance) => (
-                              <Badge key={ordinance} variant="outline" className="text-xs">
-                                {OrdinanceLabels[ordinance]}
+                            {member.ordinances.map((ordinance, index) => (
+                              <Badge key={`${ordinance}-${index}`} variant="outline" className="text-xs">
+                                {resolveOrdinanceLabel(ordinance)}
                               </Badge>
                             ))}
                           </div>

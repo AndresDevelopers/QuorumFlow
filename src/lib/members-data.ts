@@ -69,6 +69,10 @@ export async function createMember(memberData: Omit<Member, 'id'>): Promise<stri
       cleanData.phoneNumber = memberData.phoneNumber.trim();
     }
 
+    if (memberData.memberId?.trim()) {
+      cleanData.memberId = memberData.memberId.trim();
+    }
+
     if (memberData.photoURL?.trim()) {
       cleanData.photoURL = memberData.photoURL.trim();
     }
@@ -198,6 +202,7 @@ export async function updateMember(
     // Manejar campos opcionales
     const optionalFields: Record<string, any> = {
       phoneNumber: memberData.phoneNumber,
+      memberId: memberData.memberId,
       photoURL: memberData.photoURL,
       birthDate: memberData.birthDate,
       baptismDate: memberData.baptismDate,
