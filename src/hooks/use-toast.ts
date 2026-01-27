@@ -7,15 +7,76 @@ import type {
   ToastActionElement,
   ToastProps,
 } from "@/components/ui/toast"
+import enTranslations from "@/locales/en.json"
+import esTranslations from "@/locales/es.json"
 
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
 
-type ToasterToast = ToastProps & {
+type ToasterToast = Omit<ToastProps, "title"> & {
   id: string
   title?: React.ReactNode
   description?: React.ReactNode
   action?: ToastActionElement
+}
+
+type Language = "en" | "es"
+
+const translations: Record<Language, Record<string, string>> = {
+  en: enTranslations,
+  es: esTranslations,
+}
+
+const reverseTranslations: Record<Language, Record<string, string>> = {
+  en: Object.fromEntries(
+    Object.entries(enTranslations).map(([key, value]) => [value, key])
+  ),
+  es: Object.fromEntries(
+    Object.entries(esTranslations).map(([key, value]) => [value, key])
+  ),
+}
+
+const getLanguage = (): Language => {
+  if (typeof window === "undefined") {
+    return "es"
+  }
+
+  const savedLang = localStorage.getItem("language") as Language | null
+  if (savedLang === "en" || savedLang === "es") {
+    return savedLang
+  }
+
+  const browserLang = navigator.language.split("-")[0]
+  return browserLang === "en" ? "en" : "es"
+}
+
+const translateText = (value: string, lang: Language): string => {
+  const langTranslations = translations[lang]
+  if (langTranslations[value]) {
+    return langTranslations[value]
+  }
+
+  const otherLang: Language = lang === "en" ? "es" : "en"
+  const translationKey = reverseTranslations[otherLang][value]
+  if (translationKey && langTranslations[translationKey]) {
+    return langTranslations[translationKey]
+  }
+
+  return value
+}
+
+const translateNode = (
+  value?: React.ReactNode
+): React.ReactNode | undefined => {
+  if (value === null || value === undefined) {
+    return undefined
+  }
+
+  if (typeof value !== "string") {
+    return value
+  }
+
+  return translateText(value, getLanguage())
 }
 
 const actionTypes = {
@@ -148,7 +209,12 @@ function toast({ ...props }: Toast) {
   const update = (props: ToasterToast) =>
     dispatch({
       type: "UPDATE_TOAST",
-      toast: { ...props, id },
+      toast: {
+        ...props,
+        id,
+        title: translateNode(props.title),
+        description: translateNode(props.description),
+      },
     })
   const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
 
@@ -157,6 +223,8 @@ function toast({ ...props }: Toast) {
     toast: {
       ...props,
       id,
+      title: translateNode(props.title),
+      description: translateNode(props.description),
       open: true,
       onOpenChange: (open) => {
         if (!open) dismiss()

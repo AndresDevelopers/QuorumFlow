@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
+import { useI18n } from "@/contexts/i18n-context";
 import { firestore } from "@/lib/firebase";
 import logger from "@/lib/logger";
 import { getCookie, setCookieWithMinutes, deleteCookie } from "@/lib/cookie-utils";
@@ -57,6 +58,7 @@ export function UpdateNotification({
 }: UpdateNotificationProps = {}) {
   const { toast, dismiss } = useToast();
   const { user } = useAuth();
+  const { t } = useI18n();
   const [hasShownToast, setHasShownToast] = useState(false);
   const [currentVersion, setCurrentVersion] = useState<string | null>(providedVersion ?? null);
 
@@ -123,7 +125,7 @@ export function UpdateNotification({
           action: (
             <div className="flex gap-2">
               <ToastAction
-                altText="Cerrar"
+                altText={t("updateNotification.dismiss")}
                 onClick={async () => {
                   try {
                     setCookieWithMinutes(DISMISS_COOKIE, "true", DISMISS_DURATION_MINUTES);
@@ -142,10 +144,10 @@ export function UpdateNotification({
                   }
                 }}
               >
-                Cerrar
+                {t("updateNotification.dismiss")}
               </ToastAction>
               <ToastAction
-                altText="Actualizar"
+                altText={t("updateNotification.update")}
                 onClick={async () => {
                   try {
                     deleteCookie(DISMISS_COOKIE);
@@ -164,7 +166,7 @@ export function UpdateNotification({
                   }
                 }}
               >
-                Actualizar
+                {t("updateNotification.update")}
               </ToastAction>
             </div>
           ),

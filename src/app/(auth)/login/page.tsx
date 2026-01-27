@@ -70,16 +70,16 @@ export default function LoginPage() {
           description = t('login.toastErrorInvalidCredentials');
           break;
         case 'auth/user-disabled':
-          description = 'Tu cuenta ha sido deshabilitada. Contacta al administrador.';
+          description = t('login.toastErrorUserDisabled');
           break;
         case 'auth/too-many-requests':
-          description = 'Demasiados intentos fallidos. Por favor, intenta más tarde.';
+          description = t('login.toastErrorTooManyRequests');
           break;
         case 'auth/network-request-failed':
-          description = 'Error de conexión. Verifica tu internet e intenta nuevamente.';
+          description = t('login.toastErrorNetwork');
           break;
         case 'auth/invalid-email':
-          description = 'El formato del correo electrónico no es válido.';
+          description = t('login.toastErrorInvalidEmail');
           break;
         default:
           description = t('login.toastErrorUnexpected');

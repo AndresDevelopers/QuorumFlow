@@ -95,6 +95,7 @@ export default function SettingsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMainPageSaving, setIsMainPageSaving] = useState(false);
 
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [switchChecked, setSwitchChecked] = useState(false);
@@ -220,8 +221,8 @@ export default function SettingsPage() {
         setHasSettingsAccess(false);
         setCanManageRoles(false);
         toast({
-          title: 'Error',
-          description: 'No se pudo cargar tu información de perfil.',
+          title: t('settings.toast.profileLoadErrorTitle'),
+          description: t('settings.toast.profileLoadErrorDescription'),
           variant: 'destructive',
         });
       } finally {
@@ -239,8 +240,8 @@ export default function SettingsPage() {
 
     if (file.size > MAX_FILE_SIZE) {
       toast({
-        title: "Archivo demasiado grande",
-        description: "El tamaño máximo de la imagen es de 20MB.",
+        title: t('settings.toast.fileTooLargeTitle'),
+        description: t('settings.toast.fileTooLargeDescription'),
         variant: "destructive",
       });
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -296,14 +297,21 @@ export default function SettingsPage() {
             mainPage: mainPage,
         }, { merge: true });
 
-        toast({ title: 'Éxito', description: 'Tu perfil ha sido actualizado.' });
+        toast({
+          title: t('settings.toast.profileUpdatedTitle'),
+          description: t('settings.toast.profileUpdatedDescription'),
+        });
         await refreshAuth();
         setSelectedFile(null);
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error({ error: errorMessage, message: 'Error updating profile' });
-        toast({ title: 'Error', description: 'No se pudo actualizar tu perfil.', variant: 'destructive' });
+        toast({
+          title: t('settings.toast.profileUpdateErrorTitle'),
+          description: t('settings.toast.profileUpdateErrorDescription'),
+          variant: 'destructive',
+        });
     } finally {
         setIsSubmitting(false);
     }
@@ -311,7 +319,11 @@ export default function SettingsPage() {
 
   const handleDeleteAccount = async () => {
     if (!firebaseUser) {
-        toast({ title: 'Error', description: 'No se pudo encontrar el usuario para eliminar.', variant: 'destructive' });
+        toast({
+          title: t('settings.toast.deleteUserMissingTitle'),
+          description: t('settings.toast.deleteUserMissingDescription'),
+          variant: 'destructive',
+        });
         return;
     }
     
@@ -319,15 +331,22 @@ export default function SettingsPage() {
 
     try {
         await deleteUser(firebaseUser);
-        toast({ title: 'Cuenta Eliminada', description: 'Tu cuenta ha sido eliminada exitosamente.' });
+        toast({
+          title: t('settings.toast.accountDeletedTitle'),
+          description: t('settings.toast.accountDeletedDescription'),
+        });
         router.push('/login');
     } catch (error: any) {
         logger.error({ error, message: "Error deleting user account" });
-        let description = 'Ocurrió un error al eliminar tu cuenta.';
+        let description = t('settings.toast.accountDeleteErrorDescription');
         if (error.code === 'auth/requires-recent-login') {
-            description = 'Esta operación es sensible y requiere autenticación reciente. Por favor, cierra sesión y vuelve a iniciar sesión antes de intentarlo de nuevo.';
+            description = t('settings.toast.accountDeleteReauthDescription');
         }
-        toast({ title: 'Error al Eliminar', description, variant: 'destructive' });
+        toast({
+          title: t('settings.toast.accountDeleteErrorTitle'),
+          description,
+          variant: 'destructive',
+        });
     } finally {
         setIsDeleting(false);
     }
@@ -335,7 +354,11 @@ export default function SettingsPage() {
 
   const handleSubscriptionChange = async (checked: boolean) => {
     if (!isSupported || !user) {
-        toast({ title: "No se puede cambiar la suscripción", description: "Tu navegador debe ser compatible y debes haber iniciado sesión.", variant: "destructive" });
+        toast({
+          title: t('settings.toast.subscriptionUnavailableTitle'),
+          description: t('settings.toast.subscriptionUnavailableDescription'),
+          variant: 'destructive',
+        });
         return;
     }
 
@@ -353,7 +376,10 @@ export default function SettingsPage() {
                 }, { merge: true });
 
                 setIsSubscribed(true);
-                toast({ title: "Suscripción exitosa", description: "Recibirás notificaciones." });
+                toast({
+                  title: t('settings.toast.subscriptionSuccessTitle'),
+                  description: t('settings.toast.subscriptionSuccessDescription'),
+                });
 
                 // Enviar notificación de prueba
                 if (Notification.permission === 'granted') {
@@ -367,7 +393,11 @@ export default function SettingsPage() {
                 // Request permission first
                 const permission = await Notification.requestPermission();
                 if (permission !== 'granted') {
-                    toast({ title: "Permiso Denegado", description: "No se otorgó permiso para enviar notificaciones.", variant: "destructive" });
+                    toast({
+                      title: t('settings.toast.subscriptionPermissionDeniedTitle'),
+                      description: t('settings.toast.subscriptionPermissionDeniedDescription'),
+                      variant: 'destructive',
+                    });
                     setIsSubscribed(false);
                     setSubscriptionLoading(false);
                     return;
@@ -387,7 +417,10 @@ export default function SettingsPage() {
                 }, { merge: true });
 
                 setIsSubscribed(true);
-                toast({ title: "Suscripción exitosa", description: "Recibirás notificaciones." });
+                toast({
+                  title: t('settings.toast.subscriptionSuccessTitle'),
+                  description: t('settings.toast.subscriptionSuccessDescription'),
+                });
 
                 // Enviar notificación de prueba
                 if (Notification.permission === 'granted') {
@@ -400,7 +433,11 @@ export default function SettingsPage() {
             }
         } catch (error) {
             logger.error({ error, message: 'Failed to subscribe user' });
-            toast({ title: "Error de suscripción", description: "No se pudieron habilitar las notificaciones.", variant: "destructive" });
+            toast({
+              title: t('settings.toast.subscriptionErrorTitle'),
+              description: t('settings.toast.subscriptionErrorDescription'),
+              variant: 'destructive',
+            });
             setIsSubscribed(false);
         }
     } else {
@@ -411,14 +448,52 @@ export default function SettingsPage() {
             }
             await deleteDoc(doc(pushSubscriptionsCollection, user.uid));
             setIsSubscribed(false);
-            toast({ title: "Suscripción cancelada", description: "Ya no recibirás notificaciones." });
+            toast({
+              title: t('settings.toast.subscriptionCanceledTitle'),
+              description: t('settings.toast.subscriptionCanceledDescription'),
+            });
         } catch (error) {
             logger.error({ error, message: 'Failed to unsubscribe user' });
-            toast({ title: "Error al cancelar", description: "No se pudo cancelar la suscripción a las notificaciones.", variant: "destructive" });
+            toast({
+              title: t('settings.toast.subscriptionCancelErrorTitle'),
+              description: t('settings.toast.subscriptionCancelErrorDescription'),
+              variant: 'destructive',
+            });
             setIsSubscribed(true);
         }
     }
     setSubscriptionLoading(false);
+  };
+
+  const handleMainPageChange = async (value: string) => {
+    if (!firebaseUser || value === mainPage) {
+      setMainPage(value);
+      return;
+    }
+
+    setMainPage(value);
+    setIsMainPageSaving(true);
+
+    try {
+      await setDoc(
+        doc(usersCollection, firebaseUser.uid),
+        { mainPage: value },
+        { merge: true }
+      );
+      toast({
+        title: t('settings.toast.mainPageUpdatedTitle'),
+        description: t('settings.toast.mainPageUpdatedDescription'),
+      });
+    } catch (error) {
+      logger.error({ error, message: 'Error updating main page' });
+      toast({
+        title: t('settings.toast.mainPageUpdateErrorTitle'),
+        description: t('settings.toast.mainPageUpdateErrorDescription'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsMainPageSaving(false);
+    }
   };
 
 
@@ -610,7 +685,8 @@ export default function SettingsPage() {
               <select
                 id="main-page-select"
                 value={mainPage}
-                onChange={(e) => setMainPage(e.target.value)}
+                onChange={(e) => handleMainPageChange(e.target.value)}
+                disabled={isMainPageSaving || isProfileLoading}
                 aria-label="Seleccionar página de inicio"
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
@@ -625,6 +701,9 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground">
                 Esta será la primera página que verás al iniciar sesión.
               </p>
+              {isMainPageSaving && (
+                <p className="text-xs text-muted-foreground">Guardando...</p>
+              )}
             </div>
           </CardContent>
         </Card>

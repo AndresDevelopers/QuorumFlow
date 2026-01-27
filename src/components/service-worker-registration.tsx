@@ -3,9 +3,11 @@
 import { useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
+import { useI18n } from '@/contexts/i18n-context';
 
 export function ServiceWorkerRegistration() {
   const { toast } = useToast();
+  const { t } = useI18n();
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
@@ -23,10 +25,10 @@ export function ServiceWorkerRegistration() {
               duration: Infinity,
               action: (
                 <ToastAction
-                  altText="Recargar"
+                  altText={t('serviceWorker.reload')}
                   onClick={() => window.location.reload()}
                 >
-                  Recargar
+                  {t('serviceWorker.reload')}
                 </ToastAction>
               ),
             });
