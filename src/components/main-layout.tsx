@@ -42,7 +42,6 @@ import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "./notification-bell";
 import { ChangelogDialog } from "./changelog-dialog";
 import { UpdateNotification } from "./update-notification";
-import { Toaster } from "@/components/ui/toaster";
 import { InstallPrompt } from "@/components/install-prompt";
 import { navigationItems } from "@/lib/navigation";
 import { usersCollection } from "@/lib/collections";
@@ -237,7 +236,6 @@ export function MainLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <UpdateNotification />
-      <Toaster />
       <Sidebar collapsible="icon">
         <SidebarHeader>
           <Logo />
