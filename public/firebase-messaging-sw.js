@@ -5,12 +5,12 @@ importScripts('https://www.gstatic.com/firebasejs/9.6.10/firebase-messaging.js')
 // Initialize the Firebase app in the service worker by passing in the messagingSenderId.
 // Usar valores predeterminados seguros que serán reemplazados por el script de build si es necesario
 firebase.initializeApp({
-  apiKey: 'AIzaSyBQmJz9XftURWvLQ9I8Nb9A9NRlA8B0Yz0',
-  authDomain: 'quorumflow.firebaseapp.com',
-  projectId: 'quorumflow',
-  storageBucket: 'quorumflow.appspot.com',
-  messagingSenderId: '123456789012',
-  appId: '1:123456789012:web:abcdef1234567890abcdef'
+  apiKey: 'AIzaSyBsUZcqxqrseCd0xchrNRw6zAzaJQG74YY',
+  authDomain: 'quorumflow-dlqh0.firebaseapp.com',
+  projectId: 'quorumflow-dlqh0',
+  storageBucket: 'quorumflow-dlqh0.firebasestorage.app',
+  messagingSenderId: '865790845881',
+  appId: '1:865790845881:web:522f762727495861e20c68'
 });
 
 // Retrieve an instance of Firebase Messaging so that it can handle background messages

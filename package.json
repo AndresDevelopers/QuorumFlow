@@ -6,7 +6,7 @@
     "dev": "next dev --webpack -p 9001",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
-    "build": "next build --webpack && node scripts/inject-push-handler.js",
+    "build": "next build --webpack && node scripts/inject-push-handler.js && node scripts/update-fcm-config.js",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
