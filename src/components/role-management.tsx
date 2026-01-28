@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
 import { usersCollection } from '@/lib/collections';
 import { doc, getDoc, getDocs, updateDoc, Timestamp } from 'firebase/firestore';
@@ -40,7 +41,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Eye, Loader2 } from 'lucide-react';
 
 interface UserData {
   uid: string;
@@ -319,13 +320,26 @@ export default function RoleManagement() {
                   key={user.uid}
                   className="flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-sm"
                 >
-                  <div className="flex flex-col gap-1">
-                    <p className="text-sm font-medium leading-tight text-foreground">
-                      {user.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground break-all">
-                      {user.email}
-                    </p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col gap-1">
+                      <p className="text-sm font-medium leading-tight text-foreground">
+                        {user.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground break-all">
+                        {user.email}
+                      </p>
+                    </div>
+                    <Button
+                      asChild
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 shrink-0"
+                      aria-label={`Ver perfil de ${user.name}`}
+                    >
+                      <Link href={`/profile?uid=${user.uid}`}>
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                    </Button>
                   </div>
                   <div className="flex flex-col gap-2">
                     <Label htmlFor={`role-${user.uid}`} className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -485,6 +499,17 @@ export default function RoleManagement() {
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex flex-col items-center gap-2">
+                              <Button
+                                asChild
+                                size="icon"
+                                variant="ghost"
+                                className="h-9 w-9"
+                                aria-label={`Ver perfil de ${user.name}`}
+                              >
+                                <Link href={`/profile?uid=${user.uid}`}>
+                                  <Eye className="h-4 w-4" />
+                                </Link>
+                              </Button>
                               <Button
                                 size="sm"
                                 variant="outline"

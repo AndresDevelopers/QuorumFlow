@@ -33,6 +33,8 @@ import { useI18n } from '@/contexts/i18n-context';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 async function getCompanionships(): Promise<Companionship[]> {
   const q = query(ministeringCollection, orderBy('companions'));
@@ -63,6 +65,7 @@ export default function MinisteringPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [memberMap, setMemberMap] = useState<Map<string, string>>(new Map());
   const [districts, setDistricts] = useState<MinisteringDistrict[]>([]);
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false);
   const companionshipDistrictMap = useMemo(() => {
     const map = new Map<string, string[]>();
     districts.forEach(district => {
@@ -194,6 +197,56 @@ export default function MinisteringPage() {
   }, [authLoading, user, loadData]);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mediaQuery = window.matchMedia('(pointer: coarse)');
+    const handleChange = () => setIsCoarsePointer(mediaQuery.matches);
+    handleChange();
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+
+  const renderUrgentIndicator = (observation?: string) => {
+    const reason = observation?.trim() || 'Sin observación.';
+
+    if (isCoarsePointer) {
+      return (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="ml-2 inline-flex items-center text-xs font-semibold text-destructive underline-offset-2 hover:underline"
+            >
+              {t('ministering.urgent')}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="text-sm">
+            {reason}
+          </PopoverContent>
+        </Popover>
+      );
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="ml-2 inline-flex items-center text-xs font-semibold text-destructive cursor-help">
+            {t('ministering.urgent')}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p className="text-sm">{reason}</p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  };
+
+  useEffect(() => {
     if (companionships.length === 0) {
       setVisibleCount(0);
       return;
@@ -235,6 +288,7 @@ export default function MinisteringPage() {
   }, [loading, visibleCount, companionships.length]);
 
   return (
+    <TooltipProvider>
     <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-1">
           {loading ? (
@@ -261,7 +315,14 @@ export default function MinisteringPage() {
                 Array.from({ length: 3 }).map((_, i) => (
                   <Skeleton key={i} className="h-32 w-full" />
                 ))
-              ) : districts.map((district) => (
+              ) : districts.map((district) => {
+                const districtCompanionships = companionships.filter(comp => district.companionshipIds.includes(comp.id));
+                const totalMembers = districtCompanionships.reduce(
+                  (sum, comp) => sum + (comp.companions?.length || 0) + (comp.families?.length || 0),
+                  0,
+                );
+
+                return (
                 <Card key={district.id}>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
@@ -271,7 +332,8 @@ export default function MinisteringPage() {
                   </CardHeader>
                   <CardContent className="space-y-2">
                     <div className="text-sm">
-                      <p className="font-medium">Compañerismos: {district.companionshipIds.length}</p>
+                      <p className="font-medium">Compañerismos: {districtCompanionships.length}</p>
+                      <p className="font-medium">Miembros totales: {totalMembers}</p>
                       <p className="font-medium">Líder: {district.leaderName || 'No asignado'}</p>
                     </div>
                     <Dialog>
@@ -330,7 +392,8 @@ export default function MinisteringPage() {
                     </Dialog>
                   </CardContent>
                 </Card>
-              ))}
+              );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -385,6 +448,7 @@ export default function MinisteringPage() {
                               <Link href={getMemberLink(f.name)} className="text-blue-600 hover:underline">
                                 {f.name}
                               </Link>
+                              {f.isUrgent && renderUrgentIndicator(f.observation)}
                             </div>
                           ))}
                         </TableCell>
@@ -423,15 +487,7 @@ export default function MinisteringPage() {
                                         </div>
                                       ))}
                                     </CardTitle>
-                                    <CardDescription>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            {item.families.some((f) => f.isUrgent) && (
-                                              <span className="text-sm text-destructive">
-                                                {t('ministering.urgent')}
-                                              </span>
-                                            )}
-                                        </div>
-                                    </CardDescription>
+                                    <CardDescription />
                                 </div>
                                <Button variant="outline" size="sm" asChild>
                                     <Link href={`/ministering/${item.id}`}>
@@ -449,6 +505,7 @@ export default function MinisteringPage() {
                                   <Link href={getMemberLink(f.name)} className="text-blue-600 hover:underline">
                                     <p>{f.name}</p>
                                   </Link>
+                                  {f.isUrgent && renderUrgentIndicator(f.observation)}
                                 </div>
                               ))}
                            </div>
@@ -471,5 +528,6 @@ export default function MinisteringPage() {
           </CardContent>
         </Card>
     </div>
+    </TooltipProvider>
   );
 }

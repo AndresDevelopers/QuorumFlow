@@ -33,7 +33,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
-import { Download, FileText, Droplets, Wand2, RefreshCw, Save, Pencil, Camera } from 'lucide-react';
+import { Download, FileText, Droplets, RefreshCw, Save, Pencil, Camera } from 'lucide-react';
 import { format, getYear, startOfYear, endOfYear } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { saveAs } from 'file-saver';
@@ -44,7 +44,6 @@ import logger from '@/lib/logger';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import type { SuggestedActivities } from '@/ai/flows/suggest-activities-flow';
 import {
   Select,
   SelectContent,
@@ -262,8 +261,6 @@ export default function ReportsPage() {
   const { toast } = useToast();
   const [baptisms, setBaptisms] = useState<Baptism[]>([]);
   const [loading, setLoading] = useState(true);
-  const [suggestions, setSuggestions] = useState<SuggestedActivities | null>(null);
-  const [isGenerating, startGenerating] = useTransition();
   const [isGeneratingReport, startGeneratingReport] = useTransition();
   const [availableYears, setAvailableYears] = useState<number[] | null>(null);
   const currentYear = getYear(new Date());
@@ -304,9 +301,7 @@ export default function ReportsPage() {
   useEffect(() => {
     if (authLoading || !user) return;
 
-    fetchInitialData().then(() => {
-        handleGenerateSuggestions();
-    });
+    fetchInitialData();
   }, [authLoading, user, fetchInitialData]);
 
   useEffect(() => {
@@ -335,62 +330,6 @@ export default function ReportsPage() {
       cancelled = true;
     };
   }, [authLoading, user, router, searchParams, selectedYear]);
-
-  const handleGenerateSuggestions = async (refresh = false) => {
-    startGenerating(async () => {
-        try {
-            // Check if we're in production
-            const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
-            const cacheKey = 'reports_suggestions_cache';
-            const cacheTimestampKey = 'reports_suggestions_timestamp';
-
-            if (!refresh && isProduction) {
-                try {
-                    const cachedData = localStorage.getItem(cacheKey);
-                    const cachedTimestamp = localStorage.getItem(cacheTimestampKey);
-
-                    if (cachedData && cachedTimestamp) {
-                        const cacheAge = Date.now() - parseInt(cachedTimestamp);
-                        // Cache for 24 hours
-                        if (cacheAge < 24 * 60 * 60 * 1000) {
-                            const result = JSON.parse(cachedData);
-                            setSuggestions(result);
-                            return;
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error loading suggestions from cache:', error);
-                }
-            }
-
-            const url = refresh ? '/api/suggestions?refresh=true' : '/api/suggestions';
-            const response = await fetch(url);
-            if (!response.ok) {
-                console.error(`Failed to fetch suggestions: ${response.status} ${response.statusText}`);
-                const errorText = await response.text();
-                console.error('Error response:', errorText);
-                throw new Error(`Failed to fetch suggestions: ${response.status} ${response.statusText}`);
-            }
-            const result = await response.json();
-
-            // Cache the result in production
-            if (isProduction) {
-                try {
-                    localStorage.setItem(cacheKey, JSON.stringify(result));
-                    localStorage.setItem(cacheTimestampKey, Date.now().toString());
-                } catch (error) {
-                    console.error('Error saving suggestions to cache:', error);
-                }
-            }
-
-            setSuggestions(result);
-        } catch (error) {
-            console.error("Error generating suggestions:", error);
-            // Optionally show user-friendly error message
-            setSuggestions(null); // Clear suggestions on error
-        }
-    });
-  };
 
   const handleDeleteBaptism = async (item: Baptism) => {
     try {
@@ -476,10 +415,8 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="grid gap-8 lg:grid-cols-3">
-      <div className="lg:col-span-2 space-y-8">
-        
-        <Card>
+    <div className="space-y-8">
+      <Card>
             <CardHeader>
                 <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
@@ -676,57 +613,6 @@ export default function ReportsPage() {
                 </div>
             </CardContent>
         </Card>
-      </div>
-
-      <div className="lg:col-span-1">
-        <Card className="sticky top-20">
-            <CardHeader>
-                <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                        <Wand2 className="h-6 w-6 text-primary" />
-                        <CardTitle>Sugerencias de Actividades</CardTitle>
-                    </div>
-                    <Button variant="ghost" size="icon" onClick={() => handleGenerateSuggestions(true)} disabled={isGenerating}>
-                        <RefreshCw className={`h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
-                    </Button>
-                </div>
-                <CardDescription>
-                    Ideas generadas por IA para el próximo mes, basadas en actividades anteriores.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                {isGenerating ? (
-                     <div className="space-y-4">
-                        <Skeleton className="h-5 w-1/3" />
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-5/6" />
-                        <Skeleton className="h-5 w-1/3 mt-4" />
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-5/6" />
-                    </div>
-                ) : suggestions ? (
-                    <div className="space-y-4">
-                        <div>
-                            <h3 className="font-semibold mb-2">Espirituales</h3>
-                            <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
-                                {suggestions.spiritual.map((activity, index) => <li key={`s-${index}`}>{activity}</li>)}
-                            </ul>
-                        </div>
-                         <div>
-                            <h3 className="font-semibold mb-2">Temporales</h3>
-                            <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
-                                {suggestions.temporal.map((activity, index) => <li key={`t-${index}`}>{activity}</li>)}
-                            </ul>
-                        </div>
-                    </div>
-                ) : (
-                     <p className="text-sm text-center text-muted-foreground py-8">
-                        No se pudieron generar sugerencias. Verifica tu clave de API de Gemini.
-                    </p>
-                )}
-            </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
