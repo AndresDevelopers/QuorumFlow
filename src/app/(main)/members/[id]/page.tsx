@@ -286,85 +286,89 @@ export default function MemberProfilePage() {
         </Card>
 
         {/* Contact Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Phone className="h-5 w-5" />
-              {t('memberProfile.contactInfo')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">
-                {t('memberProfile.phoneNumber')}
-              </label>
-              <p className="text-sm">
-                {member.phoneNumber || t('memberProfile.noPhone')}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Church Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              {t('memberProfile.churchInfo')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {member.memberId && (
+        {member.phoneNumber && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Phone className="h-5 w-5" />
+                {t('memberProfile.contactInfo')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-muted-foreground">
-                  {t('memberProfile.memberId')}
-                </label>
-                <p className="text-sm">{member.memberId}</p>
-              </div>
-            )}
-            {member.baptismDate && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  {t('memberProfile.baptismDate')}
+                  {t('memberProfile.phoneNumber')}
                 </label>
                 <p className="text-sm">
-                  {format(member.baptismDate.toDate(), 'd MMMM yyyy', { locale: es })}
+                  {member.phoneNumber || t('memberProfile.noPhone')}
                 </p>
               </div>
-            )}
+            </CardContent>
+          </Card>
+        )}
 
-            {member.baptismPhotos && member.baptismPhotos.length > 0 && (
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">
-                  {t('memberProfile.baptismPhotos')}
-                </label>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  {member.baptismPhotos.map((photo, index) => (
-                    <Image
-                      key={index}
-                      src={photo}
-                      alt={`Bautismo ${index + 1}`}
-                      width={240}
-                      height={80}
-                      className="w-full h-20 object-cover rounded border"
-                    />
-                  ))}
+        {/* Church Information */}
+        {(member.memberId || member.baptismDate || (member.baptismPhotos && member.baptismPhotos.length > 0)) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                {t('memberProfile.churchInfo')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {member.memberId && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    {t('memberProfile.memberId')}
+                  </label>
+                  <p className="text-sm">{member.memberId}</p>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+              {member.baptismDate && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    {t('memberProfile.baptismDate')}
+                  </label>
+                  <p className="text-sm">
+                    {format(member.baptismDate.toDate(), 'd MMMM yyyy', { locale: es })}
+                  </p>
+                </div>
+              )}
+
+              {member.baptismPhotos && member.baptismPhotos.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    {t('memberProfile.baptismPhotos')}
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    {member.baptismPhotos.map((photo, index) => (
+                      <Image
+                        key={index}
+                        src={photo}
+                        alt={`Bautismo ${index + 1}`}
+                        width={240}
+                        height={80}
+                        className="w-full h-20 object-cover rounded border"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Ordinances */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              {t('memberProfile.ordinances')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {member.ordinances && member.ordinances.length > 0 ? (
+        {member.ordinances && member.ordinances.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                {t('memberProfile.ordinances')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="flex flex-wrap gap-2">
                 {member.ordinances.map((ordinance) => (
                   <Badge key={ordinance} variant="outline">
@@ -372,24 +376,20 @@ export default function MemberProfilePage() {
                   </Badge>
                 ))}
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {t('memberProfile.noOrdinances')}
-              </p>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Ministering */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              {t('memberProfile.ministering')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {member.ministeringTeachers && member.ministeringTeachers.length > 0 ? (
+        {member.ministeringTeachers && member.ministeringTeachers.length > 0 && (
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                {t('memberProfile.ministering')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="flex flex-wrap gap-2">
                 {member.ministeringTeachers.map((teacher, index) => (
                   <Badge key={index} variant="secondary">
@@ -397,13 +397,9 @@ export default function MemberProfilePage() {
                   </Badge>
                 ))}
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {t('memberProfile.noMinisteringTeachers')}
-              </p>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </section>
   );

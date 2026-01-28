@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useTheme } from 'next-themes';
@@ -75,16 +74,6 @@ type FormValues = z.infer<typeof profileSchema>;
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
 
 
 export default function SettingsPage() {
@@ -98,10 +87,9 @@ export default function SettingsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMainPageSaving, setIsMainPageSaving] = useState(false);
 
-  const [isSubscribed, setIsSubscribed] = useState(false);
-  const [switchChecked, setSwitchChecked] = useState(false);
-  const [isSubscriptionLoading, setSubscriptionLoading] = useState(true);
-  const [isSupported, setIsSupported] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true); // Activo por defecto
+  const [isNotificationLoading, setIsNotificationLoading] = useState(true);
+  const [fcmToken, setFcmToken] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -125,36 +113,67 @@ export default function SettingsPage() {
 
 
   useEffect(() => {
-    if (!hasSettingsAccess) {
-      setSubscriptionLoading(false);
-      setIsSupported(false);
-      return;
-    }
+    const loadNotificationPreference = async () => {
+      if (!hasSettingsAccess || !user) {
+        setIsNotificationLoading(false);
+        return;
+      }
 
-    if (
-      typeof window !== 'undefined' &&
-      'serviceWorker' in navigator &&
-      'PushManager' in window
-    ) {
-      setIsSupported(true);
-      navigator.serviceWorker.ready
-        .then((reg) => {
-          reg.pushManager
-            .getSubscription()
-            .then((sub) => {
-              if (sub) {
-                setIsSubscribed(true);
-              }
-              setSubscriptionLoading(false);
-            })
-            .catch(() => setSubscriptionLoading(false));
-        })
-        .catch(() => setSubscriptionLoading(false));
-    } else {
-      setSubscriptionLoading(false);
-      setIsSupported(false);
-    }
-  }, [hasSettingsAccess]);
+      try {
+        const userDocRef = doc(usersCollection, user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          // Si no existe la preferencia, por defecto es true
+          setNotificationsEnabled(userData.notificationsEnabled !== false);
+        } else {
+          // Usuario nuevo, activar por defecto
+          setNotificationsEnabled(true);
+        }
+      } catch (error) {
+        logger.error({ error, message: 'Error loading notification preference' });
+        setNotificationsEnabled(true); // Por defecto activo en caso de error
+      } finally {
+        setIsNotificationLoading(false);
+      }
+    };
+
+    loadNotificationPreference();
+  }, [hasSettingsAccess, user]);
+
+  useEffect(() => {
+    const initializeFCM = async () => {
+      if (!notificationsEnabled || !user) {
+        return;
+      }
+
+      try {
+        const { initializeMessaging, requestNotificationPermission } = await import('@/lib/firebase-messaging');
+        const messaging = initializeMessaging();
+        if (messaging) {
+          const token = await requestNotificationPermission();
+          if (token) {
+            setFcmToken(token);
+            // Guardar el token en Firestore
+            await setDoc(doc(pushSubscriptionsCollection, user.uid), {
+              fcmToken: token,
+              userId: user.uid
+            }, { merge: true });
+            console.log('FCM Token saved to Firestore:', token);
+          } else {
+            console.log('No FCM Token received');
+          }
+        } else {
+          console.error('Messaging not initialized');
+        }
+      } catch (error) {
+        console.error('Error initializing FCM:', error);
+      }
+    };
+
+    initializeFCM();
+  }, [notificationsEnabled, user]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(profileSchema),
@@ -357,117 +376,64 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSubscriptionChange = async (checked: boolean) => {
-    if (!isSupported || !user) {
+  const handleNotificationChange = async (checked: boolean) => {
+    if (!user) {
         toast({
-          title: t('settings.toast.subscriptionUnavailableTitle'),
-          description: t('settings.toast.subscriptionUnavailableDescription'),
+          title: 'Error',
+          description: 'Debes iniciar sesión para cambiar esta configuración.',
           variant: 'destructive',
         });
         return;
     }
 
-    setSubscriptionLoading(true);
-    const reg = await navigator.serviceWorker.ready;
+    setIsNotificationLoading(true);
 
-    if (checked) {
-        try {
-            const currentSub = await reg.pushManager.getSubscription();
-            if (currentSub) {
-                // Already subscribed, ensure DB has it
-                await setDoc(doc(pushSubscriptionsCollection, user.uid), {
-                    subscription: JSON.parse(JSON.stringify(currentSub)),
-                    userId: user.uid
-                }, { merge: true });
+    try {
+      const userDocRef = doc(usersCollection, user.uid);
+      await setDoc(userDocRef, {
+        notificationsEnabled: checked
+      }, { merge: true });
 
-                setIsSubscribed(true);
-                toast({
-                  title: t('settings.toast.subscriptionSuccessTitle'),
-                  description: t('settings.toast.subscriptionSuccessDescription'),
-                });
-
-                // Enviar notificación de prueba
-                if (Notification.permission === 'granted') {
-                  new Notification('¡Notificaciones Activadas!', {
-                    body: 'Ahora recibirás alertas sobre servicios y necesidades urgentes.',
-                    icon: '/logo.svg',
-                    badge: '/logo.svg'
-                  });
-                }
-            } else {
-                // Request permission first
-                const permission = await Notification.requestPermission();
-                if (permission !== 'granted') {
-                    toast({
-                      title: t('settings.toast.subscriptionPermissionDeniedTitle'),
-                      description: t('settings.toast.subscriptionPermissionDeniedDescription'),
-                      variant: 'destructive',
-                    });
-                    setIsSubscribed(false);
-                    setSubscriptionLoading(false);
-                    return;
-                }
-
-                const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-                if (!vapidPublicKey) throw new Error("VAPID public key not found");
-
-                const sub = await reg.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-                });
-
-                await setDoc(doc(pushSubscriptionsCollection, user.uid), {
-                    subscription: JSON.parse(JSON.stringify(sub)),
-                    userId: user.uid
-                }, { merge: true });
-
-                setIsSubscribed(true);
-                toast({
-                  title: t('settings.toast.subscriptionSuccessTitle'),
-                  description: t('settings.toast.subscriptionSuccessDescription'),
-                });
-
-                // Enviar notificación de prueba
-                if (Notification.permission === 'granted') {
-                  new Notification('¡Notificaciones Activadas!', {
-                    body: 'Ahora recibirás alertas sobre servicios y necesidades urgentes.',
-                    icon: '/logo.svg',
-                    badge: '/logo.svg'
-                  });
-                }
-            }
-        } catch (error) {
-            logger.error({ error, message: 'Failed to subscribe user' });
-            toast({
-              title: t('settings.toast.subscriptionErrorTitle'),
-              description: t('settings.toast.subscriptionErrorDescription'),
-              variant: 'destructive',
-            });
-            setIsSubscribed(false);
+      setNotificationsEnabled(checked);
+      
+      if (checked) {
+        // Solicitar permiso y obtener token FCM
+        const { initializeMessaging, requestNotificationPermission } = await import('@/lib/firebase-messaging');
+        const messaging = initializeMessaging();
+        if (messaging) {
+          const token = await requestNotificationPermission();
+          if (token) {
+            setFcmToken(token);
+            await setDoc(doc(pushSubscriptionsCollection, user.uid), {
+              fcmToken: token,
+              userId: user.uid
+            }, { merge: true });
+          }
         }
-    } else {
-        try {
-            const sub = await reg.pushManager.getSubscription();
-            if (sub) {
-                await sub.unsubscribe();
-            }
-            await deleteDoc(doc(pushSubscriptionsCollection, user.uid));
-            setIsSubscribed(false);
-            toast({
-              title: t('settings.toast.subscriptionCanceledTitle'),
-              description: t('settings.toast.subscriptionCanceledDescription'),
-            });
-        } catch (error) {
-            logger.error({ error, message: 'Failed to unsubscribe user' });
-            toast({
-              title: t('settings.toast.subscriptionCancelErrorTitle'),
-              description: t('settings.toast.subscriptionCancelErrorDescription'),
-              variant: 'destructive',
-            });
-            setIsSubscribed(true);
-        }
+      } else {
+        // Eliminar token FCM si existe
+        await deleteDoc(doc(pushSubscriptionsCollection, user.uid));
+        setFcmToken(null);
+      }
+      
+      toast({
+        title: checked ? 'Notificaciones Activadas' : 'Notificaciones Desactivadas',
+        description: checked 
+          ? 'Recibirás notificaciones sobre necesidades urgentes y actividades importantes.'
+          : 'No recibirás notificaciones push en tu dispositivo.',
+      });
+    } catch (error) {
+      logger.error({ error, message: 'Failed to update notification preference' });
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar la preferencia de notificaciones.',
+        variant: 'destructive',
+      });
+      // Revertir el estado en caso de error
+      setNotificationsEnabled(!checked);
+    } finally {
+      setIsNotificationLoading(false);
     }
-    setSubscriptionLoading(false);
   };
 
   const handleMainPageChange = async (value: string) => {
@@ -760,23 +726,18 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Label htmlFor="notifications-switch" className="flex flex-col space-y-1">
-                <span className="text-sm font-medium sm:text-base">Activar Notificaciones</span>
+                <span className="text-sm font-medium sm:text-base">Recibir Notificaciones</span>
                 <span className="text-xs font-normal leading-snug text-muted-foreground sm:text-sm">
-                  Recibe alertas sobre servicios y necesidades urgentes.
+                  Recibe alertas sobre necesidades urgentes y actividades importantes. Activo por defecto.
                 </span>
               </Label>
               <Switch
                 id="notifications-switch"
-                checked={isSubscribed}
-                onCheckedChange={handleSubscriptionChange}
-                disabled={!isSupported || isSubscriptionLoading}
+                checked={notificationsEnabled}
+                onCheckedChange={handleNotificationChange}
+                disabled={isNotificationLoading}
               />
             </div>
-            {!isSupported && (
-              <p className="mt-2 text-xs text-muted-foreground sm:text-sm">
-                Tu navegador no es compatible con notificaciones.
-              </p>
-            )}
           </CardContent>
         </Card>
         {canManageRoles && (

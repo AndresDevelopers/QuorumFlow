@@ -200,7 +200,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         memberId: currentMember.memberId || '',
         birthDate: birthDateValue,
         baptismDate: baptismDateValue,
-        status: deriveMemberStatus(currentMember),
+        status: normalizeMemberStatus(currentMember.status),
         photoURL: (currentMember.photoURL && currentMember.photoURL.trim()) ?? undefined,
         baptismPhotos: currentMember.baptismPhotos || [],
         ordinances: currentMember.ordinances || [],
@@ -347,7 +347,6 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
 
   const watchedFirstName = useWatch({ control: form.control, name: 'firstName' });
   const watchedLastName = useWatch({ control: form.control, name: 'lastName' });
-  const watchedStatus = useWatch({ control: form.control, name: 'status' });
 
   // Efecto para verificar duplicados automáticamente al escribir
   useEffect(() => {
@@ -1295,7 +1294,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
               <FormLabel>Estado de Actividad *</FormLabel>
               <Select
                 onValueChange={field.onChange}
-                value={normalizeMemberStatus(watchedStatus)}
+                value={normalizeMemberStatus(field.value)}
               >
                 <FormControl>
                   <SelectTrigger>
@@ -1311,6 +1310,12 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
               <FormDescription>
                 El estado determina cómo aparece el miembro en los reportes y seguimientos.
               </FormDescription>
+              {member && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Estado guardado: {member.status === 'active' ? 'Activo' :
+                                   member.status === 'less_active' ? 'Menos Activo' : 'Inactivo'}
+                </p>
+              )}
               <FormMessage />
             </FormItem>
           )}

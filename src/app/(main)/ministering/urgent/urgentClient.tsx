@@ -24,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useToast } from '@/hooks/use-toast';
 import logger from '@/lib/logger';
 import { useAuth } from '@/contexts/auth-context';
+import { createNotificationsForAll } from '@/lib/notification-helpers';
 
 type FamilyWithCompanions = Family & { companionshipId: string; companions: string[] };
 type UrgentFamily = Family & { companions: string[] };
@@ -112,9 +113,39 @@ export function UrgentNeedsClient() {
 
       await updateDoc(companionshipRef, { families: updatedFamilies });
 
+      // Send in-app notification to all users about the urgent family need
+      await createNotificationsForAll({
+        title: 'Necesidad Urgente de Familia',
+        body: `La familia ${familyName} tiene una necesidad urgente: ${observation}`,
+        contextType: 'urgent_family',
+        actionUrl: '/ministering/urgent'
+      });
+
+      // Send push notification to all subscribed users using FCM
+      try {
+        await fetch('/api/send-fcm-notification', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            registrationTokens: ['YOUR_REGISTRATION_TOKEN'], // Replace with actual registration tokens
+            notification: {
+              title: 'Necesidad Urgente de Familia',
+              body: `La familia ${familyName} requiere atención inmediata: ${observation}`,
+            },
+            data: {
+              url: '/ministering/urgent'
+            }
+          }),
+        });
+      } catch (pushError) {
+        logger.warn({ error: pushError, message: 'Failed to send push notifications, but in-app notifications were sent' });
+      }
+
       toast({
         title: 'Éxito',
-        description: 'La familia ha sido marcada como urgente.',
+        description: 'La familia ha sido marcada como urgente y se han enviado las notificaciones.',
       });
 
       setSelectedFamilyIdentifier('');
@@ -250,4 +281,3 @@ export function UrgentNeedsClient() {
     </div>
   );
 }
-

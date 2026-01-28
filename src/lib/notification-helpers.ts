@@ -217,7 +217,7 @@ export async function createBulkNotifications(
 }
 
 /**
- * Create notifications for all users in the system
+ * Create notifications for all users in the system who have notifications enabled
  * @param notificationParams - Notification parameters (excluding userId)
  * @returns Promise<string[]> - Array of created notification IDs
  */
@@ -225,5 +225,31 @@ export async function createNotificationsForAll(
   notificationParams: Omit<CreateNotificationParams, 'userId'>
 ): Promise<string[]> {
   const userIds = await getAllUserIds();
-  return createBulkNotifications(userIds, notificationParams);
+  
+  // Filter users to only include those with notifications enabled
+  const usersWithNotificationsEnabled: string[] = [];
+  
+  for (const userId of userIds) {
+    try {
+      const userDocRef = await import('firebase/firestore').then(m => m.doc(usersCollection, userId));
+      const userDoc = await import('firebase/firestore').then(m => m.getDoc(userDocRef));
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        // Por defecto las notificaciones están activas (notificationsEnabled !== false)
+        if (userData.notificationsEnabled !== false) {
+          usersWithNotificationsEnabled.push(userId);
+        }
+      } else {
+        // Usuario nuevo sin preferencias, incluir por defecto
+        usersWithNotificationsEnabled.push(userId);
+      }
+    } catch (error) {
+      console.error(`Error checking notification preference for user ${userId}:`, error);
+      // En caso de error, incluir al usuario por defecto
+      usersWithNotificationsEnabled.push(userId);
+    }
+  }
+  
+  return createBulkNotifications(usersWithNotificationsEnabled, notificationParams);
 }
