@@ -91,6 +91,7 @@ export default function SettingsPage() {
   const [isNotificationLoading, setIsNotificationLoading] = useState(true);
   const [fcmToken, setFcmToken] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isThemeSaving, setIsThemeSaving] = useState(false);
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -213,6 +214,11 @@ export default function SettingsPage() {
             setMainPage(userVisiblePages[0]);
           } else {
             setMainPage(currentMainPage);
+          }
+          
+          // Load saved theme preference
+          if (userData.theme && (userData.theme === 'light' || userData.theme === 'dark')) {
+            setTheme(userData.theme);
           }
           
           form.reset({
@@ -467,6 +473,29 @@ export default function SettingsPage() {
     }
   };
 
+  const handleThemeChange = async (checked: boolean) => {
+    const newTheme = checked ? 'dark' : 'light';
+    setTheme(newTheme);
+
+    if (!firebaseUser) {
+      return;
+    }
+
+    setIsThemeSaving(true);
+
+    try {
+      await setDoc(
+        doc(usersCollection, firebaseUser.uid),
+        { theme: newTheme },
+        { merge: true }
+      );
+    } catch (error) {
+      logger.error({ error, message: 'Error saving theme preference' });
+    } finally {
+      setIsThemeSaving(false);
+    }
+  };
+
 
   if (isCheckingRole) {
     return (
@@ -709,9 +738,8 @@ export default function SettingsPage() {
               <Switch
                 id="dark-mode"
                 checked={theme === 'dark'}
-                onCheckedChange={(checked) =>
-                  setTheme(checked ? 'dark' : 'light')
-                }
+                onCheckedChange={handleThemeChange}
+                disabled={isThemeSaving}
               />
             </div>
           </CardContent>
