@@ -1,11 +1,13 @@
 import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getStorage, type Storage } from 'firebase-admin/storage';
+import { getMessaging, type Messaging } from 'firebase-admin/messaging';
 
 // Initialize Firebase Admin SDK
 let app: App;
 let firestoreAdmin: Firestore;
 let storageAdmin: Storage;
+let messagingAdmin: Messaging;
 
 if (!getApps().length) {
   try {
@@ -50,5 +52,6 @@ if (!getApps().length) {
 
 firestoreAdmin = getFirestore(app);
 storageAdmin = getStorage(app);
+messagingAdmin = getMessaging(app);
 
-export { firestoreAdmin, storageAdmin };
+export { firestoreAdmin, storageAdmin, messagingAdmin };

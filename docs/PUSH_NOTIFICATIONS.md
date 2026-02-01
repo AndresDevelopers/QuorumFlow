@@ -34,7 +34,23 @@ FIREBASE_SERVICE_ACCOUNT_KEY={"key":"tu-service-account-key"}
 - **Todos los usuarios nuevos** tienen las notificaciones **ACTIVADAS por defecto**
 - No se requiere ninguna acción del usuario para empezar a recibir notificaciones
 - Las notificaciones aparecen automáticamente en el header de la aplicación (campana)
-- Las notificaciones push se envían a dispositivos móviles mediante Firebase Cloud Messaging (FCM)
+- **Las notificaciones push se envían automáticamente a dispositivos móviles** mediante Firebase Cloud Messaging (FCM)
+- Las notificaciones aparecen en la **barra de notificaciones del sistema operativo** (Android, iOS, etc.)
+
+### Activar Notificaciones Push en Dispositivos
+
+Para recibir notificaciones push en tu dispositivo móvil:
+
+1. Abre la aplicación en tu navegador móvil (Chrome, Safari, etc.)
+2. Ve a **Settings** (Configuración)
+3. Haz clic en **"Activar Notificaciones"**
+4. Acepta el permiso cuando el navegador lo solicite
+5. ¡Listo! Ahora recibirás notificaciones push en tu dispositivo
+
+**Nota para iOS (iPhone/iPad):**
+- En iOS, las notificaciones push solo funcionan si instalas la aplicación como PWA (Progressive Web App)
+- Para instalar: Abre Safari → Toca el botón "Compartir" → Selecciona "Añadir a pantalla de inicio"
+- Una vez instalada, abre la app desde la pantalla de inicio y activa las notificaciones
 
 ### Desactivar Notificaciones (Opcional)
 
@@ -79,6 +95,44 @@ Si un usuario NO desea recibir notificaciones:
 3. Revisa que la notificación se haya creado en Firestore (colección `c_notifications`)
 4. Verifica que tu `userId` coincida con el de la sesión actual
 
+### No recibo notificaciones push en mi dispositivo móvil
+
+**Problema**: No aparecen notificaciones en la barra de notificaciones del sistema operativo.
+
+**Soluciones**:
+
+**Para Android:**
+1. Verifica que hayas aceptado el permiso de notificaciones en el navegador
+2. Asegúrate de que las notificaciones del navegador estén habilitadas en la configuración del sistema
+3. Abre Chrome → Configuración → Notificaciones → Verifica que el sitio tenga permisos
+4. Prueba cerrar y volver a abrir el navegador
+
+**Para iOS (iPhone/iPad):**
+1. **IMPORTANTE**: Las notificaciones push solo funcionan si instalas la app como PWA
+2. Instala la app: Safari → Botón "Compartir" → "Añadir a pantalla de inicio"
+3. Abre la app desde la pantalla de inicio (NO desde Safari)
+4. Ve a Settings y activa las notificaciones
+5. Acepta el permiso cuando se solicite
+6. Verifica en Ajustes → Notificaciones que la app tenga permisos
+
+**Verificación general:**
+1. Abre la consola del navegador (DevTools)
+2. Ve a Application → Service Workers
+3. Verifica que el service worker esté registrado y activo
+4. Revisa que tu token FCM esté guardado en Firestore (colección `c_push_subscriptions`)
+5. Prueba enviar una notificación de prueba desde la consola:
+   ```javascript
+   fetch('/api/send-fcm-notification', {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify({
+       title: 'Prueba',
+       body: 'Esta es una notificación de prueba',
+       url: '/'
+     })
+   })
+   ```
+
 ## Arquitectura Técnica
 
 ### Flujo de Notificaciones
@@ -86,10 +140,11 @@ Si un usuario NO desea recibir notificaciones:
 1. **Usuario marca familia como urgente** → `urgentClient.tsx`
 2. **Sistema verifica preferencias** → `notification-helpers.ts` filtra usuarios con notificaciones activas
 3. **Se crean notificaciones in-app** → Firestore (colección `c_notifications`)
-4. **Notificaciones aparecen en el header** → `notification-bell.tsx` las muestra
-5. **Notificaciones push enviadas** → API `/api/send-fcm-notification` envía mediante FCM
-6. **Service worker recibe push** → `firebase-messaging-sw.js` maneja notificaciones
-7. **Usuario hace clic** → Navega a `/ministering/urgent`
+4. **Se envían notificaciones push automáticamente** → API `/api/send-fcm-notification` envía mediante FCM
+5. **Notificaciones aparecen en el header** → `notification-bell.tsx` las muestra
+6. **Notificaciones push llegan a dispositivos** → Service worker `firebase-messaging-sw.js` las recibe
+7. **Notificaciones aparecen en la barra del sistema** → Android/iOS muestran la notificación
+8. **Usuario hace clic** → Navega a `/ministering/urgent`
 
 ### Archivos Clave
 
@@ -131,7 +186,10 @@ Si un usuario NO desea recibir notificaciones:
 ```typescript
 {
   userId: string,
-  fcmToken: string // Token para notificaciones push FCM
+  fcmToken: string, // Token FCM para notificaciones push
+  createdAt: Date,
+  userAgent: string,
+  unsubscribedAt?: Date // Si el usuario se desuscribió
 }
 ```
 

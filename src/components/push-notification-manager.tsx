@@ -20,21 +20,6 @@ import {
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding)
-    .replace(/\-/g, '+')
-    .replace(/_/g, '/');
-
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
-
 export function PushNotificationManager() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -47,9 +32,15 @@ export function PushNotificationManager() {
     if (!user) return;
 
     try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      setIsSubscribed(!!subscription);
+      const { getDoc } = await import('firebase/firestore');
+      const subscriptionDoc = await getDoc(doc(pushSubscriptionsCollection, user.uid));
+
+      if (subscriptionDoc.exists()) {
+        const data = subscriptionDoc.data();
+        setIsSubscribed(!!data.fcmToken);
+      } else {
+        setIsSubscribed(false);
+      }
     } catch (error) {
       console.error('Error checking push subscription:', error);
     }
@@ -63,7 +54,7 @@ export function PushNotificationManager() {
   }, [checkSubscription]);
 
   const subscribeToPush = async () => {
-    if (!user || !VAPID_PUBLIC_KEY) {
+    if (!user) {
       toast({
         title: "Error",
         description: "No se puede activar las notificaciones en este momento.",
@@ -74,11 +65,9 @@ export function PushNotificationManager() {
 
     setIsLoading(true);
     try {
-      const registration = await navigator.serviceWorker.ready;
-      
       // Solicitar permiso
       const permission = await Notification.requestPermission();
-      
+
       if (permission !== 'granted') {
         toast({
           title: "Permiso Denegado",
@@ -89,16 +78,28 @@ export function PushNotificationManager() {
         return;
       }
 
-      // Suscribirse a push
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      // Importar dinámicamente Firebase Messaging
+      const { initializeMessaging } = await import('@/lib/firebase-messaging');
+      const { getToken } = await import('firebase/messaging');
+
+      const messaging = initializeMessaging();
+      if (!messaging) {
+        throw new Error('No se pudo inicializar Firebase Messaging');
+      }
+
+      // Obtener el token FCM
+      const fcmToken = await getToken(messaging, {
+        vapidKey: VAPID_PUBLIC_KEY
       });
 
-      // Guardar la suscripción en Firestore
+      if (!fcmToken) {
+        throw new Error('No se pudo obtener el token FCM');
+      }
+
+      // Guardar el token FCM en Firestore
       await setDoc(doc(pushSubscriptionsCollection, user.uid), {
         userId: user.uid,
-        subscription: JSON.parse(JSON.stringify(subscription)),
+        fcmToken,
         createdAt: new Date(),
         userAgent: navigator.userAgent
       });
@@ -135,17 +136,20 @@ export function PushNotificationManager() {
 
     setIsLoading(true);
     try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      
-      if (subscription) {
-        await subscription.unsubscribe();
+      // Importar dinámicamente Firebase Messaging
+      const { initializeMessaging } = await import('@/lib/firebase-messaging');
+      const { deleteToken } = await import('firebase/messaging');
+
+      const messaging = initializeMessaging();
+      if (messaging) {
+        // Eliminar el token FCM
+        await deleteToken(messaging);
       }
 
       // Eliminar de Firestore
       await setDoc(doc(pushSubscriptionsCollection, user.uid), {
         userId: user.uid,
-        subscription: null,
+        fcmToken: null,
         unsubscribedAt: new Date()
       });
 

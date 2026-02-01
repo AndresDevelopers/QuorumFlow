@@ -45,7 +45,50 @@ export async function createNotification(params: CreateNotificationParams): Prom
   };
 
   const docRef = await addDoc(notificationsCollection, notification);
+
+  // Enviar notificación push también
+  await sendPushNotification({
+    userId,
+    title,
+    body,
+    url: actionUrl
+  });
+
   return docRef.id;
+}
+
+/**
+ * Send push notification to a user's device
+ * @param params - Push notification parameters
+ */
+async function sendPushNotification(params: {
+  userId?: string;
+  title: string;
+  body: string;
+  url?: string;
+}): Promise<void> {
+  try {
+    // Solo enviar en producción o si está explícitamente habilitado
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Push notification skipped in development:', params);
+      return;
+    }
+
+    const response = await fetch('/api/send-fcm-notification', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to send push notification:', await response.text());
+    }
+  } catch (error) {
+    console.error('Error sending push notification:', error);
+    // No lanzar error para no interrumpir el flujo principal
+  }
 }
 
 /**
@@ -225,15 +268,15 @@ export async function createNotificationsForAll(
   notificationParams: Omit<CreateNotificationParams, 'userId'>
 ): Promise<string[]> {
   const userIds = await getAllUserIds();
-  
+
   // Filter users to only include those with notifications enabled
   const usersWithNotificationsEnabled: string[] = [];
-  
+
   for (const userId of userIds) {
     try {
       const userDocRef = await import('firebase/firestore').then(m => m.doc(usersCollection, userId));
       const userDoc = await import('firebase/firestore').then(m => m.getDoc(userDocRef));
-      
+
       if (userDoc.exists()) {
         const userData = userDoc.data();
         // Por defecto las notificaciones están activas (notificationsEnabled !== false)
@@ -250,6 +293,6 @@ export async function createNotificationsForAll(
       usersWithNotificationsEnabled.push(userId);
     }
   }
-  
+
   return createBulkNotifications(usersWithNotificationsEnabled, notificationParams);
 }

@@ -87,8 +87,10 @@ export default function SettingsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMainPageSaving, setIsMainPageSaving] = useState(false);
 
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true); // Activo por defecto
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true); // Notificaciones in-app activas por defecto
+  const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(false); // Notificaciones push desactivadas por defecto
   const [isNotificationLoading, setIsNotificationLoading] = useState(true);
+  const [isPushNotificationLoading, setIsPushNotificationLoading] = useState(true);
   const [fcmToken, setFcmToken] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isThemeSaving, setIsThemeSaving] = useState(false);
@@ -123,7 +125,7 @@ export default function SettingsPage() {
       try {
         const userDocRef = doc(usersCollection, user.uid);
         const userDoc = await getDoc(userDocRef);
-        
+
         if (userDoc.exists()) {
           const userData = userDoc.data();
           // Si no existe la preferencia, por defecto es true
@@ -207,7 +209,7 @@ export default function SettingsPage() {
           normalizedRole = normalizeRole(userData.role);
           const userVisiblePages = Array.isArray(userData.visiblePages) ? userData.visiblePages : navigationItems.map(item => item.href);
           setVisiblePages(userVisiblePages);
-          
+
           // If current main page is not in visible pages, select first visible page
           const currentMainPage = userData.mainPage || '/';
           if (!userVisiblePages.includes(currentMainPage) && userVisiblePages.length > 0) {
@@ -215,12 +217,12 @@ export default function SettingsPage() {
           } else {
             setMainPage(currentMainPage);
           }
-          
+
           // Load saved theme preference
-          if (userData.theme && (userData.theme === 'light' || userData.theme === 'dark')) {
+          if (userData.theme && (userData.theme === 'light' || userData.theme === 'dark' || userData.theme === 'system')) {
             setTheme(userData.theme);
           }
-          
+
           form.reset({
             name: userData.name || firebaseUser.displayName || '',
             birthDate: userData.birthDate
@@ -280,12 +282,12 @@ export default function SettingsPage() {
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
   };
-  
+
   const removeImage = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
     if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      fileInputRef.current.value = '';
     }
   };
 
@@ -296,100 +298,100 @@ export default function SettingsPage() {
     let finalPhotoURL = firebaseUser.photoURL || null;
 
     try {
-        if (selectedFile) {
-            const storageRef = ref(storage, `profile_pictures/users/${firebaseUser.uid}/${Date.now()}_${selectedFile.name}`);
-            await uploadBytes(storageRef, selectedFile);
-            finalPhotoURL = await getDownloadURL(storageRef);
+      if (selectedFile) {
+        const storageRef = ref(storage, `profile_pictures/users/${firebaseUser.uid}/${Date.now()}_${selectedFile.name}`);
+        await uploadBytes(storageRef, selectedFile);
+        finalPhotoURL = await getDownloadURL(storageRef);
 
-            if (firebaseUser.photoURL && firebaseUser.photoURL.startsWith('https://firebasestorage.googleapis.com')) {
-                const oldImageRef = ref(storage, firebaseUser.photoURL);
-                await deleteObject(oldImageRef).catch(err => logger.warn({ err, message: "Could not delete old profile picture"}));
-            }
-        } else if (!previewUrl && firebaseUser.photoURL) {
-             if (firebaseUser.photoURL.startsWith('https://firebasestorage.googleapis.com')) {
-                const oldImageRef = ref(storage, firebaseUser.photoURL);
-                await deleteObject(oldImageRef).catch(err => logger.warn({ err, message: "Image to be removed could not be deleted"}));
-            }
-            finalPhotoURL = null;
+        if (firebaseUser.photoURL && firebaseUser.photoURL.startsWith('https://firebasestorage.googleapis.com')) {
+          const oldImageRef = ref(storage, firebaseUser.photoURL);
+          await deleteObject(oldImageRef).catch(err => logger.warn({ err, message: "Could not delete old profile picture" }));
         }
+      } else if (!previewUrl && firebaseUser.photoURL) {
+        if (firebaseUser.photoURL.startsWith('https://firebasestorage.googleapis.com')) {
+          const oldImageRef = ref(storage, firebaseUser.photoURL);
+          await deleteObject(oldImageRef).catch(err => logger.warn({ err, message: "Image to be removed could not be deleted" }));
+        }
+        finalPhotoURL = null;
+      }
 
-        await updateProfile(firebaseUser, { 
-            displayName: values.name,
-            photoURL: finalPhotoURL,
-        });
-        
-        const userDocRef = doc(usersCollection, firebaseUser.uid);
-        await setDoc(userDocRef, {
-            name: values.name,
-            birthDate: Timestamp.fromDate(values.birthDate),
-            photoURL: finalPhotoURL,
-            mainPage: mainPage,
-            memberId: values.memberId?.trim() || null,
-        }, { merge: true });
+      await updateProfile(firebaseUser, {
+        displayName: values.name,
+        photoURL: finalPhotoURL,
+      });
 
-        toast({
-          title: t('settings.toast.profileUpdatedTitle'),
-          description: t('settings.toast.profileUpdatedDescription'),
-        });
-        await refreshAuth();
-        setSelectedFile(null);
+      const userDocRef = doc(usersCollection, firebaseUser.uid);
+      await setDoc(userDocRef, {
+        name: values.name,
+        birthDate: Timestamp.fromDate(values.birthDate),
+        photoURL: finalPhotoURL,
+        mainPage: mainPage,
+        memberId: values.memberId?.trim() || null,
+      }, { merge: true });
+
+      toast({
+        title: t('settings.toast.profileUpdatedTitle'),
+        description: t('settings.toast.profileUpdatedDescription'),
+      });
+      await refreshAuth();
+      setSelectedFile(null);
 
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error({ error: errorMessage, message: 'Error updating profile' });
-        toast({
-          title: t('settings.toast.profileUpdateErrorTitle'),
-          description: t('settings.toast.profileUpdateErrorDescription'),
-          variant: 'destructive',
-        });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage, message: 'Error updating profile' });
+      toast({
+        title: t('settings.toast.profileUpdateErrorTitle'),
+        description: t('settings.toast.profileUpdateErrorDescription'),
+        variant: 'destructive',
+      });
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
   const handleDeleteAccount = async () => {
     if (!firebaseUser) {
-        toast({
-          title: t('settings.toast.deleteUserMissingTitle'),
-          description: t('settings.toast.deleteUserMissingDescription'),
-          variant: 'destructive',
-        });
-        return;
+      toast({
+        title: t('settings.toast.deleteUserMissingTitle'),
+        description: t('settings.toast.deleteUserMissingDescription'),
+        variant: 'destructive',
+      });
+      return;
     }
-    
+
     setIsDeleting(true);
 
     try {
-        await deleteUser(firebaseUser);
-        toast({
-          title: t('settings.toast.accountDeletedTitle'),
-          description: t('settings.toast.accountDeletedDescription'),
-        });
-        router.push('/login');
+      await deleteUser(firebaseUser);
+      toast({
+        title: t('settings.toast.accountDeletedTitle'),
+        description: t('settings.toast.accountDeletedDescription'),
+      });
+      router.push('/login');
     } catch (error: any) {
-        logger.error({ error, message: "Error deleting user account" });
-        let description = t('settings.toast.accountDeleteErrorDescription');
-        if (error.code === 'auth/requires-recent-login') {
-            description = t('settings.toast.accountDeleteReauthDescription');
-        }
-        toast({
-          title: t('settings.toast.accountDeleteErrorTitle'),
-          description,
-          variant: 'destructive',
-        });
+      logger.error({ error, message: "Error deleting user account" });
+      let description = t('settings.toast.accountDeleteErrorDescription');
+      if (error.code === 'auth/requires-recent-login') {
+        description = t('settings.toast.accountDeleteReauthDescription');
+      }
+      toast({
+        title: t('settings.toast.accountDeleteErrorTitle'),
+        description,
+        variant: 'destructive',
+      });
     } finally {
-        setIsDeleting(false);
+      setIsDeleting(false);
     }
   };
 
   const handleNotificationChange = async (checked: boolean) => {
     if (!user) {
-        toast({
-          title: 'Error',
-          description: 'Debes iniciar sesión para cambiar esta configuración.',
-          variant: 'destructive',
-        });
-        return;
+      toast({
+        title: 'Error',
+        description: 'Debes iniciar sesión para cambiar esta configuración.',
+        variant: 'destructive',
+      });
+      return;
     }
 
     setIsNotificationLoading(true);
@@ -401,7 +403,7 @@ export default function SettingsPage() {
       }, { merge: true });
 
       setNotificationsEnabled(checked);
-      
+
       if (checked) {
         // Solicitar permiso y obtener token FCM
         const { initializeMessaging, requestNotificationPermission } = await import('@/lib/firebase-messaging');
@@ -421,10 +423,10 @@ export default function SettingsPage() {
         await deleteDoc(doc(pushSubscriptionsCollection, user.uid));
         setFcmToken(null);
       }
-      
+
       toast({
         title: checked ? 'Notificaciones Activadas' : 'Notificaciones Desactivadas',
-        description: checked 
+        description: checked
           ? 'Recibirás notificaciones sobre necesidades urgentes y actividades importantes.'
           : 'No recibirás notificaciones push en tu dispositivo.',
       });
@@ -473,8 +475,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleThemeChange = async (checked: boolean) => {
-    const newTheme = checked ? 'dark' : 'light';
+  const handleThemeChange = async (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
 
     if (!firebaseUser) {
@@ -553,132 +554,132 @@ export default function SettingsPage() {
             <form onSubmit={form.handleSubmit(onProfileSubmit)}>
               <CardContent className="space-y-4">
                 {isProfileLoading ? (
-                    <div className="space-y-4">
-                        <Skeleton className="h-24 w-24 rounded-full mx-auto" />
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-10 w-full" />
-                    </div>
+                  <div className="space-y-4">
+                    <Skeleton className="h-24 w-24 rounded-full mx-auto" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
                 ) : (
-                    <>
-                       <FormItem className="flex flex-col items-center">
-                            <FormControl>
-                                <div className="relative group">
-                                    <Avatar className="h-24 w-24">
-                                        <AvatarImage src={previewUrl ?? undefined} alt={user?.displayName || 'User'} />
-                                        <AvatarFallback>
-                                            {isSubmitting ? <Loader2 className="animate-spin" /> : <User className="h-10 w-10" />}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                       <Button type="button" variant="ghost" size="icon" className="h-full w-full text-white" onClick={() => !isSubmitting && fileInputRef.current?.click()}>
-                                        <Camera className="h-8 w-8" />
-                                       </Button>
-                                    </div>
-                                    {previewUrl && !isSubmitting && (
-                                        <Button
-                                        type="button"
-                                        variant="destructive"
-                                        size="icon"
-                                        className="absolute -top-1 -right-1 h-6 w-6 rounded-full"
-                                        onClick={removeImage}
-                                        >
-                                        <X className="h-4 w-4" />
-                                        </Button>
-                                    )}
-                                </div>
-                            </FormControl>
-                            <Input 
-                                type="file" 
-                                className="hidden" 
-                                ref={fileInputRef}
-                                accept="image/*"
-                                onChange={handleImageChange}
-                                disabled={isSubmitting}
-                            />
-                            <FormMessage />
+                  <>
+                    <FormItem className="flex flex-col items-center">
+                      <FormControl>
+                        <div className="relative group">
+                          <Avatar className="h-24 w-24">
+                            <AvatarImage src={previewUrl ?? undefined} alt={user?.displayName || 'User'} />
+                            <AvatarFallback>
+                              {isSubmitting ? <Loader2 className="animate-spin" /> : <User className="h-10 w-10" />}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button type="button" variant="ghost" size="icon" className="h-full w-full text-white" onClick={() => !isSubmitting && fileInputRef.current?.click()}>
+                              <Camera className="h-8 w-8" />
+                            </Button>
+                          </div>
+                          {previewUrl && !isSubmitting && (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="absolute -top-1 -right-1 h-6 w-6 rounded-full"
+                              onClick={removeImage}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </FormControl>
+                      <Input
+                        type="file"
+                        className="hidden"
+                        ref={fileInputRef}
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        disabled={isSubmitting}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nombre</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
                         </FormItem>
-                        <FormField
-                            control={form.control}
-                            name="name"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Nombre</FormLabel>
-                                <FormControl>
-                                    <Input {...field} />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         <FormField
-                            control={form.control}
-                            name="birthDate"
-                            render={({ field }) => (
-                                <FormItem className="flex flex-col">
-                                <FormLabel>Fecha de Nacimiento</FormLabel>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                    <FormControl>
-                                        <Button
-                                        variant={'outline'}
-                                        className={cn(
-                                            'w-full pl-3 text-left font-normal',
-                                            !field.value && 'text-muted-foreground'
-                                        )}
-                                        >
-                                        {field.value ? (
-                                            format(field.value, 'd LLLL yyyy', { locale: es })
-                                        ) : (
-                                            <span>Selecciona una fecha</span>
-                                        )}
-                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                        </Button>
-                                    </FormControl>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar
-                                        mode="single"
-                                        selected={field.value}
-                                        onSelect={field.onChange}
-                                        disabled={(date) =>
-                                        date > new Date() || date < new Date('1900-01-01')
-                                        }
-                                        initialFocus
-                                        locale={es}
-                                        captionLayout="dropdown"
-                                        fromYear={1920}
-                                        toYear={new Date().getFullYear()}
-                                    />
-                                    </PopoverContent>
-                                </Popover>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="memberId"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>ID o cédula de miembro (opcional)</FormLabel>
-                                <FormControl>
-                                    <Input {...field} placeholder="Ej: 123456" />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                    </>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="birthDate"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Fecha de Nacimiento</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant={'outline'}
+                                  className={cn(
+                                    'w-full pl-3 text-left font-normal',
+                                    !field.value && 'text-muted-foreground'
+                                  )}
+                                >
+                                  {field.value ? (
+                                    format(field.value, 'd LLLL yyyy', { locale: es })
+                                  ) : (
+                                    <span>Selecciona una fecha</span>
+                                  )}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                disabled={(date) =>
+                                  date > new Date() || date < new Date('1900-01-01')
+                                }
+                                initialFocus
+                                locale={es}
+                                captionLayout="dropdown"
+                                fromYear={1920}
+                                toYear={new Date().getFullYear()}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="memberId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>ID o cédula de miembro (opcional)</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="Ej: 123456" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
                 )}
               </CardContent>
               <CardFooter className="flex flex-col gap-3 border-t px-6 py-4 sm:flex-row sm:justify-end">
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting || isProfileLoading}
-                    className="w-full sm:w-auto"
-                  >
-                    {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
-                  </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || isProfileLoading}
+                  className="w-full sm:w-auto"
+                >
+                  {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
+                </Button>
               </CardFooter>
             </form>
           </Form>
@@ -728,19 +729,124 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Label htmlFor="dark-mode" className="flex flex-col space-y-1">
-                <span className="text-sm font-medium sm:text-base">{t('Dark Mode')}</span>
-                <span className="text-xs font-normal leading-snug text-muted-foreground sm:text-sm">
-                  {t('Toggle between light and dark themes.')}
-                </span>
+            <div className="flex flex-col gap-3">
+              <Label className="text-sm font-medium">
+                Tema de la aplicación
               </Label>
-              <Switch
-                id="dark-mode"
-                checked={theme === 'dark'}
-                onCheckedChange={handleThemeChange}
-                disabled={isThemeSaving}
-              />
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleThemeChange('light')}
+                  disabled={isThemeSaving}
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-all hover:bg-accent",
+                    theme === 'light'
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/20",
+                    isThemeSaving && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-6 w-6"
+                  >
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2" />
+                    <path d="M12 20v2" />
+                    <path d="m4.93 4.93 1.41 1.41" />
+                    <path d="m17.66 17.66 1.41 1.41" />
+                    <path d="M2 12h2" />
+                    <path d="M20 12h2" />
+                    <path d="m6.34 17.66-1.41 1.41" />
+                    <path d="m19.07 4.93-1.41 1.41" />
+                  </svg>
+                  <span className="text-sm font-medium">Claro</span>
+                  {theme === 'light' && (
+                    <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleThemeChange('dark')}
+                  disabled={isThemeSaving}
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-all hover:bg-accent",
+                    theme === 'dark'
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/20",
+                    isThemeSaving && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-6 w-6"
+                  >
+                    <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+                  </svg>
+                  <span className="text-sm font-medium">Oscuro</span>
+                  {theme === 'dark' && (
+                    <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleThemeChange('system')}
+                  disabled={isThemeSaving}
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-lg border-2 p-4 transition-all hover:bg-accent",
+                    theme === 'system'
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/20",
+                    isThemeSaving && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-6 w-6"
+                  >
+                    <rect width="20" height="14" x="2" y="3" rx="2" />
+                    <line x1="8" x2="16" y1="21" y2="21" />
+                    <line x1="12" x2="12" y1="17" y2="21" />
+                  </svg>
+                  <span className="text-sm font-medium">Sistema</span>
+                  {theme === 'system' && (
+                    <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  )}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {theme === 'system'
+                  ? 'El tema se ajustará automáticamente según la configuración de tu sistema operativo.'
+                  : theme === 'dark'
+                    ? 'Modo oscuro activado para reducir la fatiga visual.'
+                    : 'Modo claro activado para mejor visibilidad en ambientes iluminados.'}
+              </p>
+              {isThemeSaving && (
+                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Guardando preferencia...
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -775,34 +881,34 @@ export default function SettingsPage() {
         )}
 
         <Card className="border-destructive xl:col-span-full">
-            <CardHeader>
-                <CardTitle className="text-destructive">Zona de Peligro</CardTitle>
-                <CardDescription>
-                    Estas acciones son permanentes y no se pueden deshacer.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                 <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="destructive">Eliminar mi cuenta</Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                        <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Esta acción no se puede deshacer. Esto eliminará permanentemente tu cuenta y tu acceso a la aplicación.
-                            Sin embargo, los datos que hayas ingresado (como reportes, actividades, etc.) permanecerán en el sistema.
-                        </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteAccount} disabled={isDeleting}>
-                            {isDeleting ? "Eliminando..." : "Sí, eliminar mi cuenta"}
-                        </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            </CardContent>
+          <CardHeader>
+            <CardTitle className="text-destructive">Zona de Peligro</CardTitle>
+            <CardDescription>
+              Estas acciones son permanentes y no se pueden deshacer.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">Eliminar mi cuenta</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción no se puede deshacer. Esto eliminará permanentemente tu cuenta y tu acceso a la aplicación.
+                    Sin embargo, los datos que hayas ingresado (como reportes, actividades, etc.) permanecerán en el sistema.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteAccount} disabled={isDeleting}>
+                    {isDeleting ? "Eliminando..." : "Sí, eliminar mi cuenta"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </CardContent>
         </Card>
       </div>
     </section>
