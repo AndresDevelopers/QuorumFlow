@@ -4,8 +4,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { getDocs, query, orderBy, Timestamp, where, deleteDoc, doc } from 'firebase/firestore';
-import { servicesCollection } from '@/lib/collections';
+import { getDocs, query, orderBy, Timestamp, where, deleteDoc, doc, addDoc } from 'firebase/firestore';
+import { servicesCollection, activitiesCollection } from '@/lib/collections';
 import type { Service } from '@/lib/types';
 import { addDays, endOfYear, format, getYear, isAfter, isBefore, startOfYear } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -48,7 +48,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { PlusCircle, Trash2, Pencil, Image as ImageIcon } from 'lucide-react';
+import { PlusCircle, Trash2, Pencil, Image as ImageIcon, ArrowRightLeft } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
 
@@ -120,6 +120,31 @@ export default function ServicePage() {
       toast({
         title: 'Error',
         description: 'No se pudo eliminar el servicio.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleTransferToActivity = async (service: Service) => {
+    try {
+      await addDoc(activitiesCollection, {
+        title: service.title,
+        date: service.date,
+        description: service.description,
+        time: service.time || null,
+        imageUrls: service.imageUrls || [],
+      });
+      await deleteDoc(doc(servicesCollection, service.id));
+      toast({
+        title: 'Transferido a Actividades',
+        description: `El servicio "${service.title}" ha sido transferido a Actividades y eliminado de Servicios.`,
+      });
+      fetchServices();
+    } catch (error) {
+      logger.error({ error, message: 'Error transferring service to activity', serviceId: service.id });
+      toast({
+        title: 'Error',
+        description: 'No se pudo transferir el servicio a Actividades.',
         variant: 'destructive',
       });
     }
@@ -269,6 +294,14 @@ export default function ServicePage() {
                     <TableCell className="text-right">
                        <Button variant="ghost" size="icon" asChild>
                          <Link href={`/service/${item.id}/edit`}><Pencil className="h-4 w-4" /></Link>
+                       </Button>
+                       <Button
+                         variant="ghost"
+                         size="icon"
+                         onClick={() => handleTransferToActivity(item)}
+                         title="Transferir a Actividades"
+                       >
+                         <ArrowRightLeft className="h-4 w-4 text-blue-500" />
                        </Button>
                        <AlertDialog>
                         <AlertDialogTrigger asChild>

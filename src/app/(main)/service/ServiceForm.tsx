@@ -74,6 +74,8 @@ export function ServiceForm({ service }: ServiceFormProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<any>(null);
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(serviceSchema),
@@ -269,7 +271,13 @@ export function ServiceForm({ service }: ServiceFormProps) {
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha <span className="text-red-600">*</span></FormLabel>
-                    <Popover>
+                    <Popover open={datePopoverOpen} onOpenChange={(open) => {
+                      setDatePopoverOpen(open);
+                      if (open) {
+                        // Sincronizar selectedDate con el valor actual del campo al abrir
+                        setSelectedDate(field.value);
+                      }
+                    }}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
@@ -291,11 +299,36 @@ export function ServiceForm({ service }: ServiceFormProps) {
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
+                          selected={selectedDate || field.value}
+                          onSelect={setSelectedDate}
                           initialFocus
                           locale={es}
                         />
+                        <div className="p-3 border-t flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            onClick={() => {
+                              setSelectedDate(undefined);
+                              setDatePopoverOpen(false);
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            size="sm"
+                            type="button"
+                            onClick={() => {
+                              if (selectedDate) {
+                                field.onChange(selectedDate);
+                              }
+                              setDatePopoverOpen(false);
+                            }}
+                          >
+                            Establecer fecha
+                          </Button>
+                        </div>
                       </PopoverContent>
                     </Popover>
                     <FormMessage />

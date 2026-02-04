@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getDocs, orderBy, query, Timestamp, where } from 'firebase/firestore';
-import { activitiesCollection } from '@/lib/collections';
+import { getDocs, orderBy, query, Timestamp, where, deleteDoc, doc, addDoc } from 'firebase/firestore';
+import { activitiesCollection, servicesCollection } from '@/lib/collections';
 import type { Activity } from '@/lib/types';
 import type { SuggestedActivities } from '@/ai/flows/suggest-activities-flow';
 import {
@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table';
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -51,7 +52,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
-import { Camera, FileText, Pencil, PlusCircle, RefreshCw, Wand2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Camera, FileText, Pencil, PlusCircle, RefreshCw, Wand2, Trash2, ArrowRightLeft } from 'lucide-react';
 import { endOfYear, format, getYear, startOfYear } from 'date-fns';
 import { es } from 'date-fns/locale';
 import logger from '@/lib/logger';
@@ -90,6 +92,7 @@ async function getActivitiesForYear(year: number): Promise<Activity[]> {
 export default function ActivitiesPage() {
   const { user, loading: authLoading } = useAuth();
   const { t } = useI18n();
+  const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -122,6 +125,50 @@ export default function ActivitiesPage() {
       setLoading(false);
     }
   }, [selectedYear]);
+
+  const handleDelete = async (activityId: string) => {
+    try {
+      await deleteDoc(doc(activitiesCollection, activityId));
+      toast({
+        title: 'Actividad Eliminada',
+        description: 'La actividad ha sido eliminada exitosamente.',
+      });
+      fetchActivities();
+    } catch (error) {
+      logger.error({ error, message: 'Error deleting activity', activityId });
+      toast({
+        title: 'Error',
+        description: 'No se pudo eliminar la actividad.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleTransferToService = async (activity: Activity) => {
+    try {
+      await addDoc(servicesCollection, {
+        title: activity.title,
+        date: activity.date,
+        description: activity.description,
+        time: activity.time || null,
+        imageUrls: activity.imageUrls || [],
+        councilNotified: false,
+      });
+      await deleteDoc(doc(activitiesCollection, activity.id));
+      toast({
+        title: 'Transferido a Servicios',
+        description: `La actividad "${activity.title}" ha sido transferida a Servicios y eliminada de Actividades.`,
+      });
+      fetchActivities();
+    } catch (error) {
+      logger.error({ error, message: 'Error transferring activity to service', activityId: activity.id });
+      toast({
+        title: 'Error',
+        description: 'No se pudo transferir la actividad a Servicios.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const handleGenerateSuggestions = async (refresh = false) => {
     startGenerating(async () => {
@@ -355,6 +402,38 @@ export default function ActivitiesPage() {
                         <Button variant="ghost" size="icon" asChild>
                           <Link href={`/reports/${item.id}/edit`}><Pencil className="h-4 w-4" /></Link>
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleTransferToService(item)}
+                          title="Transferir a Servicios"
+                        >
+                          <ArrowRightLeft className="h-4 w-4 text-blue-500" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" title="Eliminar actividad">
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta acción no se puede deshacer. Esto eliminará permanentemente la actividad: <strong>{item.title}</strong>.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(item.id)}
+                                className="bg-destructive hover:bg-destructive/90"
+                              >
+                                Eliminar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </TableCell>
                     </TableRow>
                   ))
@@ -378,13 +457,45 @@ export default function ActivitiesPage() {
                         {item.time && `, ${item.time}`}
                       </CardDescription>
                     </div>
-                    <div>
+                    <div className="flex items-center">
                       {item.imageUrls && item.imageUrls.length > 0 && (
                         <Camera className="h-4 w-4 inline-block mr-2 text-muted-foreground" />
                       )}
                       <Button variant="ghost" size="icon" asChild>
                         <Link href={`/reports/${item.id}/edit`}><Pencil className="h-4 w-4" /></Link>
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleTransferToService(item)}
+                        title="Transferir a Servicios"
+                      >
+                        <ArrowRightLeft className="h-4 w-4 text-blue-500" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" title="Eliminar actividad">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta acción no se puede deshacer. Esto eliminará permanentemente la actividad: <strong>{item.title}</strong>.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(item.id)}
+                              className="bg-destructive hover:bg-destructive/90"
+                            >
+                              Eliminar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </CardHeader>
                   <CardContent>
