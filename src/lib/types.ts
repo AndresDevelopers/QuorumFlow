@@ -250,4 +250,7 @@ export type Member = {
     // For less active members tracking
     lessActiveObservation?: string;
     lessActiveCompletedAt?: Timestamp;
+    // Urgent and council flags
+    isUrgent?: boolean;
+    isInCouncil?: boolean;
 }

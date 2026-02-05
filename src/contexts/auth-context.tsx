@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useTheme } from "next-themes";
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from "react";
 import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -22,6 +23,7 @@ interface AuthContextType {
   firebaseUser: FirebaseUser | null;
   userRole: UserRole | null;
   mainPage: string;
+  userTheme: string;
   refreshAuth: () => Promise<void>;
 }
 
@@ -40,7 +42,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [mainPage, setMainPage] = useState<string>('/');
+  const [userTheme, setUserTheme] = useState<string>('system');
   const [loading, setLoading] = useState(true);
+  const { setTheme } = useTheme();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -58,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    const fetchUserRole = async () => {
+    const fetchUserData = async () => {
       if (!firebaseUser) {
         return;
       }
@@ -74,13 +78,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const data = userDoc.data();
         setUserRole(normalizeRole(data.role));
         setMainPage(data.mainPage || '/');
+
+        // Load and sync theme from Firestore
+        const savedTheme = data.theme;
+        if (savedTheme && (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system')) {
+          setUserTheme(savedTheme);
+          setTheme(savedTheme);
+        }
       } catch {
         setUserRole(normalizeRole(undefined));
       }
     };
 
-    fetchUserRole();
-  }, [firebaseUser]);
+    fetchUserData();
+  }, [firebaseUser, setTheme]);
   
   const refreshAuth = useCallback(async () => {
     const currentUser = auth.currentUser;
@@ -94,7 +105,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const value = { user, loading, firebaseUser, userRole, mainPage, refreshAuth };
+  const value = { user, loading, firebaseUser, userRole, mainPage, userTheme, refreshAuth };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

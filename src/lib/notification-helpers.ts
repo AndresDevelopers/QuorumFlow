@@ -117,7 +117,7 @@ export const NotificationCreators = {
       body: `Se ha programado la actividad: ${activityTitle}`,
       contextType: 'activity',
       contextId: activityId,
-      actionUrl: '/reports'
+      actionUrl: '/reports/activities'
     }),
 
   /**
@@ -130,6 +130,54 @@ export const NotificationCreators = {
       body: `Se ha registrado un nuevo servicio: ${serviceTitle}`,
       contextType: 'service',
       contextId: serviceId
+    }),
+
+  /**
+   * Create notification for updated activity
+   */
+  updatedActivity: (userId: string, activityTitle: string, activityId: string) =>
+    createNotification({
+      userId,
+      title: "Actividad Actualizada",
+      body: `La actividad "${activityTitle}" ha sido actualizada`,
+      contextType: 'activity',
+      contextId: activityId,
+      actionUrl: '/reports/activities'
+    }),
+
+  /**
+   * Create notification for deleted activity
+   */
+  deletedActivity: (userId: string, activityTitle: string) =>
+    createNotification({
+      userId,
+      title: "Actividad Eliminada",
+      body: `La actividad "${activityTitle}" ha sido eliminada`,
+      contextType: 'activity'
+    }),
+
+  /**
+   * Create notification for updated service
+   */
+  updatedService: (userId: string, serviceTitle: string, serviceId: string) =>
+    createNotification({
+      userId,
+      title: "Servicio Actualizado",
+      body: `El servicio "${serviceTitle}" ha sido actualizado`,
+      contextType: 'service',
+      contextId: serviceId,
+      actionUrl: '/service'
+    }),
+
+  /**
+   * Create notification for deleted service
+   */
+  deletedService: (userId: string, serviceTitle: string) =>
+    createNotification({
+      userId,
+      title: "Servicio Eliminado",
+      body: `El servicio "${serviceTitle}" ha sido eliminado`,
+      contextType: 'service'
     }),
 
   /**
@@ -179,15 +227,16 @@ export const NotificationCreators = {
     }),
 
   /**
-   * Create notification for member status change
+   * Create notification for member marked as urgent
    */
-  memberStatusChange: (userId: string, memberName: string, status: string, memberId: string) =>
+  memberMarkedUrgent: (userId: string, memberName: string, memberId: string) =>
     createNotification({
       userId,
-      title: "Cambio de Estado de Miembro",
-      body: `${memberName} ha cambiado su estado a: ${status}`,
+      title: "⚠️ Miembro Marcado como Urgente",
+      body: `${memberName} ha sido marcado como urgente y requiere atención prioritaria`,
       contextType: 'member',
-      contextId: memberId
+      contextId: memberId,
+      actionUrl: '/members'
     }),
 
   /**
@@ -279,8 +328,8 @@ export async function createNotificationsForAll(
 
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        // Por defecto las notificaciones están activas (notificationsEnabled !== false)
-        if (userData.notificationsEnabled !== false) {
+        // Por defecto las notificaciones in-app están activas (inAppNotificationsEnabled !== false)
+        if (userData.inAppNotificationsEnabled !== false) {
           usersWithNotificationsEnabled.push(userId);
         }
       } else {

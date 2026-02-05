@@ -87,9 +87,9 @@ export default function SettingsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMainPageSaving, setIsMainPageSaving] = useState(false);
 
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true); // Notificaciones in-app activas por defecto
+  const [inAppNotificationsEnabled, setInAppNotificationsEnabled] = useState(true); // Notificaciones in-app activas por defecto
   const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(false); // Notificaciones push desactivadas por defecto
-  const [isNotificationLoading, setIsNotificationLoading] = useState(true);
+  const [isInAppNotificationLoading, setIsInAppNotificationLoading] = useState(true);
   const [isPushNotificationLoading, setIsPushNotificationLoading] = useState(true);
   const [fcmToken, setFcmToken] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -116,9 +116,10 @@ export default function SettingsPage() {
 
 
   useEffect(() => {
-    const loadNotificationPreference = async () => {
+    const loadNotificationPreferences = async () => {
       if (!hasSettingsAccess || !user) {
-        setIsNotificationLoading(false);
+        setIsInAppNotificationLoading(false);
+        setIsPushNotificationLoading(false);
         return;
       }
 
@@ -128,26 +129,30 @@ export default function SettingsPage() {
 
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          // Si no existe la preferencia, por defecto es true
-          setNotificationsEnabled(userData.notificationsEnabled !== false);
+          // Si no existe la preferencia, por defecto es true para in-app, false para push
+          setInAppNotificationsEnabled(userData.inAppNotificationsEnabled !== false);
+          setPushNotificationsEnabled(userData.pushNotificationsEnabled === true);
         } else {
-          // Usuario nuevo, activar por defecto
-          setNotificationsEnabled(true);
+          // Usuario nuevo, activar in-app por defecto, push desactivado
+          setInAppNotificationsEnabled(true);
+          setPushNotificationsEnabled(false);
         }
       } catch (error) {
-        logger.error({ error, message: 'Error loading notification preference' });
-        setNotificationsEnabled(true); // Por defecto activo en caso de error
+        logger.error({ error, message: 'Error loading notification preferences' });
+        setInAppNotificationsEnabled(true);
+        setPushNotificationsEnabled(false);
       } finally {
-        setIsNotificationLoading(false);
+        setIsInAppNotificationLoading(false);
+        setIsPushNotificationLoading(false);
       }
     };
 
-    loadNotificationPreference();
+    loadNotificationPreferences();
   }, [hasSettingsAccess, user]);
 
   useEffect(() => {
     const initializeFCM = async () => {
-      if (!notificationsEnabled || !user) {
+      if (!pushNotificationsEnabled || !user) {
         return;
       }
 
@@ -176,7 +181,7 @@ export default function SettingsPage() {
     };
 
     initializeFCM();
-  }, [notificationsEnabled, user]);
+  }, [pushNotificationsEnabled, user]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(profileSchema),
@@ -263,7 +268,7 @@ export default function SettingsPage() {
     };
 
     fetchUserData();
-  }, [firebaseUser, form, toast]);
+  }, [firebaseUser, form, setTheme, t, toast]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -384,7 +389,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleNotificationChange = async (checked: boolean) => {
+  const handleInAppNotificationChange = async (checked: boolean) => {
     if (!user) {
       toast({
         title: 'Error',
@@ -394,15 +399,55 @@ export default function SettingsPage() {
       return;
     }
 
-    setIsNotificationLoading(true);
+    setIsInAppNotificationLoading(true);
 
     try {
       const userDocRef = doc(usersCollection, user.uid);
       await setDoc(userDocRef, {
-        notificationsEnabled: checked
+        inAppNotificationsEnabled: checked
       }, { merge: true });
 
-      setNotificationsEnabled(checked);
+      setInAppNotificationsEnabled(checked);
+
+      toast({
+        title: checked ? 'Notificaciones In-App Activadas' : 'Notificaciones In-App Desactivadas',
+        description: checked
+          ? 'Recibirás notificaciones dentro de la aplicación sobre actividades importantes.'
+          : 'No recibirás notificaciones in-app.',
+      });
+    } catch (error) {
+      logger.error({ error, message: 'Failed to update in-app notification preference' });
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar la preferencia de notificaciones in-app.',
+        variant: 'destructive',
+      });
+      // Revertir el estado en caso de error
+      setInAppNotificationsEnabled(!checked);
+    } finally {
+      setIsInAppNotificationLoading(false);
+    }
+  };
+
+  const handlePushNotificationChange = async (checked: boolean) => {
+    if (!user) {
+      toast({
+        title: 'Error',
+        description: 'Debes iniciar sesión para cambiar esta configuración.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsPushNotificationLoading(true);
+
+    try {
+      const userDocRef = doc(usersCollection, user.uid);
+      await setDoc(userDocRef, {
+        pushNotificationsEnabled: checked
+      }, { merge: true });
+
+      setPushNotificationsEnabled(checked);
 
       if (checked) {
         // Solicitar permiso y obtener token FCM
@@ -425,22 +470,22 @@ export default function SettingsPage() {
       }
 
       toast({
-        title: checked ? 'Notificaciones Activadas' : 'Notificaciones Desactivadas',
+        title: checked ? 'Notificaciones Push Activadas' : 'Notificaciones Push Desactivadas',
         description: checked
-          ? 'Recibirás notificaciones sobre necesidades urgentes y actividades importantes.'
+          ? 'Recibirás notificaciones push en tu dispositivo Android/iOS.'
           : 'No recibirás notificaciones push en tu dispositivo.',
       });
     } catch (error) {
-      logger.error({ error, message: 'Failed to update notification preference' });
+      logger.error({ error, message: 'Failed to update push notification preference' });
       toast({
         title: 'Error',
-        description: 'No se pudo actualizar la preferencia de notificaciones.',
+        description: 'No se pudo actualizar la preferencia de notificaciones push.',
         variant: 'destructive',
       });
       // Revertir el estado en caso de error
-      setNotificationsEnabled(!checked);
+      setPushNotificationsEnabled(!checked);
     } finally {
-      setIsNotificationLoading(false);
+      setIsPushNotificationLoading(false);
     }
   };
 
@@ -857,19 +902,38 @@ export default function SettingsPage() {
               {t('Configure how you receive notifications.')}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
+            {/* Notificaciones In-App */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Label htmlFor="notifications-switch" className="flex flex-col space-y-1">
-                <span className="text-sm font-medium sm:text-base">Recibir Notificaciones</span>
+              <Label htmlFor="inapp-notifications-switch" className="flex flex-col space-y-1">
+                <span className="text-sm font-medium sm:text-base">{t('In-App Notifications')}</span>
                 <span className="text-xs font-normal leading-snug text-muted-foreground sm:text-sm">
-                  Recibe alertas sobre necesidades urgentes y actividades importantes. Activo por defecto.
+                  {t('Receive notifications within the application about important activities.')}
                 </span>
               </Label>
               <Switch
-                id="notifications-switch"
-                checked={notificationsEnabled}
-                onCheckedChange={handleNotificationChange}
-                disabled={isNotificationLoading}
+                id="inapp-notifications-switch"
+                checked={inAppNotificationsEnabled}
+                onCheckedChange={handleInAppNotificationChange}
+                disabled={isInAppNotificationLoading}
+              />
+            </div>
+
+            <div className="border-t" />
+
+            {/* Notificaciones Push Android/iOS */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Label htmlFor="push-notifications-switch" className="flex flex-col space-y-1">
+                <span className="text-sm font-medium sm:text-base">{t('Mobile Push Notifications')}</span>
+                <span className="text-xs font-normal leading-snug text-muted-foreground sm:text-sm">
+                  {t('Receive push notifications on your Android/iOS device even when the app is closed.')}
+                </span>
+              </Label>
+              <Switch
+                id="push-notifications-switch"
+                checked={pushNotificationsEnabled}
+                onCheckedChange={handlePushNotificationChange}
+                disabled={isPushNotificationLoading}
               />
             </div>
           </CardContent>

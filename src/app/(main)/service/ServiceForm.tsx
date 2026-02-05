@@ -43,6 +43,7 @@ import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import type { Service } from '@/lib/types';
 import Image from 'next/image';
+import { NotificationCreators } from '@/lib/notification-helpers';
 import { useAuth } from '@/contexts/auth-context';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -194,6 +195,10 @@ export function ServiceForm({ service }: ServiceFormProps) {
       if (isEditMode && service) {
         const serviceRef = doc(servicesCollection, service.id);
         await updateDoc(serviceRef, dataToSave);
+        
+        // Notificar a todos los usuarios sobre la actualización
+        await NotificationCreators.updatedService(user.uid, values.title, service.id);
+        
         toast({
           title: 'Servicio Actualizado',
           description: 'El servicio ha sido actualizado exitosamente.',

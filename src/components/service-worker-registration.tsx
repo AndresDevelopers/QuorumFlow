@@ -120,7 +120,7 @@ export function ServiceWorkerRegistration() {
         cleanupServiceWorkerListeners?.();
       };
     }
-  }, [toast]);
+  }, [toast, t]);
 
   return null; // This component doesn't render anything
 }

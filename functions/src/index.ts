@@ -61,11 +61,33 @@ interface AnnualReportAnswers {
     p6?: string;
 }
 
+// Tipo unificado para actividades y servicios
+interface ActivityOrService {
+    id: string;
+    title: string;
+    date: admin.firestore.Timestamp;
+    time?: string;
+    description?: string;
+    imageUrls?: string[];
+    location?: string;
+    context?: string;
+    learning?: string;
+    additionalText?: string;
+}
+
+// Tipo para servicios desde la base de datos
 interface Service {
     id: string;
     title: string;
     date: admin.firestore.Timestamp;
     time?: string;
+    description?: string;
+    imageUrls?: string[];
+    location?: string;
+    context?: string;
+    learning?: string;
+    additionalText?: string;
+    councilNotified?: boolean;
 }
 
 interface Birthday {
@@ -338,7 +360,7 @@ const fetchImageBuffers = async (urls: string[]): Promise<Map<string, Buffer>> =
     return new Map(entries);
 };
 
-const prepareActivitiesDocData = async (activities: Activity[]): Promise<{
+const prepareActivitiesDocData = async (items: ActivityOrService[]): Promise<{
     activitiesData: ActivityDocEntry[];
     imageModule: ImageModuleInstance;
     totalImages: number;
@@ -347,13 +369,13 @@ const prepareActivitiesDocData = async (activities: Activity[]): Promise<{
 }> => {
     const uniqueImageUrls = new Set<string>();
 
-    const activitiesData: ActivityDocEntry[] = activities.map((activity) => {
+    const activitiesData: ActivityDocEntry[] = items.map((activity) => {
         const activityDate = activity.date.toDate();
         const dateStr = format(activityDate, "dd/MM/yyyy", { locale: es });
         const fullDate = format(activityDate, "dd 'de' MMMM 'de' yyyy", { locale: es });
         const timeStr = activity.time ? ` ${activity.time}` : "";
 
-        let fullDescription = activity.description;
+        let fullDescription = activity.description || "";
         if (activity.additionalText) {
             fullDescription += `\n\nTexto Adicional: ${activity.additionalText}`;
         }
@@ -558,6 +580,7 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
         // Obtener todas las colecciones necesarias
         const [
             activitiesSnapshot,
+            servicesSnapshot,
             baptismsSnapshot,
             futureMembersSnapshot,
             convertsSnapshot,
@@ -565,6 +588,7 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
             reportAnswersDoc
         ] = await Promise.all([
             firestore.collection("c_actividades").orderBy("date", "desc").get(),
+            firestore.collection("c_servicios").orderBy("date", "desc").get(),
             firestore.collection("c_bautismos")
                 .where("date", ">=", startTimestamp)
                 .where("date", "<=", endTimestamp)
@@ -586,7 +610,18 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
 
         // Procesar datos
         const allActivities = activitiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity));
-        const activitiesToProcess = includeAllActivities ? allActivities : allActivities.filter(a => a.date.toDate() >= start && a.date.toDate() <= end);
+        
+        // Procesar servicios - solo incluir los que tienen imágenes
+        const allServices = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Service));
+        const servicesWithImages = allServices.filter(s => 
+            s.imageUrls && s.imageUrls.length > 0 && s.imageUrls.some(url => url && url.trim() !== '')
+        );
+        
+        // Combinar actividades y servicios con imágenes
+        const combinedActivitiesAndServices: (Activity | Service)[] = [...allActivities, ...servicesWithImages];
+        const activitiesToProcess = includeAllActivities 
+            ? combinedActivitiesAndServices 
+            : combinedActivitiesAndServices.filter(a => a.date.toDate() >= start && a.date.toDate() <= end);
 
         // Procesar bautismos con imágenes
         const allBaptisms: Baptism[] = [
@@ -669,12 +704,12 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
         const totalBaptisms = baptisms.length;
         const currentYearActivities = allActivities.filter(a => a.date.toDate() >= start && a.date.toDate() <= end);
 
-        const activitiesByMonth = activitiesToProcess.reduce((acc: Record<string, Activity[]>, activity) => {
+        const activitiesByMonth = activitiesToProcess.reduce((acc: Record<string, ActivityOrService[]>, activity) => {
             const month = format(activity.date.toDate(), "MMMM yyyy", { locale: es });
             if (!acc[month]) acc[month] = [];
             acc[month].push(activity);
             return acc;
-        }, {} as Record<string, Activity[]>);
+        }, {} as Record<string, ActivityOrService[]>);
 
         const {
             activitiesData,
@@ -714,7 +749,7 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
             .map(([month, activities]) => ({
                 month,
                 count: activities.length,
-                activities: activities.map((activity: Activity) => {
+                activities: activities.map((activity: ActivityOrService) => {
                     const docActivity = activitiesDataMap.get(activity.id);
                     const activityDate = activity.date.toDate();
                     return {
@@ -822,7 +857,7 @@ export const generateCompleteReport = functions.https.onCall(async (data: any, c
             tabla_actividades: activitiesToProcess.map(a => ({
                 titulo: a.title,
                 fecha: format(a.date.toDate(), "dd/MM/yyyy", { locale: es }),
-                descripcion: a.description.substring(0, 100) + (a.description.length > 100 ? "..." : ""),
+                descripcion: (a.description || "").substring(0, 100) + ((a.description || "").length > 100 ? "..." : ""),
                 tiene_imagenes: a.imageUrls && a.imageUrls.length > 0 ? "Sí" : "No",
                 cantidad_imagenes: a.imageUrls ? a.imageUrls.length : 0,
             })),

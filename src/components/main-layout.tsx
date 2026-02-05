@@ -28,7 +28,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import Image from "next/image";
 import { useI18n } from "@/contexts/i18n-context";
@@ -140,9 +139,6 @@ function UserNav() {
         <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
           <LanguageSwitcher />
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-          <ThemeToggle />
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/profile">{t("Profile")}</Link>
@@ -178,14 +174,16 @@ export function MainLayout({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!user) {
-      setVisibleNavItems(navigationItems);
-      return;
-    }
-
     let isMounted = true;
 
     const fetchVisibility = async () => {
+      if (!user) {
+        if (isMounted) {
+          setVisibleNavItems(navigationItems);
+        }
+        return;
+      }
+
       try {
         const userDocRef = doc(usersCollection, user.uid);
         const snapshot = await getDoc(userDocRef);

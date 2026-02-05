@@ -300,8 +300,16 @@ export default function ReportsPage() {
 
   useEffect(() => {
     if (authLoading || !user) return;
+    let cancelled = false;
 
-    fetchInitialData();
+    (async () => {
+      if (cancelled) return;
+      await fetchInitialData();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [authLoading, user, fetchInitialData]);
 
   useEffect(() => {

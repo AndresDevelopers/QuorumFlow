@@ -216,14 +216,14 @@ const fetchImageBuffers = async (urls) => {
     }));
     return new Map(entries);
 };
-const prepareActivitiesDocData = async (activities) => {
+const prepareActivitiesDocData = async (items) => {
     const uniqueImageUrls = new Set();
-    const activitiesData = activities.map((activity) => {
+    const activitiesData = items.map((activity) => {
         const activityDate = activity.date.toDate();
         const dateStr = (0, date_fns_1.format)(activityDate, "dd/MM/yyyy", { locale: locale_1.es });
         const fullDate = (0, date_fns_1.format)(activityDate, "dd 'de' MMMM 'de' yyyy", { locale: locale_1.es });
         const timeStr = activity.time ? ` ${activity.time}` : "";
-        let fullDescription = activity.description;
+        let fullDescription = activity.description || "";
         if (activity.additionalText) {
             fullDescription += `\n\nTexto Adicional: ${activity.additionalText}`;
         }
@@ -391,8 +391,9 @@ exports.generateCompleteReport = functions.https.onCall(async (data, context) =>
         const startTimestamp = admin.firestore.Timestamp.fromDate(start);
         const endTimestamp = admin.firestore.Timestamp.fromDate(end);
         // Obtener todas las colecciones necesarias
-        const [activitiesSnapshot, baptismsSnapshot, futureMembersSnapshot, convertsSnapshot, membersSnapshot, reportAnswersDoc] = await Promise.all([
+        const [activitiesSnapshot, servicesSnapshot, baptismsSnapshot, futureMembersSnapshot, convertsSnapshot, membersSnapshot, reportAnswersDoc] = await Promise.all([
             firestore.collection("c_actividades").orderBy("date", "desc").get(),
+            firestore.collection("c_servicios").orderBy("date", "desc").get(),
             firestore.collection("c_bautismos")
                 .where("date", ">=", startTimestamp)
                 .where("date", "<=", endTimestamp)
@@ -413,7 +414,14 @@ exports.generateCompleteReport = functions.https.onCall(async (data, context) =>
         ]);
         // Procesar datos
         const allActivities = activitiesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        const activitiesToProcess = includeAllActivities ? allActivities : allActivities.filter(a => a.date.toDate() >= start && a.date.toDate() <= end);
+        // Procesar servicios - solo incluir los que tienen imágenes
+        const allServices = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const servicesWithImages = allServices.filter(s => s.imageUrls && s.imageUrls.length > 0 && s.imageUrls.some(url => url && url.trim() !== ''));
+        // Combinar actividades y servicios con imágenes
+        const combinedActivitiesAndServices = [...allActivities, ...servicesWithImages];
+        const activitiesToProcess = includeAllActivities
+            ? combinedActivitiesAndServices
+            : combinedActivitiesAndServices.filter(a => a.date.toDate() >= start && a.date.toDate() <= end);
         // Procesar bautismos con imágenes
         const allBaptisms = [
             ...futureMembersSnapshot.docs.map(doc => {
@@ -614,7 +622,7 @@ exports.generateCompleteReport = functions.https.onCall(async (data, context) =>
             tabla_actividades: activitiesToProcess.map(a => ({
                 titulo: a.title,
                 fecha: (0, date_fns_1.format)(a.date.toDate(), "dd/MM/yyyy", { locale: locale_1.es }),
-                descripcion: a.description.substring(0, 100) + (a.description.length > 100 ? "..." : ""),
+                descripcion: (a.description || "").substring(0, 100) + ((a.description || "").length > 100 ? "..." : ""),
                 tiene_imagenes: a.imageUrls && a.imageUrls.length > 0 ? "Sí" : "No",
                 cantidad_imagenes: a.imageUrls ? a.imageUrls.length : 0,
             })),

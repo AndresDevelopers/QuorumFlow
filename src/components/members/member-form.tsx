@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useWatch } from 'react-hook-form';
 import * as z from 'zod';
 import Image from 'next/image';
-import { Upload, X } from 'lucide-react';
+import { Upload, X, AlertTriangle, Shield } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -53,6 +53,7 @@ import type { Member, MemberStatus, Ordinance } from '@/lib/types';
 import { OrdinanceLabels } from '@/lib/types';
 import { createMember, updateMember, uploadMemberPhoto, uploadBaptismPhotos, getMembersForSelector, searchMembersByName, getMemberById } from '@/lib/members-data';
 import { syncMinisteringAssignments, getPreviousMinisteringTeachers } from '@/lib/ministering-sync';
+import { createNotificationsForAll } from '@/lib/notification-helpers';
 import { Timestamp } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
@@ -71,6 +72,8 @@ const memberFormSchema = z.object({
   baptismPhotos: z.array(z.string()).optional(),
   ordinances: z.array(z.enum(['baptism', 'confirmation', 'elder_ordination', 'endowment', 'sealed_spouse', 'high_priest_ordination', 'aronico_ordination'] as const)).optional(),
   ministeringTeachers: z.array(z.string()).optional(),
+  isUrgent: z.boolean().optional(),
+  isInCouncil: z.boolean().optional(),
 });
 
 const normalizeMemberStatus = (status?: string | null): MemberStatus => {
@@ -204,7 +207,9 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         photoURL: (currentMember.photoURL && currentMember.photoURL.trim()) ?? undefined,
         baptismPhotos: currentMember.baptismPhotos || [],
         ordinances: currentMember.ordinances || [],
-        ministeringTeachers: currentMember.ministeringTeachers || []
+        ministeringTeachers: currentMember.ministeringTeachers || [],
+        isUrgent: currentMember.isUrgent || false,
+        isInCouncil: currentMember.isInCouncil || false,
       };
 
       console.log('📝 Setting form values:', valuesToSet);
@@ -247,6 +252,8 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         baptismPhotos: [],
         ordinances: [],
         ministeringTeachers: [],
+        isUrgent: false,
+        isInCouncil: false,
       });
       form.setValue('status', 'active', { shouldValidate: true });
       setPhotoPreview(null);
@@ -715,6 +722,8 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           baptismPhotos: baptismPhotoURLs,
           ordinances: values.ordinances || [],
           ministeringTeachers: values.ministeringTeachers || [],
+          isUrgent: values.isUrgent || false,
+          isInCouncil: values.isInCouncil || false,
         });
 
         // Sync ministering assignments if teachers changed
@@ -737,6 +746,21 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           description: `${values.firstName} ${values.lastName} ha sido actualizado correctamente.`
         });
         console.log('✅ Member updated successfully:', { memberId: member.id, updatedData: memberData });
+
+        // Send notification if marked as urgent and wasn't urgent before
+        if (values.isUrgent && !member.isUrgent) {
+          try {
+            await createNotificationsForAll({
+              title: '⚠️ Miembro Marcado como Urgente',
+              body: `${values.firstName} ${values.lastName} ha sido marcado como urgente y requiere atención prioritaria`,
+              contextType: 'member',
+              contextId: member.id,
+              actionUrl: '/members'
+            });
+          } catch (notifError) {
+            console.error('Error sending urgent notification from form:', notifError);
+          }
+        }
       } else {
         const newMember: any = {
           firstName: values.firstName.trim(),
@@ -749,6 +773,8 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           baptismPhotos: baptismPhotoURLs,
           ordinances: values.ordinances || [],
           ministeringTeachers: values.ministeringTeachers || [],
+          isUrgent: values.isUrgent || false,
+          isInCouncil: values.isInCouncil || false,
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
           createdBy: user.uid,
@@ -786,6 +812,21 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           description: `${values.firstName} ${values.lastName} ha sido agregado como nuevo miembro.`
         });
         console.log('✅ New member created successfully:', { memberId: newMemberId, memberData: newMember });
+
+        // Send notification if new member is marked as urgent
+        if (values.isUrgent) {
+          try {
+            await createNotificationsForAll({
+              title: '⚠️ Miembro Marcado como Urgente',
+              body: `${values.firstName} ${values.lastName} ha sido marcado como urgente y requiere atención prioritaria`,
+              contextType: 'member',
+              contextId: newMemberId,
+              actionUrl: '/members'
+            });
+          } catch (notifError) {
+            console.error('Error sending urgent notification for new member:', notifError);
+          }
+        }
       }
 
       onClose();
@@ -1320,6 +1361,56 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
             </FormItem>
           )}
         />
+
+        {/* Urgente y Consejo Flags */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="isUrgent"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-orange-500" />
+                    Marcar como Urgente
+                  </FormLabel>
+                  <FormDescription>
+                    Indica que este miembro requiere atención prioritaria.
+                  </FormDescription>
+                </div>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="isInCouncil"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-blue-500" />
+                    En Consejo de Barrio
+                  </FormLabel>
+                  <FormDescription>
+                    Selecciona para incluir en el consejo de barrio.
+                  </FormDescription>
+                </div>
+              </FormItem>
+            )}
+          />
+        </div>
 
         {/* Form Actions */}
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 space-y-2 space-y-reverse sm:space-y-0">

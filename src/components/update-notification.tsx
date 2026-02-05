@@ -189,6 +189,7 @@ export function UpdateNotification({
     currentVersion,
     fetchClient,
     reload,
+    t,
   ]);
 
   return null; // This component does not render anything itself
