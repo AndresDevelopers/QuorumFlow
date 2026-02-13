@@ -208,7 +208,11 @@ export async function updateMember(
       baptismDate: memberData.baptismDate,
       baptismPhotos: memberData.baptismPhotos,
       ordinances: memberData.ordinances,
-      ministeringTeachers: memberData.ministeringTeachers
+      ministeringTeachers: memberData.ministeringTeachers,
+      isUrgent: memberData.isUrgent,
+      urgentReason: memberData.urgentReason,
+      urgentNotifiedAt: (memberData as any).urgentNotifiedAt,
+      isInCouncil: memberData.isInCouncil,
     };
 
     // Manejar lastActiveDate e inactiveSince según el estado
@@ -326,6 +330,34 @@ export async function getLessActiveMembers(): Promise<Member[]> {
     }
 
     throw new Error('Error desconocido al obtener miembros menos activos');
+  }
+}
+
+// Get urgent members for council page
+export async function getUrgentMembers(): Promise<Member[]> {
+  try {
+    const db = getFirestoreInstance();
+    const membersCollection = collection(db, 'c_miembros');
+
+    const q = query(
+      membersCollection,
+      where('isUrgent', '==', true)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const members: Member[] = [];
+
+    querySnapshot.forEach((docSnap) => {
+      members.push({
+        id: docSnap.id,
+        ...docSnap.data()
+      } as Member);
+    });
+
+    return members.sort((a, b) => a.lastName.localeCompare(b.lastName));
+  } catch (error) {
+    console.error('Error getting urgent members:', error);
+    return [];
   }
 }
 

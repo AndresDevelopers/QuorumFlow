@@ -6,7 +6,8 @@ export const dynamic = 'force-dynamic';
 import { getDocs, query, orderBy, where, Timestamp, doc, updateDoc, getDoc, deleteDoc, collection } from 'firebase/firestore';
 import { membersCollection, futureMembersCollection, ministeringCollection, annotationsCollection, servicesCollection, activitiesCollection, convertsCollection } from '@/lib/collections';
 import type { Member, FutureMember, Companionship, Family, Annotation, Service, Activity, Convert } from '@/lib/types';
-import { getLessActiveMembers } from '@/lib/members-data';
+import { getLessActiveMembers, getUrgentMembers, updateMember } from '@/lib/members-data';
+import { createNotificationsForAll } from '@/lib/notification-helpers';
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { firestore } from '@/lib/firebase';
@@ -28,7 +29,7 @@ import {
 } from '@/components/ui/table';
 import { format, subMonths, subYears, addDays, subHours, isAfter, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { UserCheck, Users, CalendarClock, AlertTriangle, CheckCircle, NotebookPen, Trash2, Save, Wrench, BellRing, UserMinus, Calendar } from 'lucide-react';
+import { UserCheck, Users, CalendarClock, AlertTriangle, CheckCircle, NotebookPen, Trash2, Save, Wrench, BellRing, UserMinus, Calendar, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -201,6 +202,7 @@ export default function CouncilPage() {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [lessActiveMembers, setLessActiveMembers] = useState<Member[]>([]);
+  const [urgentMembers, setUrgentMembers] = useState<Member[]>([]);
   const [upcomingActivities, setUpcomingActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -210,13 +212,14 @@ export default function CouncilPage() {
   const fetchAllData = useCallback(async () => {
     setLoading(true);
     try {
-        const [converts, baptisms, needs, notes, upcomingServices, lessActive, activities] = await Promise.all([
+        const [converts, baptisms, needs, notes, upcomingServices, lessActive, urgent, activities] = await Promise.all([
         getCouncilMembers(),
         getUpcomingBaptisms(),
         getUrgentNeeds(),
         getCouncilAnnotations(),
         getUpcomingServices(),
         getLessActiveMembers(),
+        getUrgentMembers(),
         getUpcomingActivities(),
         ]);
         setCouncilConverts(converts);
@@ -225,7 +228,11 @@ export default function CouncilPage() {
         setAnnotations(notes);
         setServices(upcomingServices);
         setLessActiveMembers(lessActive);
+        setUrgentMembers(urgent);
         setUpcomingActivities(activities);
+
+        // Send daily notifications for urgent members (fire-and-forget)
+        sendDailyUrgentNotifications(urgent).catch(() => {});
 
         const initialObservations: Record<string, string> = {};
         converts.forEach((c: Member) => {
@@ -364,6 +371,43 @@ export default function CouncilPage() {
     }
   };
 
+  const sendDailyUrgentNotifications = async (members: Member[]) => {
+    const now = new Date();
+    for (const member of members) {
+      const lastNotified = member.urgentNotifiedAt?.toDate();
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      if (!lastNotified || lastNotified < twentyFourHoursAgo) {
+        try {
+          await createNotificationsForAll({
+            title: '⚠️ Recordatorio: Miembro Urgente',
+            body: `${member.firstName} ${member.lastName} sigue marcado como urgente${member.urgentReason ? `: ${member.urgentReason}` : ''}`,
+            contextType: 'member',
+            contextId: member.id,
+            actionUrl: '/council'
+          });
+          await updateMember(member.id, { urgentNotifiedAt: Timestamp.now() } as Partial<Member>);
+        } catch (error) {
+          logger.error({ error, memberId: member.id, message: 'Error sending daily urgent notification' });
+        }
+      }
+    }
+  };
+
+  const handleResolveUrgentMember = async (memberId: string) => {
+    try {
+      await updateMember(memberId, {
+        isUrgent: false,
+        urgentReason: '',
+      });
+      toast({ title: 'Éxito', description: 'Miembro desmarcado como urgente.' });
+      fetchAllData();
+    } catch (error) {
+      logger.error({ error, memberId, message: 'Error resolving urgent member' });
+      toast({ title: 'Error', description: 'No se pudo resolver la urgencia del miembro.', variant: 'destructive' });
+    }
+  };
+
   const today = new Date();
   const sevenDaysFromNow = addDays(today, 7);
   const servicesIn7Days = services.filter(s => s.date.toDate() <= sevenDaysFromNow);
@@ -471,6 +515,74 @@ export default function CouncilPage() {
         </CardContent>
       </Card>
       
+      <Card>
+        <CardHeader>
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-8 w-8 text-orange-500" />
+            <div>
+              <CardTitle>Necesidades Urgentes de Miembros</CardTitle>
+              <CardDescription>
+                Miembros marcados como urgentes que requieren atención prioritaria del consejo.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? <Skeleton className="h-24 w-full" /> : urgentMembers.length === 0 ? (
+            <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
+              No hay miembros marcados como urgentes.
+            </p>
+          ) : (
+            <Accordion type="single" collapsible className="w-full">
+              {urgentMembers.map((member, index) => (
+                <AccordionItem value={`urgent-${index}`} key={member.id}>
+                  <AccordionTrigger>
+                    <div className="flex items-center justify-between w-full pr-4">
+                      <div className="flex items-center gap-3">
+                        {member.photoURL ? (
+                          <Image
+                            src={member.photoURL}
+                            alt={`${member.firstName} ${member.lastName}`}
+                            width={36}
+                            height={36}
+                            className="w-9 h-9 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center">
+                            <AlertTriangle className="w-5 h-5 text-orange-500" />
+                          </div>
+                        )}
+                        <span className="font-semibold">{member.firstName} {member.lastName}</span>
+                      </div>
+                      <Badge variant="destructive">Urgente</Badge>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="p-4 bg-muted/50 rounded-md space-y-4">
+                      <div className="flex items-start gap-2">
+                        <Info className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
+                        <p className="text-sm">
+                          <span className="font-semibold">Razón:</span> {member.urgentReason || 'No especificada'}
+                        </p>
+                      </div>
+                      {member.phoneNumber && (
+                        <p className="text-sm text-muted-foreground">
+                          Teléfono: {member.phoneNumber}
+                        </p>
+                      )}
+                      <Button size="sm" onClick={() => handleResolveUrgentMember(member.id)}>
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Marcar como Resuelto
+                      </Button>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <div className="flex items-start gap-3">

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Plus, Search, Filter, Edit, Trash2, Users, UserCheck, UserX, Eye, ChevronUp, RefreshCw, Clock, CheckCircle, AlertCircle, AlertTriangle, Shield } from 'lucide-react';
+import { Plus, Search, Filter, Edit, Trash2, Users, UserCheck, UserX, Eye, ChevronUp, RefreshCw, Clock, CheckCircle, AlertCircle, AlertTriangle } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -49,6 +49,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
 import { useMembersSync } from '@/hooks/use-members-sync';
@@ -97,10 +99,12 @@ export default function MembersPage() {
   const [statusFilter, setStatusFilter] = useState<MemberStatus | 'all'>('all');
   const [baptismFilter, setBaptismFilter] = useState<'all' | 'baptized' | 'not_baptized'>('all');
   const [urgentFilter, setUrgentFilter] = useState<'all' | 'urgent' | 'not_urgent'>('all');
-  const [councilFilter, setCouncilFilter] = useState<'all' | 'in_council' | 'not_in_council'>('all');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [urgentDialogOpen, setUrgentDialogOpen] = useState(false);
+  const [urgentMember, setUrgentMember] = useState<Member | null>(null);
+  const [urgentReason, setUrgentReason] = useState('');
 
 
 
@@ -187,42 +191,55 @@ export default function MembersPage() {
     router.push(`/members/${memberId}`);
   };
 
-  const handleToggleMemberFlag = async (member: Member, flag: 'isUrgent' | 'isInCouncil') => {
+  const handleToggleUrgent = (member: Member) => {
+    if (member.isUrgent) {
+      // Unmarking - do it directly
+      handleConfirmUrgent(member, false, '');
+    } else {
+      // Marking - show dialog for reason
+      setUrgentMember(member);
+      setUrgentReason('');
+      setUrgentDialogOpen(true);
+    }
+  };
+
+  const handleConfirmUrgent = async (member: Member, markAsUrgent: boolean, reason: string) => {
     try {
-      const newValue = !member[flag];
       await updateMember(member.id, {
-        [flag]: newValue,
+        isUrgent: markAsUrgent,
+        urgentReason: markAsUrgent ? reason : '',
       });
 
-      // Send notification if marking as urgent
-      if (flag === 'isUrgent' && newValue) {
+      if (markAsUrgent) {
         try {
           await createNotificationsForAll({
             title: '⚠️ Miembro Marcado como Urgente',
-            body: `${member.firstName} ${member.lastName} ha sido marcado como urgente y requiere atención prioritaria`,
+            body: `${member.firstName} ${member.lastName} ha sido marcado como urgente: ${reason}`,
             contextType: 'member',
             contextId: member.id,
-            actionUrl: '/members'
+            actionUrl: '/council'
           });
         } catch (notifError) {
           console.error('Error sending urgent notification:', notifError);
-          // Don't block the main operation if notification fails
         }
       }
 
       toast({
         title: 'Éxito',
-        description: `${member.firstName} ${member.lastName} ${newValue ? 'marcado' : 'desmarcado'} ${flag === 'isUrgent' ? 'como urgente' : 'para consejo de barrio'}.`,
+        description: `${member.firstName} ${member.lastName} ${markAsUrgent ? 'marcado como urgente' : 'desmarcado como urgente'}.`,
       });
 
-      // Refresh data
+      setUrgentDialogOpen(false);
+      setUrgentMember(null);
+      setUrgentReason('');
+
       clearCache();
       await fetchMembers(true);
     } catch (error) {
-      console.error(`Error toggling ${flag}:`, error);
+      console.error('Error toggling urgent:', error);
       toast({
         title: 'Error',
-        description: `No se pudo actualizar el estado del miembro.`,
+        description: 'No se pudo actualizar el estado del miembro.',
         variant: 'destructive',
       });
     }
@@ -250,12 +267,7 @@ export default function MembersPage() {
       (urgentFilter === 'urgent' && member.isUrgent) ||
       (urgentFilter === 'not_urgent' && !member.isUrgent);
     
-    // Filter for council status
-    const matchesCouncil = councilFilter === 'all' ||
-      (councilFilter === 'in_council' && member.isInCouncil) ||
-      (councilFilter === 'not_in_council' && !member.isInCouncil);
-    
-    return matchesSearch && matchesStatus && matchesBaptism && matchesUrgent && matchesCouncil;
+    return matchesSearch && matchesStatus && matchesBaptism && matchesUrgent;
   });
 
   const memberCounts = {
@@ -263,7 +275,6 @@ export default function MembersPage() {
     less_active: members.filter(m => m.status === 'less_active').length,
     inactive: members.filter(m => m.status === 'inactive').length,
     urgent: members.filter(m => m.isUrgent).length,
-    inCouncil: members.filter(m => m.isInCouncil).length,
     total: members.length
   };
 
@@ -323,7 +334,7 @@ export default function MembersPage() {
 
 
       {/* Stats Cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total</CardTitle>
@@ -372,16 +383,6 @@ export default function MembersPage() {
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">{memberCounts.urgent}</div>
             <p className="text-xs text-muted-foreground">miembros marcados urgentes</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">En Consejo</CardTitle>
-            <Shield className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{memberCounts.inCouncil}</div>
-            <p className="text-xs text-muted-foreground">miembros en consejo</p>
           </CardContent>
         </Card>
       </div>
@@ -439,17 +440,7 @@ export default function MembersPage() {
                 <SelectItem value="not_urgent">No urgentes</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={councilFilter} onValueChange={(value: 'all' | 'in_council' | 'not_in_council') => setCouncilFilter(value)}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <Shield className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Filtrar por consejo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="in_council">En Consejo</SelectItem>
-                <SelectItem value="not_in_council">Fuera de Consejo</SelectItem>
-              </SelectContent>
-            </Select>
+
           </div>
 
           {/* Desktop Table */}
@@ -465,7 +456,6 @@ export default function MembersPage() {
                   <TableHead>Ministrantes</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-center">Urgente</TableHead>
-                  <TableHead className="text-center">Consejo</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -481,13 +471,12 @@ export default function MembersPage() {
                       <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                       <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                       <TableCell className="text-center"><Skeleton className="h-6 w-12 mx-auto" /></TableCell>
-                      <TableCell className="text-center"><Skeleton className="h-6 w-12 mx-auto" /></TableCell>
                       <TableCell className="text-right"><Skeleton className="h-8 w-24" /></TableCell>
                     </TableRow>
                   ))
                 ) : filteredMembers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       {searchTerm || statusFilter !== 'all'
                         ? 'No se encontraron miembros con los filtros aplicados.'
                         : syncStatus === 'syncing'
@@ -580,22 +569,11 @@ export default function MembersPage() {
                           <Button
                             variant={member.isUrgent ? "destructive" : "outline"}
                             size="sm"
-                            onClick={() => handleToggleMemberFlag(member, 'isUrgent')}
+                            onClick={() => handleToggleUrgent(member)}
                             title={member.isUrgent ? "Desmarcar como urgente" : "Marcar como urgente"}
                             className="px-2"
                           >
                             <AlertTriangle className={`h-4 w-4 ${member.isUrgent ? 'text-white' : 'text-orange-500'}`} />
-                          </Button>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Button
-                            variant={member.isInCouncil ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => handleToggleMemberFlag(member, 'isInCouncil')}
-                            title={member.isInCouncil ? "Quitar de consejo de barrio" : "Agregar a consejo de barrio"}
-                            className="px-2"
-                          >
-                            <Shield className={`h-4 w-4 ${member.isInCouncil ? 'text-white' : 'text-blue-500'}`} />
                           </Button>
                         </TableCell>
                         <TableCell className="text-right">
@@ -759,25 +737,16 @@ export default function MembersPage() {
                         </div>
                       </div>
 
-                      {/* Urgente y Consejo en móvil */}
+                      {/* Urgente en móvil */}
                       <div className="flex flex-wrap gap-2 mb-3">
                         <Button
                           variant={member.isUrgent ? "destructive" : "outline"}
                           size="sm"
-                          onClick={() => handleToggleMemberFlag(member, 'isUrgent')}
+                          onClick={() => handleToggleUrgent(member)}
                           className="flex-1"
                         >
                           <AlertTriangle className={`mr-2 h-4 w-4 ${member.isUrgent ? 'text-white' : 'text-orange-500'}`} />
                           {member.isUrgent ? 'Urgente' : 'Marcar Urgente'}
-                        </Button>
-                        <Button
-                          variant={member.isInCouncil ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => handleToggleMemberFlag(member, 'isInCouncil')}
-                          className="flex-1"
-                        >
-                          <Shield className={`mr-2 h-4 w-4 ${member.isInCouncil ? 'text-white' : 'text-blue-500'}`} />
-                          {member.isInCouncil ? 'En Consejo' : 'Agregar a Consejo'}
                         </Button>
                       </div>
 
@@ -846,6 +815,60 @@ export default function MembersPage() {
           <ChevronUp className="h-4 w-4" />
         </Button>
       )}
+
+      {/* Urgent Reason Dialog */}
+      <Dialog open={urgentDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setUrgentDialogOpen(false);
+          setUrgentMember(null);
+          setUrgentReason('');
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Marcar como Urgente
+            </DialogTitle>
+            <DialogDescription>
+              {urgentMember && `¿Por qué ${urgentMember.firstName} ${urgentMember.lastName} necesita atención urgente?`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="urgent-reason">Razón de urgencia</Label>
+              <Textarea
+                id="urgent-reason"
+                placeholder="Describe la razón por la cual este miembro requiere atención urgente..."
+                value={urgentReason}
+                onChange={(e) => setUrgentReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                setUrgentDialogOpen(false);
+                setUrgentMember(null);
+                setUrgentReason('');
+              }}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={!urgentReason.trim()}
+                onClick={() => {
+                  if (urgentMember) {
+                    handleConfirmUrgent(urgentMember, true, urgentReason.trim());
+                  }
+                }}
+              >
+                <AlertTriangle className="mr-2 h-4 w-4" />
+                Marcar Urgente
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
