@@ -341,8 +341,7 @@ export async function getUrgentMembers(): Promise<Member[]> {
 
     const q = query(
       membersCollection,
-      where('isUrgent', '==', true),
-      orderBy('lastName', 'asc')
+      where('isUrgent', '==', true)
     );
 
     const querySnapshot = await getDocs(q);
@@ -355,10 +354,10 @@ export async function getUrgentMembers(): Promise<Member[]> {
       } as Member);
     });
 
-    return members;
+    return members.sort((a, b) => a.lastName.localeCompare(b.lastName));
   } catch (error) {
     console.error('Error getting urgent members:', error);
-    throw new Error('Error al obtener miembros urgentes');
+    return [];
   }
 }
 

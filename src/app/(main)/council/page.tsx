@@ -231,8 +231,8 @@ export default function CouncilPage() {
         setUrgentMembers(urgent);
         setUpcomingActivities(activities);
 
-        // Send daily notifications for urgent members
-        await sendDailyUrgentNotifications(urgent);
+        // Send daily notifications for urgent members (fire-and-forget)
+        sendDailyUrgentNotifications(urgent).catch(() => {});
 
         const initialObservations: Record<string, string> = {};
         converts.forEach((c: Member) => {

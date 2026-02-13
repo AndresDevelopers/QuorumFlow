@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Plus, Search, Filter, Edit, Trash2, Users, UserCheck, UserX, Eye, ChevronUp, RefreshCw, Clock, CheckCircle, AlertCircle, AlertTriangle, Shield } from 'lucide-react';
+import { Plus, Search, Filter, Edit, Trash2, Users, UserCheck, UserX, Eye, ChevronUp, RefreshCw, Clock, CheckCircle, AlertCircle, AlertTriangle } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -99,7 +99,6 @@ export default function MembersPage() {
   const [statusFilter, setStatusFilter] = useState<MemberStatus | 'all'>('all');
   const [baptismFilter, setBaptismFilter] = useState<'all' | 'baptized' | 'not_baptized'>('all');
   const [urgentFilter, setUrgentFilter] = useState<'all' | 'urgent' | 'not_urgent'>('all');
-  const [councilFilter, setCouncilFilter] = useState<'all' | 'in_council' | 'not_in_council'>('all');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -268,12 +267,7 @@ export default function MembersPage() {
       (urgentFilter === 'urgent' && member.isUrgent) ||
       (urgentFilter === 'not_urgent' && !member.isUrgent);
     
-    // Filter for council status
-    const matchesCouncil = councilFilter === 'all' ||
-      (councilFilter === 'in_council' && member.isInCouncil) ||
-      (councilFilter === 'not_in_council' && !member.isInCouncil);
-    
-    return matchesSearch && matchesStatus && matchesBaptism && matchesUrgent && matchesCouncil;
+    return matchesSearch && matchesStatus && matchesBaptism && matchesUrgent;
   });
 
   const memberCounts = {
@@ -281,7 +275,6 @@ export default function MembersPage() {
     less_active: members.filter(m => m.status === 'less_active').length,
     inactive: members.filter(m => m.status === 'inactive').length,
     urgent: members.filter(m => m.isUrgent).length,
-    inCouncil: members.filter(m => m.isInCouncil).length,
     total: members.length
   };
 
@@ -341,7 +334,7 @@ export default function MembersPage() {
 
 
       {/* Stats Cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total</CardTitle>
@@ -390,16 +383,6 @@ export default function MembersPage() {
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">{memberCounts.urgent}</div>
             <p className="text-xs text-muted-foreground">miembros marcados urgentes</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">En Consejo</CardTitle>
-            <Shield className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{memberCounts.inCouncil}</div>
-            <p className="text-xs text-muted-foreground">miembros en consejo</p>
           </CardContent>
         </Card>
       </div>
@@ -457,17 +440,7 @@ export default function MembersPage() {
                 <SelectItem value="not_urgent">No urgentes</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={councilFilter} onValueChange={(value: 'all' | 'in_council' | 'not_in_council') => setCouncilFilter(value)}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <Shield className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Filtrar por consejo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="in_council">En Consejo</SelectItem>
-                <SelectItem value="not_in_council">Fuera de Consejo</SelectItem>
-              </SelectContent>
-            </Select>
+
           </div>
 
           {/* Desktop Table */}
