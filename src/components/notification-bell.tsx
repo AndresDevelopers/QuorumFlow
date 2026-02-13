@@ -2,13 +2,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bell, Mail, ExternalLink } from "lucide-react";
+import { Bell, Mail, ExternalLink, ArrowDownCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
+import { useI18n } from "@/contexts/i18n-context";
 import { useRouter } from "next/navigation";
-import { doc, setDoc, getDocs, collection, query, where, orderBy, writeBatch } from "firebase/firestore";
-import { pushSubscriptionsCollection, notificationsCollection } from "@/lib/collections";
+import { doc, setDoc, getDocs, query, where, orderBy, writeBatch } from "firebase/firestore";
+import { notificationsCollection } from "@/lib/collections";
 import {
   Popover,
   PopoverContent,
@@ -18,13 +18,16 @@ import type { AppNotification } from "@/lib/types";
 import { formatRelative } from "date-fns";
 import { es } from "date-fns/locale";
 import { Skeleton } from "./ui/skeleton";
+import { useUpdateCheck } from "./update-notification";
 
 export function NotificationBell() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const router = useRouter();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasUnread, setHasUnread] = useState(false);
+  const { hasUpdate, handleDismiss, handleUpdate } = useUpdateCheck();
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
@@ -114,19 +117,19 @@ export function NotificationBell() {
 
   const handleNotificationClick = async (notification: AppNotification) => {
     const url = getNavigationUrl(notification);
-    
+
     if (url) {
       // Mark notification as read when clicked
       if (!notification.isRead) {
         try {
           const docRef = doc(notificationsCollection, notification.id);
           await setDoc(docRef, { ...notification, isRead: true }, { merge: true });
-          
+
           // Update local state
-          setNotifications(prev => 
+          setNotifications(prev =>
             prev.map(n => n.id === notification.id ? {...n, isRead: true} : n)
           );
-          
+
           // Update unread status
           const stillHasUnread = notifications.some(n => n.id !== notification.id && !n.isRead);
           setHasUnread(stillHasUnread);
@@ -144,6 +147,7 @@ export function NotificationBell() {
     }
   };
 
+  const showIndicator = hasUnread || hasUpdate;
 
   return (
     <Popover onOpenChange={(isOpen) => { if (isOpen) fetchNotifications(); else handleMarkAsRead(); }}>
@@ -155,7 +159,7 @@ export function NotificationBell() {
           className="relative"
         >
           <Bell className="h-5 w-5" />
-          {hasUnread && <span className="absolute top-1 right-1 flex h-2.5 w-2.5">
+          {showIndicator && <span className="absolute top-1 right-1 flex h-2.5 w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
           </span>}
@@ -166,6 +170,46 @@ export function NotificationBell() {
           <h4 className="font-medium text-sm">Notificaciones</h4>
         </div>
         <div className="space-y-2">
+            {hasUpdate && (
+              <div className="relative rounded-md border border-primary/30 bg-primary/5 p-3">
+                <div className="flex items-start gap-3">
+                  <ArrowDownCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-primary">
+                      {t("updateNotification.title")}
+                    </p>
+                    <p className="text-muted-foreground text-xs mt-0.5">
+                      {t("updateNotification.body")}
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={handleUpdate}
+                      >
+                        {t("updateNotification.update")}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={handleDismiss}
+                      >
+                        {t("updateNotification.dismiss")}
+                      </Button>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleDismiss}
+                    className="text-muted-foreground hover:text-foreground flex-shrink-0"
+                    aria-label={t("updateNotification.dismiss")}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
             {loading ? (
                 <>
                     <Skeleton className="h-12 w-full" />
@@ -176,13 +220,13 @@ export function NotificationBell() {
                 notifications.map((notif) => {
                     const url = getNavigationUrl(notif);
                     const isClickable = !!url;
-                    
+
                     return (
-                        <div 
-                            key={notif.id} 
+                        <div
+                            key={notif.id}
                             className={`text-sm p-2 rounded-md transition-colors ${
-                                isClickable 
-                                    ? 'hover:bg-muted cursor-pointer border border-transparent hover:border-border' 
+                                isClickable
+                                    ? 'hover:bg-muted cursor-pointer border border-transparent hover:border-border'
                                     : 'hover:bg-muted/50'
                             } ${!notif.isRead ? 'bg-primary/5 border-primary/20' : ''}`}
                             onClick={() => isClickable && handleNotificationClick(notif)}
@@ -213,12 +257,12 @@ export function NotificationBell() {
                         </div>
                     );
                 })
-            ) : (
+            ) : !hasUpdate ? (
                 <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-4">
                     <Mail className="h-8 w-8 mb-2" />
                     <p className="text-sm">No tienes notificaciones</p>
                 </div>
-            )}
+            ) : null}
         </div>
       </PopoverContent>
     </Popover>

@@ -40,7 +40,6 @@ import { signOut } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "./notification-bell";
 import { ChangelogDialog } from "./changelog-dialog";
-import { UpdateNotification } from "./update-notification";
 import { InstallPrompt } from "@/components/install-prompt";
 import { navigationItems } from "@/lib/navigation";
 import { usersCollection } from "@/lib/collections";
@@ -233,7 +232,6 @@ export function MainLayout({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <UpdateNotification />
       <Sidebar collapsible="icon">
         <SidebarHeader>
           <Logo />

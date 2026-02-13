@@ -1,11 +1,8 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ToastAction } from "@/components/ui/toast";
-import { useToast } from "@/hooks/use-toast";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
-import { useI18n } from "@/contexts/i18n-context";
 import { firestore } from "@/lib/firebase";
 import logger from "@/lib/logger";
 import { getCookie, setCookieWithMinutes, deleteCookie } from "@/lib/cookie-utils";
@@ -14,22 +11,6 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 const VERSION_ENDPOINT = "/version.json";
 const DISMISS_COOKIE = "update_dismissed";
 const DISMISS_DURATION_MINUTES = 30;
-
-interface UpdateNotificationProps {
-  /**
-   * Allows tests or calling code to provide the version that is currently running.
-   * When omitted, the component will resolve it from {@link VERSION_ENDPOINT}.
-   */
-  currentVersion?: string;
-  /**
-   * Optional fetch implementation. Useful for dependency injection and testing.
-   */
-  fetchImpl?: typeof fetch;
-  /**
-   * Optional reload strategy. Defaults to `window.location.reload`.
-   */
-  onReload?: () => void;
-}
 
 interface VersionManifest {
   version?: string;
@@ -51,31 +32,26 @@ async function resolveVersion(fetchClient: typeof fetch): Promise<string | null>
   }
 }
 
-export function UpdateNotification({
-  currentVersion: providedVersion,
-  fetchImpl,
-  onReload,
-}: UpdateNotificationProps = {}) {
-  const { toast, dismiss } = useToast();
+export interface UpdateCheckResult {
+  hasUpdate: boolean;
+  handleDismiss: () => Promise<void>;
+  handleUpdate: () => void;
+}
+
+export function useUpdateCheck(): UpdateCheckResult {
   const { user } = useAuth();
-  const { t } = useI18n();
-  const [hasShownToast, setHasShownToast] = useState(false);
-  const [currentVersion, setCurrentVersion] = useState<string | null>(providedVersion ?? null);
+  const [hasUpdate, setHasUpdate] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+  const [latestVersion, setLatestVersion] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
 
-  const fetchClient = useMemo(() => fetchImpl ?? fetch, [fetchImpl]);
-  const reload = useMemo(() => onReload ?? (() => window.location.reload()), [onReload]);
+  const fetchClient = useMemo(() => fetch, []);
 
+  // Resolve current version on mount
   useEffect(() => {
     let isMounted = true;
 
-    if (providedVersion) {
-      setCurrentVersion(providedVersion);
-      return () => {
-        isMounted = false;
-      };
-    }
-
-    resolveVersion(fetchClient).then(version => {
+    resolveVersion(fetchClient).then((version) => {
       if (isMounted) {
         setCurrentVersion(version);
       }
@@ -84,10 +60,11 @@ export function UpdateNotification({
     return () => {
       isMounted = false;
     };
-  }, [providedVersion, fetchClient]);
+  }, [fetchClient]);
 
+  // Check for updates
   useEffect(() => {
-    if (hasShownToast || !user || !currentVersion) {
+    if (checked || !user || !currentVersion) {
       return;
     }
 
@@ -99,8 +76,8 @@ export function UpdateNotification({
 
     const checkForUpdates = async () => {
       try {
-        const latestVersion = await resolveVersion(fetchClient);
-        if (!isActive || !latestVersion || latestVersion === currentVersion) {
+        const latest = await resolveVersion(fetchClient);
+        if (!isActive || !latest || latest === currentVersion) {
           return;
         }
 
@@ -111,66 +88,14 @@ export function UpdateNotification({
 
         if (userDoc.exists()) {
           const { dismissedVersion } = userDoc.data() as { dismissedVersion?: string };
-          if (dismissedVersion === latestVersion) {
+          if (dismissedVersion === latest) {
             return;
           }
         }
 
-        setHasShownToast(true);
-
-        toast({
-          title: "Nueva versión disponible",
-          description: "Actualiza para obtener las últimas mejoras",
-          duration: Infinity,
-          action: (
-            <div className="flex gap-2">
-              <ToastAction
-                altText={t("updateNotification.dismiss")}
-                onClick={async () => {
-                  try {
-                    setCookieWithMinutes(DISMISS_COOKIE, "true", DISMISS_DURATION_MINUTES);
-                    await setDoc(
-                      userDocRef,
-                      {
-                        dismissedVersion: latestVersion,
-                        dismissedAt: new Date().toISOString(),
-                      },
-                      { merge: true }
-                    );
-                  } catch (err) {
-                    logger.warn({ error: err, message: "Failed to persist dismissed version" });
-                  } finally {
-                    dismiss();
-                  }
-                }}
-              >
-                {t("updateNotification.dismiss")}
-              </ToastAction>
-              <ToastAction
-                altText={t("updateNotification.update")}
-                onClick={async () => {
-                  try {
-                    deleteCookie(DISMISS_COOKIE);
-                    await setDoc(
-                      userDocRef,
-                      {
-                        dismissedVersion: latestVersion,
-                        updatedAt: new Date().toISOString(),
-                      },
-                      { merge: true }
-                    );
-                  } catch (err) {
-                    logger.warn({ error: err, message: "Failed to record update acknowledgement" });
-                  } finally {
-                    reload();
-                  }
-                }}
-              >
-                {t("updateNotification.update")}
-              </ToastAction>
-            </div>
-          ),
-        });
+        setLatestVersion(latest);
+        setHasUpdate(true);
+        setChecked(true);
       } catch (error) {
         logger.warn({ error, message: "Error while checking for application updates" });
       }
@@ -181,16 +106,48 @@ export function UpdateNotification({
     return () => {
       isActive = false;
     };
-  }, [
-    toast,
-    dismiss,
-    hasShownToast,
-    user,
-    currentVersion,
-    fetchClient,
-    reload,
-    t,
-  ]);
+  }, [checked, user, currentVersion, fetchClient]);
 
-  return null; // This component does not render anything itself
+  const handleDismiss = useCallback(async () => {
+    if (!user || !latestVersion) return;
+
+    setHasUpdate(false);
+
+    try {
+      setCookieWithMinutes(DISMISS_COOKIE, "true", DISMISS_DURATION_MINUTES);
+      const userDocRef = doc(firestore, "userPreferences", user.uid);
+      await setDoc(
+        userDocRef,
+        {
+          dismissedVersion: latestVersion,
+          dismissedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      logger.warn({ error: err, message: "Failed to persist dismissed version" });
+    }
+  }, [user, latestVersion]);
+
+  const handleUpdate = useCallback(() => {
+    if (!user || !latestVersion) return;
+
+    const userDocRef = doc(firestore, "userPreferences", user.uid);
+
+    deleteCookie(DISMISS_COOKIE);
+    setDoc(
+      userDocRef,
+      {
+        dismissedVersion: latestVersion,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    ).catch((err) => {
+      logger.warn({ error: err, message: "Failed to record update acknowledgement" });
+    });
+
+    window.location.reload();
+  }, [user, latestVersion]);
+
+  return { hasUpdate, handleDismiss, handleUpdate };
 }
