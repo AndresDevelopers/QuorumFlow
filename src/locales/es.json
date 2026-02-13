@@ -78,6 +78,8 @@
   "Mobile Push Notifications": "Notificaciones Push Móvil",
   "Receive push notifications on your Android/iOS device even when the app is closed.": "Recibe notificaciones push en tu dispositivo Android/iOS incluso cuando la app esté cerrada.",
   "Notification settings are not available yet.": "Los ajustes de notificaciones aún no están disponibles.",
+  "updateNotification.title": "Nueva versión disponible",
+  "updateNotification.body": "Hay mejoras disponibles. Actualiza para disfrutarlas.",
   "updateNotification.dismiss": "Cerrar",
   "updateNotification.update": "Actualizar",
   "serviceWorker.reload": "Recargar",
