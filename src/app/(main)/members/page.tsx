@@ -465,7 +465,6 @@ export default function MembersPage() {
                   <TableHead>Ministrantes</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-center">Urgente</TableHead>
-                  <TableHead className="text-center">Consejo</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -481,13 +480,12 @@ export default function MembersPage() {
                       <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                       <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                       <TableCell className="text-center"><Skeleton className="h-6 w-12 mx-auto" /></TableCell>
-                      <TableCell className="text-center"><Skeleton className="h-6 w-12 mx-auto" /></TableCell>
                       <TableCell className="text-right"><Skeleton className="h-8 w-24" /></TableCell>
                     </TableRow>
                   ))
                 ) : filteredMembers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       {searchTerm || statusFilter !== 'all'
                         ? 'No se encontraron miembros con los filtros aplicados.'
                         : syncStatus === 'syncing'
@@ -585,17 +583,6 @@ export default function MembersPage() {
                             className="px-2"
                           >
                             <AlertTriangle className={`h-4 w-4 ${member.isUrgent ? 'text-white' : 'text-orange-500'}`} />
-                          </Button>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Button
-                            variant={member.isInCouncil ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => handleToggleMemberFlag(member, 'isInCouncil')}
-                            title={member.isInCouncil ? "Quitar de consejo de barrio" : "Agregar a consejo de barrio"}
-                            className="px-2"
-                          >
-                            <Shield className={`h-4 w-4 ${member.isInCouncil ? 'text-white' : 'text-blue-500'}`} />
                           </Button>
                         </TableCell>
                         <TableCell className="text-right">
@@ -759,7 +746,7 @@ export default function MembersPage() {
                         </div>
                       </div>
 
-                      {/* Urgente y Consejo en móvil */}
+                      {/* Urgente en móvil */}
                       <div className="flex flex-wrap gap-2 mb-3">
                         <Button
                           variant={member.isUrgent ? "destructive" : "outline"}
@@ -769,15 +756,6 @@ export default function MembersPage() {
                         >
                           <AlertTriangle className={`mr-2 h-4 w-4 ${member.isUrgent ? 'text-white' : 'text-orange-500'}`} />
                           {member.isUrgent ? 'Urgente' : 'Marcar Urgente'}
-                        </Button>
-                        <Button
-                          variant={member.isInCouncil ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => handleToggleMemberFlag(member, 'isInCouncil')}
-                          className="flex-1"
-                        >
-                          <Shield className={`mr-2 h-4 w-4 ${member.isInCouncil ? 'text-white' : 'text-blue-500'}`} />
-                          {member.isInCouncil ? 'En Consejo' : 'Agregar a Consejo'}
                         </Button>
                       </div>
 
