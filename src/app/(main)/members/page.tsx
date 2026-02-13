@@ -49,6 +49,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
 import { useMembersSync } from '@/hooks/use-members-sync';
@@ -101,6 +103,9 @@ export default function MembersPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [urgentDialogOpen, setUrgentDialogOpen] = useState(false);
+  const [urgentMember, setUrgentMember] = useState<Member | null>(null);
+  const [urgentReason, setUrgentReason] = useState('');
 
 
 
@@ -187,42 +192,55 @@ export default function MembersPage() {
     router.push(`/members/${memberId}`);
   };
 
-  const handleToggleMemberFlag = async (member: Member, flag: 'isUrgent' | 'isInCouncil') => {
+  const handleToggleUrgent = (member: Member) => {
+    if (member.isUrgent) {
+      // Unmarking - do it directly
+      handleConfirmUrgent(member, false, '');
+    } else {
+      // Marking - show dialog for reason
+      setUrgentMember(member);
+      setUrgentReason('');
+      setUrgentDialogOpen(true);
+    }
+  };
+
+  const handleConfirmUrgent = async (member: Member, markAsUrgent: boolean, reason: string) => {
     try {
-      const newValue = !member[flag];
       await updateMember(member.id, {
-        [flag]: newValue,
+        isUrgent: markAsUrgent,
+        urgentReason: markAsUrgent ? reason : '',
       });
 
-      // Send notification if marking as urgent
-      if (flag === 'isUrgent' && newValue) {
+      if (markAsUrgent) {
         try {
           await createNotificationsForAll({
             title: '⚠️ Miembro Marcado como Urgente',
-            body: `${member.firstName} ${member.lastName} ha sido marcado como urgente y requiere atención prioritaria`,
+            body: `${member.firstName} ${member.lastName} ha sido marcado como urgente: ${reason}`,
             contextType: 'member',
             contextId: member.id,
-            actionUrl: '/members'
+            actionUrl: '/council'
           });
         } catch (notifError) {
           console.error('Error sending urgent notification:', notifError);
-          // Don't block the main operation if notification fails
         }
       }
 
       toast({
         title: 'Éxito',
-        description: `${member.firstName} ${member.lastName} ${newValue ? 'marcado' : 'desmarcado'} ${flag === 'isUrgent' ? 'como urgente' : 'para consejo de barrio'}.`,
+        description: `${member.firstName} ${member.lastName} ${markAsUrgent ? 'marcado como urgente' : 'desmarcado como urgente'}.`,
       });
 
-      // Refresh data
+      setUrgentDialogOpen(false);
+      setUrgentMember(null);
+      setUrgentReason('');
+
       clearCache();
       await fetchMembers(true);
     } catch (error) {
-      console.error(`Error toggling ${flag}:`, error);
+      console.error('Error toggling urgent:', error);
       toast({
         title: 'Error',
-        description: `No se pudo actualizar el estado del miembro.`,
+        description: 'No se pudo actualizar el estado del miembro.',
         variant: 'destructive',
       });
     }
@@ -578,7 +596,7 @@ export default function MembersPage() {
                           <Button
                             variant={member.isUrgent ? "destructive" : "outline"}
                             size="sm"
-                            onClick={() => handleToggleMemberFlag(member, 'isUrgent')}
+                            onClick={() => handleToggleUrgent(member)}
                             title={member.isUrgent ? "Desmarcar como urgente" : "Marcar como urgente"}
                             className="px-2"
                           >
@@ -751,7 +769,7 @@ export default function MembersPage() {
                         <Button
                           variant={member.isUrgent ? "destructive" : "outline"}
                           size="sm"
-                          onClick={() => handleToggleMemberFlag(member, 'isUrgent')}
+                          onClick={() => handleToggleUrgent(member)}
                           className="flex-1"
                         >
                           <AlertTriangle className={`mr-2 h-4 w-4 ${member.isUrgent ? 'text-white' : 'text-orange-500'}`} />
@@ -824,6 +842,60 @@ export default function MembersPage() {
           <ChevronUp className="h-4 w-4" />
         </Button>
       )}
+
+      {/* Urgent Reason Dialog */}
+      <Dialog open={urgentDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setUrgentDialogOpen(false);
+          setUrgentMember(null);
+          setUrgentReason('');
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Marcar como Urgente
+            </DialogTitle>
+            <DialogDescription>
+              {urgentMember && `¿Por qué ${urgentMember.firstName} ${urgentMember.lastName} necesita atención urgente?`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="urgent-reason">Razón de urgencia</Label>
+              <Textarea
+                id="urgent-reason"
+                placeholder="Describe la razón por la cual este miembro requiere atención urgente..."
+                value={urgentReason}
+                onChange={(e) => setUrgentReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                setUrgentDialogOpen(false);
+                setUrgentMember(null);
+                setUrgentReason('');
+              }}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={!urgentReason.trim()}
+                onClick={() => {
+                  if (urgentMember) {
+                    handleConfirmUrgent(urgentMember, true, urgentReason.trim());
+                  }
+                }}
+              >
+                <AlertTriangle className="mr-2 h-4 w-4" />
+                Marcar Urgente
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

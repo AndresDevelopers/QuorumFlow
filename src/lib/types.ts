@@ -252,5 +252,7 @@ export type Member = {
     lessActiveCompletedAt?: Timestamp;
     // Urgent and council flags
     isUrgent?: boolean;
+    urgentReason?: string;
+    urgentNotifiedAt?: Timestamp;
     isInCouncil?: boolean;
 }
