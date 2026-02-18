@@ -30,6 +30,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getFutureMembers } from '@/lib/dashboard-data';
+import { buildMemberEditUrl } from '@/lib/navigation';
 
 export default function FutureMembersPage() {
   const { user, loading: authLoading } = useAuth();
@@ -116,7 +117,7 @@ export default function FutureMembersPage() {
                   </TableCell>
                    <TableCell className="text-right">
                      <Button variant="ghost" size="icon" asChild>
-                       <Link href={`/members?edit=${item.id}`}>
+                       <Link href={buildMemberEditUrl(item.id, '/future-members')}>
                          <Pencil className="h-4 w-4" />
                        </Link>
                      </Button>

@@ -22,6 +22,15 @@ export type NavigationItem = {
   icon: LucideIcon;
 };
 
+export const buildMemberEditUrl = (memberId: string, returnTo?: string) => {
+  const params = new URLSearchParams();
+  params.set('edit', memberId);
+  if (returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+    params.set('returnTo', returnTo);
+  }
+  return `/members?${params.toString()}`;
+};
+
 export const navigationItems: NavigationItem[] = [
   { href: "/", i18nKey: "Dashboard", label: "Inicio", icon: Home },
   { href: "/members", i18nKey: "Members", label: "Miembros", icon: UserCheck },

@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Companionship, Member } from '@/lib/types';
+import { normalizeMemberStatus } from '@/lib/members-data';
 import { validateCompanionshipData } from '@/lib/ministering-validations';
 
 const companionshipSchema = z.object({
@@ -74,7 +75,16 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
     setLoadingMembers(true);
     try {
       const snapshot = await getDocs(query(membersCollection, orderBy('firstName', 'asc')));
-      const membersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Member));
+      const membersList = snapshot.docs
+        .map(doc => {
+          const memberData = doc.data();
+          return {
+            id: doc.id,
+            ...memberData,
+            status: normalizeMemberStatus(memberData.status),
+          } as Member;
+        })
+        .filter(member => member.status !== 'deceased');
       setMembers(membersList);
     } catch (error) {
       console.error("Error loading members:", error);

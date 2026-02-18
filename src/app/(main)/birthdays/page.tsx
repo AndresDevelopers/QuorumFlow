@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { getDocs, Timestamp, deleteDoc, doc, query, orderBy, where } from 'firebase/firestore';
 import { birthdaysCollection, membersCollection, storage } from '@/lib/collections';
 import type { Birthday, Member } from '@/lib/types';
+import { normalizeMemberStatus } from '@/lib/members-data';
 import { deleteObject, ref } from 'firebase/storage';
 
 import {
@@ -45,6 +46,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import logger from '@/lib/logger';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
+import { buildMemberEditUrl } from '@/lib/navigation';
 
 async function getBirthdays(): Promise<Birthday[]> {
   try {
@@ -65,6 +67,7 @@ async function getBirthdays(): Promise<Birthday[]> {
     const memberBirthdays: Birthday[] = membersSnapshot.docs
       .filter(doc => {
         const member = doc.data() as Member;
+        if (normalizeMemberStatus(member.status) === 'deceased') return false;
         return member.birthDate && member.firstName && member.lastName;
       })
       .map(doc => {
@@ -221,7 +224,7 @@ export default function BirthdaysPage() {
         <TableCell className="text-right flex gap-2 justify-end">
           {item.isMember ? (
             <Button variant="ghost" size="icon" asChild>
-              <Link href={`/members?edit=${item.memberId}`} title={t('birthdays.editMember')}><Pencil className="h-4 w-4" /></Link>
+              <Link href={item.memberId ? buildMemberEditUrl(item.memberId, '/birthdays') : `/members?search=${encodeURIComponent(item.name)}`} title={t('birthdays.editMember')}><Pencil className="h-4 w-4" /></Link>
             </Button>
           ) : (
             <Button variant="ghost" size="icon" asChild>

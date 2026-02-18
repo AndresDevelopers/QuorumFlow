@@ -42,6 +42,20 @@ function getStorageInstance() {
   return getStorage(app);
 }
 
+export const normalizeMemberStatus = (status?: unknown): MemberStatus => {
+  if (typeof status !== 'string') return 'active';
+
+  const normalized = status.toLowerCase().trim();
+  if (['deceased', 'fallecido', 'fallecida'].includes(normalized)) return 'deceased';
+  if (['inactive', 'inactivo'].includes(normalized)) return 'inactive';
+  if (['less_active', 'less active', 'menos activo', 'menos_activo'].includes(normalized)) {
+    return 'less_active';
+  }
+  if (['active', 'activo'].includes(normalized)) return 'active';
+
+  return 'active';
+};
+
 // Create a new member
 export async function createMember(memberData: Omit<Member, 'id'>): Promise<string> {
   try {
@@ -86,6 +100,10 @@ export async function createMember(memberData: Omit<Member, 'id'>): Promise<stri
       cleanData.baptismDate = memberData.baptismDate;
     }
 
+    if (memberData.deathDate) {
+      cleanData.deathDate = memberData.deathDate;
+    }
+
     // Add baptism photos if they exist
     if (memberData.baptismPhotos && memberData.baptismPhotos.length > 0) {
       cleanData.baptismPhotos = memberData.baptismPhotos;
@@ -109,9 +127,7 @@ export async function createMember(memberData: Omit<Member, 'id'>): Promise<stri
       cleanData.inactiveSince = memberData.inactiveSince;
     }
 
-    console.log('Creating member with data:', cleanData);
     const docRef = await addDoc(membersCollection, cleanData);
-    console.log('Member created successfully with ID:', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('Error creating member:', error);
@@ -140,33 +156,18 @@ export async function updateMember(
   memberData: Partial<Omit<Member, 'id' | 'createdAt' | 'createdBy'>>
 ): Promise<void> {
   try {
-    console.log('Starting updateMember with:', { memberId, memberData });
-
     if (!memberId) {
       throw new Error('ID de miembro no proporcionado');
     }
 
     // Validar datos requeridos
-    console.log('Validating required fields:', {
-      firstName: memberData.firstName,
-      lastName: memberData.lastName,
-      firstNameType: typeof memberData.firstName,
-      lastNameType: typeof memberData.lastName
-    });
-
     if (memberData.firstName !== undefined && !memberData.firstName?.trim()) {
       throw new Error('El nombre es requerido');
     }
     if (memberData.lastName !== undefined && !memberData.lastName?.trim()) {
       throw new Error('El apellido es requerido');
     }
-    console.log('Validating status:', {
-      status: memberData.status,
-      statusType: typeof memberData.status,
-      validStatuses: ['active', 'less_active', 'inactive']
-    });
-
-    if (memberData.status && !['active', 'less_active', 'inactive'].includes(memberData.status)) {
+    if (memberData.status && !['active', 'less_active', 'inactive', 'deceased'].includes(memberData.status)) {
       throw new Error(`Estado de miembro no válido: ${memberData.status}`);
     }
 
@@ -181,8 +182,6 @@ export async function updateMember(
     }
 
     const currentData = currentMemberDoc.data() as Member;
-    console.log('Current member data:', currentData);
-
     // Preparar datos limpios
     const cleanData: any = {
       updatedAt: Timestamp.now()
@@ -206,6 +205,7 @@ export async function updateMember(
       photoURL: memberData.photoURL,
       birthDate: memberData.birthDate,
       baptismDate: memberData.baptismDate,
+      deathDate: memberData.deathDate,
       baptismPhotos: memberData.baptismPhotos,
       ordinances: memberData.ordinances,
       ministeringTeachers: memberData.ministeringTeachers,
@@ -224,9 +224,7 @@ export async function updateMember(
     }
 
     // Procesar cada campo opcional
-    console.log('Processing optional fields:', optionalFields);
     Object.entries(optionalFields).forEach(([field, value]) => {
-      console.log(`Processing field ${field}:`, { value, type: typeof value, isDate: value instanceof Date });
       if (value !== undefined) {
         if (value === null || value === '') {
           cleanData[field] = null;
@@ -243,19 +241,13 @@ export async function updateMember(
       }
     });
 
-    console.log('Updating member with clean data:', cleanData);
-    console.log('Clean data keys:', Object.keys(cleanData));
-    console.log('Clean data length:', Object.keys(cleanData).length);
-
     // Validar que haya datos para actualizar
     if (Object.keys(cleanData).length <= 1) { // Solo updatedAt
-      console.log('No hay datos para actualizar - returning early');
       return;
     }
 
     // Realizar la actualización
     await updateDoc(memberRef, cleanData);
-    console.log('Member updated successfully');
   } catch (error) {
     console.error('Error updating member:', error);
 
@@ -295,19 +287,10 @@ export async function getLessActiveMembers(): Promise<Member[]> {
 
     querySnapshot.forEach((doc) => {
       const memberData = doc.data();
-      console.log('🔍 Member data from Firestore:', {
-        id: doc.id,
-        status: memberData.status,
-        firstName: memberData.firstName,
-        lastName: memberData.lastName,
-        hasStatus: 'status' in memberData,
-        statusType: typeof memberData.status
-      });
-
       // Ensure status has a default value if missing
       const processedMemberData = {
         ...memberData,
-        status: memberData.status || 'active' // Default to 'active' if status is missing
+        status: normalizeMemberStatus(memberData.status)
       };
 
       members.push({
@@ -348,13 +331,17 @@ export async function getUrgentMembers(): Promise<Member[]> {
     const members: Member[] = [];
 
     querySnapshot.forEach((docSnap) => {
+      const memberData = docSnap.data();
       members.push({
         id: docSnap.id,
-        ...docSnap.data()
+        ...memberData,
+        status: normalizeMemberStatus(memberData.status)
       } as Member);
     });
 
-    return members.sort((a, b) => a.lastName.localeCompare(b.lastName));
+    return members
+      .filter(member => member.status !== 'deceased')
+      .sort((a, b) => a.lastName.localeCompare(b.lastName));
   } catch (error) {
     console.error('Error getting urgent members:', error);
     return [];
@@ -389,7 +376,6 @@ export async function deleteMember(memberId: string): Promise<void> {
 
     // Delete the member document
     await deleteDoc(memberRef);
-    console.log('Member deleted successfully');
   } catch (error) {
     console.error('Error deleting member:', error);
 
@@ -409,7 +395,10 @@ export async function deleteMember(memberId: string): Promise<void> {
 }
 
 // Get members by status
-export async function getMembersByStatus(status?: MemberStatus): Promise<Member[]> {
+export async function getMembersByStatus(
+  status?: MemberStatus,
+  options?: { includeDeceased?: boolean }
+): Promise<Member[]> {
   try {
     // Get firestore instance
     const db = getFirestoreInstance();
@@ -431,19 +420,10 @@ export async function getMembersByStatus(status?: MemberStatus): Promise<Member[
 
     querySnapshot.forEach((doc) => {
       const memberData = doc.data();
-      console.log('🔍 Member data from Firestore:', {
-        id: doc.id,
-        status: memberData.status,
-        firstName: memberData.firstName,
-        lastName: memberData.lastName,
-        hasStatus: 'status' in memberData,
-        statusType: typeof memberData.status
-      });
-
       // Ensure status has a default value if missing
       const processedMemberData = {
         ...memberData,
-        status: memberData.status || 'active' // Default to 'active' if status is missing
+        status: normalizeMemberStatus(memberData.status)
       };
 
       members.push({
@@ -451,6 +431,10 @@ export async function getMembersByStatus(status?: MemberStatus): Promise<Member[
         ...processedMemberData
       } as Member);
     });
+
+    if (!options?.includeDeceased && status !== 'deceased') {
+      return members.filter(member => member.status !== 'deceased');
+    }
 
     return members;
   } catch (error) {
@@ -492,19 +476,10 @@ export async function getMembersForSelector(includeInactive = false): Promise<Me
 
     querySnapshot.forEach((doc) => {
       const memberData = doc.data();
-      console.log('🔍 Member data from Firestore (selector):', {
-        id: doc.id,
-        status: memberData.status,
-        firstName: memberData.firstName,
-        lastName: memberData.lastName,
-        hasStatus: 'status' in memberData,
-        statusType: typeof memberData.status
-      });
-
       // Ensure status has a default value if missing
       const processedMemberData = {
         ...memberData,
-        status: memberData.status || 'active' // Default to 'active' if status is missing
+        status: normalizeMemberStatus(memberData.status)
       };
 
       members.push({
@@ -513,7 +488,7 @@ export async function getMembersForSelector(includeInactive = false): Promise<Me
       } as Member);
     });
 
-    return members;
+    return members.filter(member => member.status !== 'deceased');
   } catch (error) {
     console.error('Error getting members for selector:', error);
 
@@ -561,7 +536,6 @@ export async function uploadMemberPhoto(file: File, userId: string): Promise<str
     // Get the download URL
     const downloadURL = await getDownloadURL(snapshot.ref);
 
-    console.log('File uploaded successfully:', downloadURL);
     return downloadURL;
   } catch (error) {
     console.error('Error uploading member photo:', error);
@@ -599,9 +573,7 @@ export async function uploadBaptismPhotos(files: File[], userId: string): Promis
       return downloadURL;
     });
 
-    const downloadURLs = await Promise.all(uploadPromises);
-    console.log('Baptism photos uploaded successfully:', downloadURLs);
-    return downloadURLs;
+    return await Promise.all(uploadPromises);
   } catch (error) {
     console.error('Error uploading baptism photos:', error);
 
@@ -634,19 +606,11 @@ export async function getMemberById(memberId: string): Promise<Member | null> {
     }
 
     const memberData = memberDoc.data();
-    console.log('🔍 Single member data from Firestore:', {
-      id: memberDoc.id,
-      status: memberData?.status,
-      firstName: memberData?.firstName,
-      lastName: memberData?.lastName,
-      hasStatus: memberData ? 'status' in memberData : false,
-      statusType: memberData ? typeof memberData.status : 'undefined'
-    });
 
     // Ensure status has a default value if missing
     const processedMemberData = memberData ? {
       ...memberData,
-      status: memberData.status || 'active' // Default to 'active' if status is missing
+      status: normalizeMemberStatus(memberData.status)
     } : {};
 
     return {
@@ -704,7 +668,7 @@ export async function searchMembersByName(firstName: string, lastName: string): 
       const memberData = doc.data();
       const processedMemberData = {
         ...memberData,
-        status: memberData.status || 'active'
+        status: normalizeMemberStatus(memberData.status)
       };
       members.push({
         id: doc.id,
@@ -718,7 +682,7 @@ export async function searchMembersByName(firstName: string, lastName: string): 
         const memberData = doc.data();
         const processedMemberData = {
           ...memberData,
-          status: memberData.status || 'active'
+          status: normalizeMemberStatus(memberData.status)
         };
         members.push({
           id: doc.id,
@@ -727,7 +691,6 @@ export async function searchMembersByName(firstName: string, lastName: string): 
       }
     });
 
-    console.log(`Found ${members.length} members matching name: ${firstName} ${lastName}`);
     return members;
   } catch (error) {
     console.error('Error searching members by name:', error);

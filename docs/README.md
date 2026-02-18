@@ -34,7 +34,7 @@ Políticas y prácticas de seguridad implementadas en el proyecto.
 Documentación detallada de los endpoints de la API.
 
 ## Base de Datos
-Esquema de la base de datos y guía de migraciones. La colección c_conversos_info incluye campos calling, notes, recommendationActive y selfRelianceCourse para el seguimiento de nuevos conversos.
+Esquema de la base de datos y guía de migraciones. La colección c_conversos_info incluye campos calling, notes, recommendationActive y selfRelianceCourse para el seguimiento de nuevos conversos. La colección c_miembros admite el campo opcional deathDate para registrar fecha de fallecimiento.
 
 ## Migración de Datos
 Guía completa para la migración automática de asignaciones ministeriales. Consultar [MIGRACION.md](./MIGRACION.md) para instrucciones detalladas sobre cómo sincronizar maestros ministrantes con compañerismos.

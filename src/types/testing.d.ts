@@ -12,6 +12,7 @@ declare global {
         clear(): void;
       };
       mockResolvedValue(value: unknown): jest.Mock<T>;
+      mockResolvedValueOnce(value: unknown): jest.Mock<T>;
       mockRejectedValue(value: unknown): jest.Mock<T>;
       mockReturnValue(value: unknown): jest.Mock<T>;
       mockClear(): void;
@@ -57,6 +58,7 @@ declare module '@testing-library/react' {
   }
 
   export function render(ui: ReactElement): RenderResult;
+  export function renderHook<Result>(callback: () => Result): { result: { current: Result } };
   export function waitFor<T>(callback: () => T | Promise<T>): Promise<void>;
   export function act(callback: () => void | Promise<void>): Promise<void>;
 }

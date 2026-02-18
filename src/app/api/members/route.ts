@@ -8,6 +8,7 @@ const normalizeMemberStatus = (status?: unknown): MemberStatus => {
   if (typeof status !== 'string') return 'active';
 
   const normalized = status.toLowerCase().trim();
+  if (['deceased', 'fallecido', 'fallecida'].includes(normalized)) return 'deceased';
   if (['inactive', 'inactivo'].includes(normalized)) return 'inactive';
   if (['less_active', 'less active', 'menos activo', 'menos_activo'].includes(normalized)) {
     return 'less_active';
@@ -107,39 +108,17 @@ export async function GET(request: Request) {
   try {
     // In development, always fetch fresh data without cache
     if (process.env.NODE_ENV !== 'production') {
-      console.log('🔄 Development mode: Fetching fresh data from Firestore');
-
-      console.log('📋 Initializing Firebase for server...');
       const db = await initializeFirebaseForServer();
-      console.log('✅ Firebase initialized');
-
-      console.log('📁 Creating collection reference...');
       const membersCollection = collection(db, 'c_miembros');
-      console.log('✅ Collection reference created');
 
       const constraints = status ? [where('status', '==', status), orderBy('lastName')] : [orderBy('lastName')];
-      console.log('📋 Building query with constraints:', constraints.length);
 
       const q = query(membersCollection, ...constraints);
-      console.log('🔍 Query created, executing...');
-
       const querySnapshot = await getDocs(q);
-      console.log('✅ Query executed successfully, docs:', querySnapshot.size);
-
-      if (querySnapshot.empty) {
-        console.log('⚠️ No documents found in c_miembros collection');
-        console.log('💡 This could mean:');
-        console.log('   1. The collection is empty');
-        console.log('   2. The collection name is incorrect');
-        console.log('   3. The documents don\'t match the query');
-      }
 
       const members: Member[] = [];
       querySnapshot.forEach((doc) => {
-        console.log(`📄 Processing document: ${doc.id}`);
         const memberData = doc.data();
-        console.log(`📋 Document data keys: ${Object.keys(memberData).join(', ')}`);
-
         const processedMemberData = {
           ...memberData,
           status: deriveMemberStatus(memberData)
@@ -149,15 +128,6 @@ export async function GET(request: Request) {
           ...processedMemberData
         } as Member);
       });
-
-      console.log(`📊 Processed ${members.length} members from Firestore`);
-
-      if (members.length === 0) {
-        console.log('⚠️ No members were processed. Check if:');
-        console.log('   1. Documents exist in the c_miembros collection');
-        console.log('   2. Documents have the expected structure');
-        console.log('   3. Firebase rules allow reading the collection');
-      }
 
       // Always set no-cache headers in development
       const response = NextResponse.json(members);
@@ -169,7 +139,6 @@ export async function GET(request: Request) {
     }
 
     // Use cached version only in production
-    console.log('📦 Production mode: Using cached data');
     const members = await getMembersCached(status || undefined);
     return NextResponse.json(members);
   } catch (error) {
@@ -195,12 +164,6 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    console.log('📥 POST /api/members received data:', {
-      data,
-      dataKeys: Object.keys(data),
-      birthDate: data.birthDate,
-      baptismDate: data.baptismDate
-    });
 
     const memberData: any = {
       ...data,
@@ -213,10 +176,6 @@ export async function POST(request: Request) {
       const birthDate = coerceToTimestamp(data.birthDate);
       if (birthDate instanceof Timestamp) {
         memberData.birthDate = birthDate;
-        console.log('📅 Converted birthDate:', {
-          original: data.birthDate,
-          converted: memberData.birthDate
-        });
       } else if (birthDate === null) {
         memberData.birthDate = null;
       } else if (data.birthDate) {
@@ -227,10 +186,6 @@ export async function POST(request: Request) {
       const baptismDate = coerceToTimestamp(data.baptismDate);
       if (baptismDate instanceof Timestamp) {
         memberData.baptismDate = baptismDate;
-        console.log('🎂 Converted baptismDate:', {
-          original: data.baptismDate,
-          converted: memberData.baptismDate
-        });
       } else if (baptismDate === null) {
         memberData.baptismDate = null;
       } else if (data.baptismDate) {
@@ -245,11 +200,6 @@ export async function POST(request: Request) {
     } else {
       memberData.inactiveSince = Timestamp.now();
     }
-
-    console.log('🔄 Calling createMember with:', {
-      memberData,
-      memberDataKeys: Object.keys(memberData)
-    });
 
     const memberId = await createMember(memberData);
 

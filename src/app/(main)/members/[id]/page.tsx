@@ -21,6 +21,7 @@ import { useI18n } from '@/contexts/i18n-context';
 import type { Member, MemberStatus } from '@/lib/types';
 import { OrdinanceLabels } from '@/lib/types';
 import { getMemberById } from '@/lib/members-data';
+import { buildMemberEditUrl } from '@/lib/navigation';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -39,6 +40,11 @@ const statusConfig = {
     label: 'Inactivo',
     variant: 'destructive' as const,
     color: 'text-red-600'
+  },
+  deceased: {
+    label: 'Fallecido',
+    variant: 'secondary' as const,
+    color: 'text-muted-foreground'
   }
 };
 
@@ -46,6 +52,7 @@ const normalizeMemberStatus = (status?: unknown): MemberStatus => {
   if (typeof status !== 'string') return 'active';
 
   const normalized = status.toLowerCase().trim();
+  if (['deceased', 'fallecido', 'fallecida'].includes(normalized)) return 'deceased';
   if (['inactive', 'inactivo'].includes(normalized)) return 'inactive';
   if (['less_active', 'less active', 'menos activo', 'menos_activo'].includes(normalized)) {
     return 'less_active';
@@ -103,7 +110,7 @@ export default function MemberProfilePage() {
   };
 
   const handleEditMember = () => {
-    router.push(`/members?edit=${memberId}`);
+    router.push(buildMemberEditUrl(memberId, `/members/${memberId}`));
   };
 
   if (loading) {

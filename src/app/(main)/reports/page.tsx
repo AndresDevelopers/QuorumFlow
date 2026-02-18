@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getDocs, query, orderBy, Timestamp, where, deleteDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { baptismsCollection, futureMembersCollection, convertsCollection, annualReportsCollection, membersCollection } from '@/lib/collections';
 import type { Baptism, Convert, AnnualReportAnswers } from '@/lib/types';
+import { normalizeMemberStatus } from '@/lib/members-data';
 import {
   Card,
   CardContent,
@@ -44,6 +45,7 @@ import logger from '@/lib/logger';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { buildMemberEditUrl } from '@/lib/navigation';
 import {
   Select,
   SelectContent,
@@ -118,7 +120,10 @@ async function getAvailableReportYears(): Promise<number[]> {
   });
 
   membersSnapshot.docs.forEach((doc) => {
-    const data = doc.data() as { baptismDate?: Timestamp };
+    const data = doc.data() as { baptismDate?: Timestamp; status?: unknown };
+    if (normalizeMemberStatus(data.status) === 'deceased') {
+      return;
+    }
     if (data.baptismDate) yearSet.add(getYear(data.baptismDate.toDate()));
   });
 
@@ -198,17 +203,22 @@ async function getBaptismsForYear(year: number): Promise<Baptism[]> {
         where('baptismDate', '<=', endTimestamp)
     );
     const membersSnapshot = await getDocs(membersQuery);
-    const fromMembers = membersSnapshot.docs.map(doc => {
+    const fromMembers = membersSnapshot.docs
+      .map(doc => {
         const data = doc.data();
+        if (normalizeMemberStatus(data.status) === 'deceased') {
+          return null;
+        }
         return {
-            id: doc.id,
-            name: `${data.firstName} ${data.lastName}`,
-            date: data.baptismDate,
-            source: 'Automático',
-            photoURL: data.photoURL,
-            baptismPhotos: data.baptismPhotos || []
-        } as Baptism
-    });
+          id: doc.id,
+          name: `${data.firstName} ${data.lastName}`,
+          date: data.baptismDate,
+          source: 'Automático',
+          photoURL: data.photoURL,
+          baptismPhotos: data.baptismPhotos || []
+        } as Baptism;
+      })
+      .filter(Boolean) as Baptism[];
     
     const allBaptisms = [...fromFutureMembers, ...fromConverts, ...fromManual, ...fromMembers]
       .filter((b) => b.date);
@@ -569,7 +579,7 @@ export default function ReportsPage() {
                                             )}
                                             {item.source === 'Automático' && (
                                                 <Button variant="ghost" size="icon" asChild>
-                                                    <Link href={`/members?edit=${item.id}`}><Pencil className="h-4 w-4" /></Link>
+                                                    <Link href={buildMemberEditUrl(item.id, '/reports')}><Pencil className="h-4 w-4" /></Link>
                                                 </Button>
                                             )}
                                         </TableCell>
@@ -609,7 +619,7 @@ export default function ReportsPage() {
                                             )}
                                             {item.source === 'Automático' && (
                                                 <Button variant="ghost" size="icon" asChild>
-                                                    <Link href={`/members?edit=${item.id}`}><Pencil className="h-4 w-4" /></Link>
+                                                    <Link href={buildMemberEditUrl(item.id, '/reports')}><Pencil className="h-4 w-4" /></Link>
                                                 </Button>
                                             )}
                                         </div>

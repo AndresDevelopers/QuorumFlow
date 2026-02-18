@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
 import { newConvertFriendsCollection, membersCollection, ministeringCollection, convertsCollection } from '@/lib/collections';
 import type { Convert, Member, NewConvertFriendship, Companionship } from '@/lib/types';
+import { normalizeMemberStatus } from '@/lib/members-data';
 import {
   Card,
   CardContent,
@@ -32,6 +33,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { ConvertInfoSheet, type ConvertWithInfo } from './convert-info-sheet';
 import { syncMinisteringAssignments } from '@/lib/ministering-sync';
+import { buildMemberEditUrl } from '@/lib/navigation';
 
 // Convert info collection for additional data
 const convertInfoCollection = (convertId: string) => doc(membersCollection.firestore, 'c_conversos_info', convertId);
@@ -54,6 +56,9 @@ async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
   const membersAsConverts = membersSnapshot.docs
     .map(doc => {
       const memberData = doc.data();
+      if (normalizeMemberStatus(memberData.status) === 'deceased') {
+        return null;
+      }
       if (memberData.baptismDate && memberData.baptismDate.toDate) {
         const baptismDate = memberData.baptismDate.toDate();
         if (baptismDate > twentyFourMonthsAgo) {
@@ -95,7 +100,16 @@ async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
 
   const friendships = friendshipsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as NewConvertFriendship));
   const companionships = companionshipsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Companionship));
-  const members = membersSnapshot2.docs.map(d => ({ id: d.id, ...d.data() } as Member));
+  const members = membersSnapshot2.docs
+    .map(d => {
+      const memberData = d.data();
+      return {
+        id: d.id,
+        ...memberData,
+        status: normalizeMemberStatus(memberData.status),
+      } as Member;
+    })
+    .filter(member => member.status !== 'deceased');
 
   // Fetch additional convert info (callings, notes)
   const convertInfoPromises = uniqueConverts.map(async (convert) => {
@@ -348,7 +362,11 @@ export default function ConvertsPage() {
                         <Info className="h-4 w-4" />
                       </Button>
                       <Button variant="ghost" size="icon" asChild>
-                        <Link href={item.id.startsWith('member_') ? `/members?edit=${item.id.substring(7)}` : item.memberId ? `/members?edit=${item.memberId}` : `/members?search=${encodeURIComponent(item.name)}`}>
+                        <Link href={item.id.startsWith('member_')
+                          ? buildMemberEditUrl(item.id.substring(7), '/converts')
+                          : item.memberId
+                            ? buildMemberEditUrl(item.memberId, '/converts')
+                            : `/members?search=${encodeURIComponent(item.name)}`}>
                           <Pencil className="h-4 w-4" />
                         </Link>
                       </Button>

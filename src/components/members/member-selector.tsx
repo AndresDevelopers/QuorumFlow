@@ -51,6 +51,11 @@ const statusConfig = {
     label: 'Inactivo',
     variant: 'destructive' as const,
     color: 'text-red-600'
+  },
+  deceased: {
+    label: 'Fallecido',
+    variant: 'secondary' as const,
+    color: 'text-muted-foreground'
   }
 };
 

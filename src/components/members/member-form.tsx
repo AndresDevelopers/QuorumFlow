@@ -67,7 +67,8 @@ const memberFormSchema = z.object({
   address: z.string().optional(),
   birthDate: z.date().optional(),
   baptismDate: z.date().optional(),
-  status: z.enum(['active', 'less_active', 'inactive'] as const),
+  deathDate: z.date().optional(),
+  status: z.enum(['active', 'less_active', 'inactive', 'deceased'] as const),
   photoURL: z.string().nullable().optional(),
   baptismPhotos: z.array(z.string()).optional(),
   ordinances: z.array(z.enum(['baptism', 'confirmation', 'elder_ordination', 'endowment', 'sealed_spouse', 'high_priest_ordination', 'aronico_ordination'] as const)).optional(),
@@ -80,6 +81,7 @@ const normalizeMemberStatus = (status?: string | null): MemberStatus => {
   if (!status) return 'active';
 
   const normalized = status.toLowerCase().trim();
+  if (['deceased', 'fallecido', 'fallecida'].includes(normalized)) return 'deceased';
   if (['inactive', 'inactivo'].includes(normalized)) return 'inactive';
   if (['less_active', 'less active', 'menos activo', 'menos_activo'].includes(normalized)) {
     return 'less_active';
@@ -92,10 +94,12 @@ const normalizeMemberStatus = (status?: string | null): MemberStatus => {
 const deriveMemberStatus = (member?: Member | null): MemberStatus => {
   if (!member) return 'active';
 
+  const normalizedStatus = normalizeMemberStatus(member.status);
+  if (normalizedStatus === 'deceased') return 'deceased';
   if (member.inactiveSince) return 'inactive';
   if (member.lessActiveObservation || member.lessActiveCompletedAt) return 'less_active';
 
-  return normalizeMemberStatus(member.status);
+  return normalizedStatus;
 };
 
 type MemberFormValues = z.infer<typeof memberFormSchema>;
@@ -128,6 +132,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
   // Estados locales para los inputs de fecha
   const [birthDateInput, setBirthDateInput] = useState('');
   const [baptismDateInput, setBaptismDateInput] = useState('');
+  const [deathDateInput, setDeathDateInput] = useState('');
 
   const form = useForm<MemberFormValues>({
     resolver: zodResolver(memberFormSchema),
@@ -139,6 +144,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       status: 'active',
       photoURL: undefined,
       baptismDate: undefined,
+      deathDate: undefined,
       ordinances: [],
       ministeringTeachers: [],
     },
@@ -174,12 +180,6 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
 
   // Cargar datos del miembro al formulario
   useEffect(() => {
-    console.log('🔄 Loading member data in form:', {
-      member: resolvedMember ?? member,
-      hasMember: !!(resolvedMember ?? member),
-      memberId: resolvedMember?.id ?? member?.id
-    });
-
     // Reset loading state when member changes
     setLoading(false);
 
@@ -195,6 +195,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       // Convertir Timestamps a Date y preparar valores para el formulario
       const birthDateValue = safeGetDate((currentMember as any).birthDate) ?? undefined;
       const baptismDateValue = safeGetDate((currentMember as any).baptismDate) ?? undefined;
+      const deathDateValue = safeGetDate((currentMember as any).deathDate) ?? undefined;
       
       const valuesToSet = {
         firstName: currentMember.firstName || '',
@@ -203,6 +204,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         memberId: currentMember.memberId || '',
         birthDate: birthDateValue,
         baptismDate: baptismDateValue,
+        deathDate: deathDateValue,
         status: normalizeMemberStatus(currentMember.status),
         photoURL: (currentMember.photoURL && currentMember.photoURL.trim()) ?? undefined,
         baptismPhotos: currentMember.baptismPhotos || [],
@@ -211,12 +213,6 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         isUrgent: currentMember.isUrgent || false,
         isInCouncil: currentMember.isInCouncil || false,
       };
-
-      console.log('📝 Setting form values:', valuesToSet);
-      console.log('📷 Photo URL:', currentMember.photoURL);
-      console.log('📅 Birth date:', { raw: currentMember.birthDate, converted: birthDateValue });
-      console.log('🎂 Baptism date:', { raw: currentMember.baptismDate, converted: baptismDateValue });
-      console.log('🎯 Status value:', { raw: currentMember.status, final: valuesToSet.status });
 
       // Reset form with new values and trigger validation
       form.reset(valuesToSet);
@@ -234,11 +230,9 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       // Actualizar los estados locales de los inputs de fecha
       setBirthDateInput(formatDateForDisplay(birthDateValue));
       setBaptismDateInput(formatDateForDisplay(baptismDateValue));
+      setDeathDateInput(formatDateForDisplay(deathDateValue));
       
-      console.log('✅ Member data loaded successfully');
     } else {
-      console.log('🆕 Resetting form for new member');
-
       // Reset to empty form for new member
       form.reset({
         firstName: '',
@@ -249,6 +243,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         photoURL: undefined,
         birthDate: undefined,
         baptismDate: undefined,
+        deathDate: undefined,
         baptismPhotos: [],
         ordinances: [],
         ministeringTeachers: [],
@@ -264,6 +259,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       // Limpiar los inputs de fecha
       setBirthDateInput('');
       setBaptismDateInput('');
+      setDeathDateInput('');
 
       // Reset duplicate states for new member
       setDuplicateMembers([]);
@@ -354,6 +350,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
 
   const watchedFirstName = useWatch({ control: form.control, name: 'firstName' });
   const watchedLastName = useWatch({ control: form.control, name: 'lastName' });
+  const watchedStatus = useWatch({ control: form.control, name: 'status' });
 
   // Efecto para verificar duplicados automáticamente al escribir
   useEffect(() => {
@@ -383,6 +380,13 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       setDuplicateDecisionMade(false);
     }
   }, [checkForDuplicates, watchedFirstName, watchedLastName]);
+
+  useEffect(() => {
+    if (watchedStatus !== 'deceased') {
+      form.setValue('deathDate', undefined);
+      setDeathDateInput('');
+    }
+  }, [form, watchedStatus]);
 
   // Función para parsear fecha desde string DD/MM/YYYY
   const parseDate = (dateString: string, maxYear: number): Date | undefined => {
@@ -631,6 +635,11 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         memberId: values.memberId?.trim() ? values.memberId.trim() : undefined,
         birthDate: values.birthDate ? values.birthDate.toISOString() : undefined,
         baptismDate: values.baptismDate ? values.baptismDate.toISOString() : undefined,
+        deathDate: values.status === 'deceased'
+          ? values.deathDate
+            ? values.deathDate.toISOString()
+            : null
+          : null,
         photoURL: photoURL as any,
         baptismPhotos: baptismPhotoURLs,
         ordinances: values.ordinances || [],
@@ -718,6 +727,11 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           memberId: values.memberId?.trim() ? values.memberId.trim() : undefined,
           birthDate: values.birthDate ? Timestamp.fromDate(values.birthDate) : undefined,
           baptismDate: values.baptismDate ? Timestamp.fromDate(values.baptismDate) : undefined,
+          deathDate: values.status === 'deceased'
+            ? values.deathDate
+              ? Timestamp.fromDate(values.deathDate)
+              : null
+            : null,
           photoURL: photoURL as any,
           baptismPhotos: baptismPhotoURLs,
           ordinances: values.ordinances || [],
@@ -770,6 +784,9 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           memberId: values.memberId?.trim() ? values.memberId.trim() : undefined,
           birthDate: values.birthDate ? Timestamp.fromDate(values.birthDate) : undefined,
           baptismDate: values.baptismDate ? Timestamp.fromDate(values.baptismDate) : undefined,
+          deathDate: values.status === 'deceased' && values.deathDate
+            ? Timestamp.fromDate(values.deathDate)
+            : undefined,
           baptismPhotos: baptismPhotoURLs,
           ordinances: values.ordinances || [],
           ministeringTeachers: values.ministeringTeachers || [],
@@ -884,7 +901,8 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
                           <p className="text-sm font-medium">{dupMember.firstName} {dupMember.lastName}</p>
                           <p className="text-xs text-muted-foreground capitalize">
                             Estado: {dupMember.status === 'active' ? 'Activo' :
-                                   dupMember.status === 'less_active' ? 'Menos Activo' : 'Inactivo'}
+                                   dupMember.status === 'less_active' ? 'Menos Activo' :
+                                   dupMember.status === 'inactive' ? 'Inactivo' : 'Fallecido'}
                           </p>
                         </div>
                       </div>
@@ -1305,7 +1323,8 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
                               {availableMember.status && (
                                 <p className="text-xs text-muted-foreground capitalize">
                                   {availableMember.status === 'active' ? 'Activo' : 
-                                   availableMember.status === 'less_active' ? 'Menos Activo' : 'Inactivo'}
+                                   availableMember.status === 'less_active' ? 'Menos Activo' :
+                                   availableMember.status === 'inactive' ? 'Inactivo' : 'Fallecido'}
                                 </p>
                               )}
                             </div>
@@ -1346,6 +1365,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
                   <SelectItem value="active">Activo</SelectItem>
                   <SelectItem value="less_active">Menos Activo</SelectItem>
                   <SelectItem value="inactive">Inactivo</SelectItem>
+                  <SelectItem value="deceased">Fallecido</SelectItem>
                 </SelectContent>
               </Select>
               <FormDescription>
@@ -1354,7 +1374,8 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
               {member && (
                 <p className="text-xs text-muted-foreground mt-1">
                   Estado guardado: {member.status === 'active' ? 'Activo' :
-                                   member.status === 'less_active' ? 'Menos Activo' : 'Inactivo'}
+                                   member.status === 'less_active' ? 'Menos Activo' :
+                                   member.status === 'inactive' ? 'Inactivo' : 'Fallecido'}
                 </p>
               )}
               <FormMessage />
@@ -1362,8 +1383,55 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           )}
         />
 
-        {/* Urgente y Consejo Flags */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {member && watchedStatus === 'deceased' && (
+          <FormField
+            control={form.control}
+            name="deathDate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Fecha de Fallecimiento</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="DD/MM/YYYY"
+                    value={deathDateInput}
+                    onChange={(e) => {
+                      const inputValue = e.target.value;
+                      setDeathDateInput(inputValue);
+
+                      const parsedDate = parseDate(inputValue, new Date().getFullYear());
+                      if (parsedDate || !inputValue.trim()) {
+                        field.onChange(parsedDate);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const inputValue = e.target.value;
+                      const parsedDate = parseDate(inputValue, new Date().getFullYear());
+
+                      if (parsedDate) {
+                        const formattedDate = formatDateForDisplay(parsedDate);
+                        setDeathDateInput(formattedDate);
+                        field.onChange(parsedDate);
+                      } else if (!inputValue.trim()) {
+                        setDeathDateInput('');
+                        field.onChange(undefined);
+                      } else {
+                        field.onChange(undefined);
+                      }
+
+                      field.onBlur();
+                    }}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Opcional. Ingresa la fecha en formato DD/MM/YYYY (ejemplo: 15/03/1990)
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
+        <div className={member ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 sm:grid-cols-2 gap-4'}>
           <FormField
             control={form.control}
             name="isUrgent"
@@ -1387,29 +1455,31 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="isInCouncil"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-                <div className="space-y-1 leading-none">
-                  <FormLabel className="flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-blue-500" />
-                    En Consejo de Barrio
-                  </FormLabel>
-                  <FormDescription>
-                    Selecciona para incluir en el consejo de barrio.
-                  </FormDescription>
-                </div>
-              </FormItem>
-            )}
-          />
+          {!member && (
+            <FormField
+              control={form.control}
+              name="isInCouncil"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-blue-500" />
+                      En Consejo de Barrio
+                    </FormLabel>
+                    <FormDescription>
+                      Selecciona para incluir en el consejo de barrio.
+                    </FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         {/* Form Actions */}

@@ -12,6 +12,7 @@ import { addDoc, doc, Timestamp, updateDoc, getDocs, query, orderBy } from 'fire
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { birthdaysCollection, storage, membersCollection } from '@/lib/collections';
 import type { Member } from '@/lib/types';
+import { normalizeMemberStatus } from '@/lib/members-data';
 import logger from '@/lib/logger';
 
 import { Button } from '@/components/ui/button';
@@ -135,7 +136,16 @@ export function BirthdayForm({ isOpen, onOpenChange, onFormSubmit, birthday }: B
       setLoadingMembers(true);
       getDocs(query(membersCollection, orderBy('firstName')))
         .then(snapshot => {
-          const membersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Member));
+          const membersData = snapshot.docs
+            .map(doc => {
+              const memberData = doc.data();
+              return {
+                id: doc.id,
+                ...memberData,
+                status: normalizeMemberStatus(memberData.status),
+              } as Member;
+            })
+            .filter(member => member.status !== 'deceased');
           setMembers(membersData);
         })
         .catch(error => {

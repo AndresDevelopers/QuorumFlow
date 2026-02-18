@@ -17,7 +17,8 @@ export interface MemberFormData {
   phoneNumber?: string;
   birthDate?: Date;
   baptismDate?: Date;
-  status: 'active' | 'less_active' | 'inactive';
+  deathDate?: Date;
+  status: 'active' | 'less_active' | 'inactive' | 'deceased';
   photoURL?: string;
   baptismPhotos?: string[];
   ordinances?: string[];
@@ -232,6 +233,7 @@ export function prepareMemberDataForAPI(
     phoneNumber: formData.phoneNumber?.trim() || undefined,
     birthDate: formData.birthDate?.toISOString(),
     baptismDate: formData.baptismDate?.toISOString(),
+    deathDate: formData.deathDate?.toISOString(),
     photoURL: photoURL as any,
     baptismPhotos: baptismPhotoURLs,
     ordinances: formData.ordinances || [],

@@ -127,6 +127,18 @@ const statusConfig = {
 
     color: 'text-red-600'
 
+  },
+
+  deceased: {
+
+    label: 'Fallecido',
+
+    variant: 'secondary' as const,
+
+    icon: UserX,
+
+    color: 'text-muted-foreground'
+
   }
 
 };

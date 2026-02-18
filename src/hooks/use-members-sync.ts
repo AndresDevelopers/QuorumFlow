@@ -19,6 +19,7 @@ const normalizeMemberStatus = (status?: unknown): MemberStatus => {
   if (typeof status !== 'string') return 'active';
 
   const normalized = status.toLowerCase().trim();
+  if (['deceased', 'fallecido', 'fallecida'].includes(normalized)) return 'deceased';
   if (['inactive', 'inactivo'].includes(normalized)) return 'inactive';
   if (['less_active', 'less active', 'menos activo', 'menos_activo'].includes(normalized)) {
     return 'less_active';
@@ -78,9 +79,6 @@ export function useMembersSync(options: UseMembersSyncOptions = {}): UseMembersS
       localStorage.removeItem(cacheKey);
       localStorage.removeItem(cacheTimestampKey);
       localStorage.removeItem(cacheVersionKey);
-      console.log('🗑️ Cache cleared');
-    } else {
-      console.log('🔄 Development mode: No cache to clear');
     }
   }, []);
 
@@ -89,7 +87,6 @@ export function useMembersSync(options: UseMembersSyncOptions = {}): UseMembersS
 
     // Prevent multiple simultaneous requests
     if (syncStatusRef.current === 'syncing' && !forceRefresh) {
-      console.log('🔄 Already syncing, skipping request');
       return;
     }
 
@@ -98,14 +95,9 @@ export function useMembersSync(options: UseMembersSyncOptions = {}): UseMembersS
     
     // Set a timeout to prevent stuck syncing state
     const syncTimeout = setTimeout(() => {
-      console.warn('⚠️ Sync timeout reached, resetting status');
       setSyncStatus('error');
       setLoading(false);
     }, 30000); // 30 seconds timeout
-    
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('🔄 Development mode: Cache disabled, fetching fresh data');
-    }
     
     try {
       // In development, always use no-cache
@@ -131,8 +123,6 @@ export function useMembersSync(options: UseMembersSyncOptions = {}): UseMembersS
       }
       
       const allMembers = await response.json();
-      console.log('📊 Members fetched from server:', allMembers.length);
-
       // Update cache with fresh data (only in production)
       if (process.env.NODE_ENV === 'production') {
         try {
@@ -151,8 +141,6 @@ export function useMembersSync(options: UseMembersSyncOptions = {}): UseMembersS
           console.error('Error saving to cache:', error);
         }
       } else {
-        console.log('🔄 Development mode: Skipping localStorage cache');
-        
         // Still broadcast to other tabs for cross-browser sync
         if (enableCrossBrowserSync) {
           window.dispatchEvent(new CustomEvent('membersUpdated', { 
@@ -174,7 +162,6 @@ export function useMembersSync(options: UseMembersSyncOptions = {}): UseMembersS
           const cachedData = localStorage.getItem(cacheKey);
           if (cachedData) {
             const allMembers = JSON.parse(cachedData);
-            console.log('📊 Members loaded from cache (fallback):', allMembers.length);
             setMembers(allMembers);
             setLastSyncTime(new Date());
             setSyncStatus('idle');
@@ -190,8 +177,6 @@ export function useMembersSync(options: UseMembersSyncOptions = {}): UseMembersS
         } catch (cacheError) {
           console.error('Error loading from cache:', cacheError);
         }
-      } else if (process.env.NODE_ENV !== 'production') {
-        console.log('🔄 Development mode: No cache fallback, showing error directly');
       }
       
       // Show detailed error message with solution
@@ -324,7 +309,6 @@ export function useMembersSync(options: UseMembersSyncOptions = {}): UseMembersS
             );
           }
 
-          console.log('✅ Members updated from Firestore:', updatedMembers.length);
         },
         (error) => {
           console.error('❌ Error in Firestore listener:', error);
@@ -338,7 +322,6 @@ export function useMembersSync(options: UseMembersSyncOptions = {}): UseMembersS
 
     return () => {
       if (unsubscribe) {
-        console.log('👋 Unsubscribing from Firestore listener');
         unsubscribe();
       }
     };

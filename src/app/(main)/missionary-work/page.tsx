@@ -56,7 +56,7 @@ import type {
   Annotation,
 } from '@/lib/types';
 import { membersCollection } from '@/lib/collections';
-import { getMembersForSelector } from '@/lib/members-data';
+import { getMembersForSelector, normalizeMemberStatus } from '@/lib/members-data';
 import {
   useEffect,
   useState,
@@ -213,6 +213,9 @@ async function getNewConvertsWithoutFriends(): Promise<Convert[]> {
   const membersAsConverts = membersSnapshot.docs
     .map(doc => {
       const memberData = doc.data() as Member;
+      if (normalizeMemberStatus(memberData.status) === 'deceased') {
+        return null;
+      }
       if (memberData.baptismDate && memberData.baptismDate.toDate) {
         const baptismDate = memberData.baptismDate.toDate();
         if (baptismDate > twentyFourMonthsAgo) {

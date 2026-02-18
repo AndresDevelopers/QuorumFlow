@@ -10,6 +10,7 @@ import {
   annotationsCollection
 } from '@/lib/collections';
 import type { Convert, Companionship, Activity, Service, Member } from '@/lib/types';
+import { normalizeMemberStatus } from '@/lib/members-data';
 import { subMonths, addDays, format, isAfter, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -20,8 +21,16 @@ export async function getFutureMembers(): Promise<Member[]> {
   const snapshot = await getDocs(membersCollection);
 
   const futureMembers = snapshot.docs
-    .map(doc => ({ id: doc.id, ...doc.data() } as Member))
+    .map(doc => {
+      const memberData = doc.data();
+      return {
+        id: doc.id,
+        ...memberData,
+        status: normalizeMemberStatus(memberData.status),
+      } as Member;
+    })
     .filter(member => {
+      if (member.status === 'deceased') return false;
       const isBaptized = member.ordinances?.includes('baptism') ?? false;
       const hasFutureBaptism = member.baptismDate && member.baptismDate.toDate() > today;
       return !isBaptized && hasFutureBaptism;
@@ -165,7 +174,16 @@ export async function getDashboardData() {
 
 export async function getMembersByStatus() {
   const membersSnapshot = await getDocs(membersCollection);
-  const members = membersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as Record<string, any> } as Member));
+  const members = membersSnapshot.docs
+    .map(doc => {
+      const memberData = doc.data() as Record<string, any>;
+      return {
+        id: doc.id,
+        ...memberData,
+        status: normalizeMemberStatus(memberData.status),
+      } as Member;
+    })
+    .filter(member => member.status !== 'deceased');
 
   const activeMembers = members.filter(m => m.status === 'active');
   const lessActiveMembers = members.filter(m => m.status === 'less_active');

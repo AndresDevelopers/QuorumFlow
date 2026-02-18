@@ -53,6 +53,7 @@ import { cn } from '@/lib/utils';
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Convert, Member } from '@/lib/types';
+import { normalizeMemberStatus } from '@/lib/members-data';
 import { useAuth } from '@/contexts/auth-context';
 
 const convertSchema = z.object({
@@ -99,7 +100,16 @@ export function ConvertForm({ convert }: ConvertFormProps) {
     setLoadingMembers(true);
     try {
       const snapshot = await getDocs(query(membersCollection, orderBy('firstName', 'asc')));
-      const membersList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Member));
+      const membersList = snapshot.docs
+        .map(doc => {
+          const memberData = doc.data();
+          return {
+            id: doc.id,
+            ...memberData,
+            status: normalizeMemberStatus(memberData.status),
+          } as Member;
+        })
+        .filter(member => member.status !== 'deceased');
       setMembers(membersList);
     } catch (error) {
       console.error("Error loading members:", error);

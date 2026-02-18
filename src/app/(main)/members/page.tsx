@@ -85,6 +85,12 @@ const statusConfig = {
     variant: 'destructive' as const,
     icon: UserX,
     color: 'text-red-600'
+  },
+  deceased: {
+    label: 'Fallecido',
+    variant: 'secondary' as const,
+    icon: UserX,
+    color: 'text-muted-foreground'
   }
 };
 
@@ -105,6 +111,7 @@ export default function MembersPage() {
   const [urgentDialogOpen, setUrgentDialogOpen] = useState(false);
   const [urgentMember, setUrgentMember] = useState<Member | null>(null);
   const [urgentReason, setUrgentReason] = useState('');
+  const [returnTo, setReturnTo] = useState<string | null>(null);
 
 
 
@@ -114,6 +121,8 @@ export default function MembersPage() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const editId = urlParams.get('edit');
+    const returnToParam = urlParams.get('returnTo');
+    setReturnTo(returnToParam);
     if (editId && members.length > 0) {
       const memberToEdit = members.find(m => m.id === editId);
       if (memberToEdit) {
@@ -169,6 +178,10 @@ export default function MembersPage() {
   const handleFormClose = () => {
     setIsFormOpen(false);
     setEditingMember(null);
+    if (returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+      router.push(returnTo);
+      return;
+    }
 
     // Clear cache and refresh immediately
     clearCache();
@@ -416,6 +429,7 @@ export default function MembersPage() {
                 <SelectItem value="active">Activos</SelectItem>
                 <SelectItem value="less_active">Menos Activos</SelectItem>
                 <SelectItem value="inactive">Inactivos</SelectItem>
+                <SelectItem value="deceased">Fallecidos</SelectItem>
               </SelectContent>
             </Select>
             <Select value={baptismFilter} onValueChange={(value: 'all' | 'baptized' | 'not_baptized') => setBaptismFilter(value)}>
@@ -486,18 +500,15 @@ export default function MembersPage() {
                   </TableRow>
                 ) : (
                   filteredMembers.map((member) => {
-                    console.log('🎨 Rendering member:', {
-                      id: member.id,
-                      name: `${member.firstName} ${member.lastName}`,
-                      status: member.status,
-                      statusType: typeof member.status,
-                      statusInfo: statusConfig[member.status]
-                    });
                     const statusInfo = statusConfig[member.status];
+                    const isDeceased = member.status === 'deceased';
                     const StatusIcon = statusInfo.icon;
 
                     return (
-                      <TableRow key={member.id}>
+                      <TableRow
+                        key={member.id}
+                        className={isDeceased ? 'bg-muted/50 text-muted-foreground' : undefined}
+                      >
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
                             {member.photoURL ? (
@@ -647,18 +658,12 @@ export default function MembersPage() {
               </div>
             ) : (
               filteredMembers.map((member) => {
-                console.log('📱 Rendering mobile member:', {
-                  id: member.id,
-                  name: `${member.firstName} ${member.lastName}`,
-                  status: member.status,
-                  statusType: typeof member.status,
-                  statusInfo: statusConfig[member.status]
-                });
                 const statusInfo = statusConfig[member.status];
+                const isDeceased = member.status === 'deceased';
                 const StatusIcon = statusInfo.icon;
 
                 return (
-                  <Card key={member.id}>
+                  <Card key={member.id} className={isDeceased ? 'bg-muted/40 text-muted-foreground' : undefined}>
                     <CardContent className="pt-4">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">

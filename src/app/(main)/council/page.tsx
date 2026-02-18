@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 import { getDocs, query, orderBy, where, Timestamp, doc, updateDoc, getDoc, deleteDoc, collection } from 'firebase/firestore';
 import { membersCollection, futureMembersCollection, ministeringCollection, annotationsCollection, servicesCollection, activitiesCollection, convertsCollection } from '@/lib/collections';
 import type { Member, FutureMember, Companionship, Family, Annotation, Service, Activity, Convert } from '@/lib/types';
-import { getLessActiveMembers, getUrgentMembers, updateMember } from '@/lib/members-data';
+import { getLessActiveMembers, getUrgentMembers, normalizeMemberStatus, updateMember } from '@/lib/members-data';
 import { createNotificationsForAll } from '@/lib/notification-helpers';
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
@@ -83,15 +83,23 @@ async function getCouncilMembers(): Promise<Member[]> {
   const snapshot = await getDocs(query(membersCollection, orderBy('baptismDate', 'desc')));
 
   const councilList = snapshot.docs
-    .map(doc => ({ id: doc.id, ...doc.data() } as Member))
+    .map(doc => {
+      const memberData = doc.data();
+      return {
+        id: doc.id,
+        ...memberData,
+        status: normalizeMemberStatus(memberData.status),
+      } as Member;
+    })
     .filter(member => {
-        const baptismDate = member.baptismDate?.toDate();
-        if (!baptismDate || baptismDate < twoYearsAgo) return false;
+      if (member.status === 'deceased') return false;
+      const baptismDate = member.baptismDate?.toDate();
+      if (!baptismDate || baptismDate < twoYearsAgo) return false;
 
-        const isPending = !member.councilCompleted;
-        const wasCompletedRecently = member.councilCompleted && member.councilCompletedAt && member.councilCompletedAt.toDate() > twentyFourHoursAgo;
+      const isPending = !member.councilCompleted;
+      const wasCompletedRecently = member.councilCompleted && member.councilCompletedAt && member.councilCompletedAt.toDate() > twentyFourHoursAgo;
 
-        return isPending || wasCompletedRecently;
+      return isPending || wasCompletedRecently;
     });
 
   return councilList;

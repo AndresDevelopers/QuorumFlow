@@ -52,6 +52,7 @@ export function ChangelogDialog({ children }: { children: React.ReactNode }) {
                 <li>Mejoramos la vista móvil de Ajustes y Miembros para que todo el contenido se ajuste bien en pantallas pequeñas, en especial la sección de gestión de roles.</li>
                 <li>Ahora los tres roles de la presidencia pueden abrir Ajustes, pero solo la persona asignada como secretario puede cambiar los permisos de los usuarios.</li>
                 <li>Las notificaciones funcionan en celulares y avisan automáticamente sobre actividades nuevas, familias marcadas como urgentes y asignaciones recientes de Obra Misional.</li>
+                <li>Al cancelar o cerrar la edición de un miembro desde otra página, se regresa a la página de origen.</li>
               </ul>
             </div>
             <div>

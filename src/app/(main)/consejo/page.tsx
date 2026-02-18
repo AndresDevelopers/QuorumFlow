@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { getDocs, query, orderBy, where, Timestamp, addDoc, deleteDoc, doc, serverTimestamp, updateDoc, getDoc } from 'firebase/firestore';
 import { convertsCollection, membersCollection, annotationsCollection } from '@/lib/collections';
 import { Convert, Annotation } from '@/lib/types';
+import { normalizeMemberStatus } from '@/lib/members-data';
 import { subMonths } from 'date-fns';
 import { AnnotationManager } from '@/components/shared/annotation-manager';
 import { useAuth } from '@/contexts/auth-context';
@@ -67,7 +68,11 @@ const ConsejoPage: React.FC = () => {
           for (const chunk of chunks) {
             const membersSnapshot = await getDocs(query(membersCollection, where('__name__', 'in', chunk)));
             membersSnapshot.docs.forEach(doc => {
-              membersMap.set(doc.id, doc.data());
+              const memberData = doc.data();
+              if (normalizeMemberStatus(memberData.status) === 'deceased') {
+                return;
+              }
+              membersMap.set(doc.id, memberData);
             });
           }
           convertsFromCollection = convertsFromCollection.map(convert => {
@@ -88,6 +93,9 @@ const ConsejoPage: React.FC = () => {
         const membersAsConverts = membersSnapshot.docs
           .map(doc => {
             const memberData = doc.data();
+            if (normalizeMemberStatus(memberData.status) === 'deceased') {
+              return null;
+            }
             if (memberData.baptismDate && memberData.baptismDate.toDate) {
               const baptismDate = memberData.baptismDate.toDate();
               if (baptismDate > twentyFourMonthsAgo) {

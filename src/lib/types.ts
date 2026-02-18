@@ -201,7 +201,7 @@ export type AppNotification = {
 }
 
 // Member management types
-export type MemberStatus = 'active' | 'less_active' | 'inactive';
+export type MemberStatus = 'active' | 'less_active' | 'inactive' | 'deceased';
 
 // Ordenanzas disponibles
 export type Ordinance = 
@@ -231,6 +231,7 @@ export type Member = {
     birthDate?: Timestamp;
     baptismDate?: Timestamp; // Fecha de bautismo del miembro
     baptismPhotos?: string[]; // Fotos del bautismo
+    deathDate?: Timestamp | null;
     phoneNumber?: string;
     memberId?: string;
     address?: string; // Dirección del miembro
