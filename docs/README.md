@@ -16,7 +16,7 @@
 13. [Reportes Anuales](#reportes-anuales)
 
 ## Visión General
-Documento principal que describe el propósito, alcance y objetivos del proyecto.
+Documento principal que describe el propósito, alcance y objetivos del proyecto. La vista de conversos muestra los amigos asignados por nombre cuando existen miembros vinculados.
 
 ## Arquitectura
 Descripción detallada de la arquitectura del sistema, patrones de diseño y decisiones técnicas.
@@ -34,7 +34,7 @@ Políticas y prácticas de seguridad implementadas en el proyecto.
 Documentación detallada de los endpoints de la API.
 
 ## Base de Datos
-Esquema de la base de datos y guía de migraciones.
+Esquema de la base de datos y guía de migraciones. La colección c_conversos_info incluye campos calling, notes, recommendationActive y selfRelianceCourse para el seguimiento de nuevos conversos.
 
 ## Migración de Datos
 Guía completa para la migración automática de asignaciones ministeriales. Consultar [MIGRACION.md](./MIGRACION.md) para instrucciones detalladas sobre cómo sincronizar maestros ministrantes con compañerismos.

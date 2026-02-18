@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlusCircle, Trash2, UserPlus, Users } from 'lucide-react';
 import { MemberSelector } from '@/components/members/member-selector';
@@ -24,6 +25,8 @@ export type ConvertWithInfo = Convert & {
   ministeringTeachers?: string[];
   calling?: string;
   notes?: string;
+  recommendationActive?: boolean;
+  selfRelianceCourse?: boolean;
   memberId?: string;
 };
 
@@ -32,7 +35,7 @@ interface ConvertInfoSheetProps {
   convert: ConvertWithInfo | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (convertId: string, calling: string, notes: string) => Promise<void>;
+  onSave: (convertId: string, calling: string, notes: string, recommendationActive: boolean, selfRelianceCourse: boolean) => Promise<void>;
   onSaveFriends?: (convertId: string, convertName: string, friends: string[], friendshipId?: string) => Promise<void>;
   onSaveTeachers?: (memberId: string, teachers: string[], previousTeachers: string[]) => Promise<void>;
   saving: boolean;
@@ -51,6 +54,8 @@ export function ConvertInfoSheet({
 }: ConvertInfoSheetProps) {
   const [calling, setCalling] = useState(convert?.calling || '');
   const [notes, setNotes] = useState(convert?.notes || '');
+  const [recommendationActive, setRecommendationActive] = useState(!!convert?.recommendationActive);
+  const [selfRelianceCourse, setSelfRelianceCourse] = useState(!!convert?.selfRelianceCourse);
   const [hasChanges, setHasChanges] = useState(false);
   
   // Edit mode states
@@ -71,6 +76,8 @@ export function ConvertInfoSheet({
         prevConvertIdRef.current = currentConvertId;
         setCalling(convert?.calling || '');
         setNotes(convert?.notes || '');
+        setRecommendationActive(!!convert?.recommendationActive);
+        setSelfRelianceCourse(!!convert?.selfRelianceCourse);
         setHasChanges(false);
         setEditingFriends(false);
         setEditingTeachers(false);
@@ -91,7 +98,7 @@ export function ConvertInfoSheet({
     }, 0);
 
     return () => clearTimeout(timeoutId);
-  }, [currentConvertId, convert?.calling, convert?.notes, convert?.friendship?.friends, convert?.ministeringTeachers]);
+  }, [currentConvertId, convert?.calling, convert?.notes, convert?.recommendationActive, convert?.selfRelianceCourse, convert?.friendship?.friends, convert?.ministeringTeachers]);
 
   const handleCallingChange = (value: string) => {
     setCalling(value);
@@ -100,6 +107,16 @@ export function ConvertInfoSheet({
 
   const handleNotesChange = (value: string) => {
     setNotes(value);
+    setHasChanges(true);
+  };
+
+  const handleRecommendationChange = (value: boolean) => {
+    setRecommendationActive(value);
+    setHasChanges(true);
+  };
+
+  const handleSelfRelianceCourseChange = (value: boolean) => {
+    setSelfRelianceCourse(value);
     setHasChanges(true);
   };
 
@@ -159,7 +176,7 @@ export function ConvertInfoSheet({
 
   const handleSave = async () => {
     if (!convert) return;
-    await onSave(convert.id, calling, notes);
+    await onSave(convert.id, calling, notes, recommendationActive, selfRelianceCourse);
     setHasChanges(false);
   };
 
@@ -169,6 +186,15 @@ export function ConvertInfoSheet({
   const hasFriendship = !!convert.friendship && convert.friendship.friends.length > 0;
   const friendNames = convert.friendship?.friends || [];
   const teachers = convert.ministeringTeachers || [];
+  const getFriendDisplayName = (friend: string) => {
+    const id = friend?.trim();
+    if (!id) return '';
+    const member = availableMembers.find(m => m.id === id);
+    if (!member) return friend;
+    const fullName = [member.firstName, member.lastName].filter(Boolean).join(' ').trim();
+    return fullName || friend;
+  };
+  const friendDisplayNames = friendNames.map(getFriendDisplayName).filter(Boolean);
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
@@ -268,7 +294,7 @@ export function ConvertInfoSheet({
                   </div>
                 ) : hasFriendship ? (
                   <div className="flex flex-wrap gap-2">
-                    {friendNames.map((friend: string, idx: number) => (
+                    {friendDisplayNames.map((friend: string, idx: number) => (
                       <Badge key={idx} variant="secondary" className="text-xs">
                         <UserPlus className="h-3 w-3 mr-1" />
                         {friend}
@@ -324,6 +350,33 @@ export function ConvertInfoSheet({
               <p className="text-xs text-muted-foreground mt-1">
                 Escriba manualmente el llamamiento actual del converso.
               </p>
+            </section>
+
+            <Separator />
+
+            <section>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-semibold text-muted-foreground">Recomendación</Label>
+                    <p className="text-xs text-muted-foreground">Activar si cuenta con recomendación vigente.</p>
+                  </div>
+                  <Switch
+                    checked={recommendationActive}
+                    onCheckedChange={handleRecommendationChange}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-semibold text-muted-foreground">Curso de autosuficiencia</Label>
+                    <p className="text-xs text-muted-foreground">Marcar si asiste al curso de autosuficiencia.</p>
+                  </div>
+                  <Switch
+                    checked={selfRelianceCourse}
+                    onCheckedChange={handleSelfRelianceCourseChange}
+                  />
+                </div>
+              </div>
             </section>
 
             <Separator />

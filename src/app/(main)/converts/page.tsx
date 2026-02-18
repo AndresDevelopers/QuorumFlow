@@ -103,14 +103,26 @@ async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
       const infoDoc = await getDoc(convertInfoCollection(convert.id));
       if (infoDoc.exists()) {
         const data = infoDoc.data();
-        return { convertId: convert.id, calling: data.calling as string || '', notes: data.notes as string || '' };
+        return { 
+          convertId: convert.id, 
+          calling: data.calling as string || '', 
+          notes: data.notes as string || '',
+          recommendationActive: data.recommendationActive === true,
+          selfRelianceCourse: data.selfRelianceCourse === true
+        };
       }
       return null;
     } catch {
       return null;
     }
   });
-  const convertInfos = (await Promise.all(convertInfoPromises)).filter(Boolean) as { convertId: string; calling: string; notes: string }[];
+  const convertInfos = (await Promise.all(convertInfoPromises)).filter(Boolean) as { 
+    convertId: string; 
+    calling: string; 
+    notes: string; 
+    recommendationActive: boolean;
+    selfRelianceCourse: boolean;
+  }[];
 
   // Enrich converts with info
   return uniqueConverts.map(convert => {
@@ -151,7 +163,9 @@ async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
       memberData,
       ministeringTeachers,
       calling: info?.calling || '',
-      notes: info?.notes || ''
+      notes: info?.notes || '',
+      recommendationActive: info?.recommendationActive || false,
+      selfRelianceCourse: info?.selfRelianceCourse || false
     };
   });
 }
@@ -188,19 +202,21 @@ export default function ConvertsPage() {
     });
   }, [authLoading, user]);
 
-  const handleSaveConvertInfo = async (convertId: string, calling: string, notes: string) => {
+  const handleSaveConvertInfo = async (convertId: string, calling: string, notes: string, recommendationActive: boolean, selfRelianceCourse: boolean) => {
     setSaving(true);
     try {
       const infoRef = convertInfoCollection(convertId);
       await setDoc(infoRef, {
         calling,
         notes,
+        recommendationActive,
+        selfRelianceCourse,
         updatedAt: Timestamp.now()
       }, { merge: true });
 
       // Update local state
       setConverts(prev => prev.map(c =>
-        c.id === convertId ? { ...c, calling, notes } : c
+        c.id === convertId ? { ...c, calling, notes, recommendationActive, selfRelianceCourse } : c
       ));
     } catch (error) {
       console.error("Failed to save convert info:", error);
