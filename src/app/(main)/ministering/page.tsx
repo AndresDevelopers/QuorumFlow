@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { PlusCircle, Settings, Users } from 'lucide-react';
+import { PlusCircle, Settings, Users, X } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
@@ -66,6 +66,7 @@ export default function MinisteringPage() {
   const [memberMap, setMemberMap] = useState<Map<string, string>>(new Map());
   const [districts, setDistricts] = useState<MinisteringDistrict[]>([]);
   const [isCoarsePointer, setIsCoarsePointer] = useState(false);
+  const [selectedDistrictId, setSelectedDistrictId] = useState<string | null>(null);
   const companionshipDistrictMap = useMemo(() => {
     const map = new Map<string, string[]>();
     districts.forEach(district => {
@@ -78,9 +79,16 @@ export default function MinisteringPage() {
   }, [districts]);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
+  const filteredCompanionships = useMemo(() => {
+    if (!selectedDistrictId) return companionships;
+    const district = districts.find(d => d.id === selectedDistrictId);
+    if (!district) return companionships;
+    return companionships.filter(comp => district.companionshipIds.includes(comp.id));
+  }, [companionships, selectedDistrictId, districts]);
+
   const visibleCompanionships = useMemo(
-    () => companionships.slice(0, visibleCount),
-    [companionships, visibleCount],
+    () => filteredCompanionships.slice(0, visibleCount),
+    [filteredCompanionships, visibleCount],
   );
 
   const totalCompanionships = companionships.length;
@@ -247,25 +255,25 @@ export default function MinisteringPage() {
   };
 
   useEffect(() => {
-    if (companionships.length === 0) {
+    if (filteredCompanionships.length === 0) {
       setVisibleCount(0);
       return;
     }
     setVisibleCount((prev) => {
       const next = Math.max(prev, PAGE_SIZE);
-      return Math.min(next, companionships.length);
+      return Math.min(next, filteredCompanionships.length);
     });
-  }, [companionships]);
+  }, [filteredCompanionships]);
 
   useEffect(() => {
     const node = loadMoreTriggerRef.current;
     if (!node) return;
     if (loading) return;
-    if (visibleCount >= companionships.length) return;
+    if (visibleCount >= filteredCompanionships.length) return;
 
     if (typeof IntersectionObserver === 'undefined') {
       setVisibleCount((prev) => {
-        const next = Math.min(prev + PAGE_SIZE, companionships.length);
+        const next = Math.min(prev + PAGE_SIZE, filteredCompanionships.length);
         return next === prev ? prev : next;
       });
       return;
@@ -275,7 +283,7 @@ export default function MinisteringPage() {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
           setVisibleCount((prev) => {
-            const next = Math.min(prev + PAGE_SIZE, companionships.length);
+            const next = Math.min(prev + PAGE_SIZE, filteredCompanionships.length);
             return next === prev ? prev : next;
           });
         }
@@ -285,7 +293,7 @@ export default function MinisteringPage() {
     observer.observe(node);
 
     return () => observer.disconnect();
-  }, [loading, visibleCount, companionships.length]);
+  }, [loading, visibleCount, filteredCompanionships.length]);
 
   return (
     <TooltipProvider>
@@ -322,15 +330,30 @@ export default function MinisteringPage() {
                   0,
                 );
 
+                const isSelected = selectedDistrictId === district.id;
+
                 return (
-                <Card key={district.id}>
+                <Card 
+                  key={district.id}
+                  className={`cursor-pointer transition-all hover:shadow-md ${
+                    isSelected 
+                      ? 'border-primary bg-primary/5 ring-2 ring-primary' 
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                  onClick={() => setSelectedDistrictId(isSelected ? null : district.id)}
+                >
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
                       <Users className="h-4 w-4" />
                       {district.name}
+                      {isSelected && (
+                        <span className="ml-auto text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+                          Filtrado
+                        </span>
+                      )}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2">
+                  <CardContent className="space-y-2" onClick={(e) => e.stopPropagation()}>
                     <div className="text-sm">
                       <p className="font-medium">Compañerismos: {districtCompanionships.length}</p>
                       <p className="font-medium">Miembros totales: {totalMembers}</p>
@@ -399,7 +422,20 @@ export default function MinisteringPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg">{t('ministering.companionshipDetails')}</CardTitle>
+              <div className="flex items-center gap-3">
+                <CardTitle className="text-lg">{t('ministering.companionshipDetails')}</CardTitle>
+                {selectedDistrictId && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setSelectedDistrictId(null)}
+                    className="gap-1"
+                  >
+                    <X className="h-3 w-3" />
+                    Mostrar todos
+                  </Button>
+                )}
+              </div>
               <Button asChild>
                 <Link href="/ministering/add">
                   <PlusCircle className="mr-2 h-4 w-4" />
@@ -520,9 +556,12 @@ export default function MinisteringPage() {
 
             <div ref={loadMoreTriggerRef} className="h-1" aria-hidden="true" />
 
-            {!loading && companionships.length === 0 && (
+            {!loading && filteredCompanionships.length === 0 && (
                 <div className="text-center p-8 text-muted-foreground">
-                    {t('ministering.noCompanionships')}
+                    {selectedDistrictId 
+                      ? 'No hay ministrantes en este distrito' 
+                      : t('ministering.noCompanionships')
+                    }
                 </div>
             )}
           </CardContent>

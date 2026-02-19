@@ -465,6 +465,7 @@ export default function MembersPage() {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Teléfono</TableHead>
                   <TableHead>Fecha de Nacimiento</TableHead>
+                  <TableHead>Fecha de Fallecimiento</TableHead>
                   <TableHead>Fecha de Bautismo</TableHead>
                   <TableHead>Ordenanzas</TableHead>
                   <TableHead>Ministrantes</TableHead>
@@ -490,7 +491,7 @@ export default function MembersPage() {
                   ))
                 ) : filteredMembers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center">
+                    <TableCell colSpan={10} className="h-24 text-center">
                       {searchTerm || statusFilter !== 'all'
                         ? 'No se encontraron miembros con los filtros aplicados.'
                         : syncStatus === 'syncing'
@@ -530,6 +531,11 @@ export default function MembersPage() {
                         <TableCell>{member.phoneNumber || 'No especificado'}</TableCell>
                         <TableCell>
                           {safeFormatDate(member.birthDate, 'd MMM yyyy', { locale: es })}
+                        </TableCell>
+                        <TableCell>
+                          {member.deathDate 
+                            ? safeFormatDate(member.deathDate, 'd MMM yyyy', { locale: es })
+                            : '-'}
                         </TableCell>
                         <TableCell>
                           {(() => {
@@ -696,6 +702,12 @@ export default function MembersPage() {
                       {safeGetDate(member.birthDate) && (
                         <p className="text-sm text-muted-foreground mb-3">
                           Nacimiento: {safeFormatDate(member.birthDate, 'd MMM yyyy', { locale: es })}
+                        </p>
+                      )}
+
+                      {member.deathDate && (
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Fallecimiento: {safeFormatDate(member.deathDate, 'd MMM yyyy', { locale: es })}
                         </p>
                       )}
 

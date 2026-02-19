@@ -1383,7 +1383,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           )}
         />
 
-        {member && watchedStatus === 'deceased' && (
+        {watchedStatus === 'deceased' && (
           <FormField
             control={form.control}
             name="deathDate"

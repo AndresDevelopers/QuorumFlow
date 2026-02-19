@@ -173,6 +173,7 @@ export default function MemberProfilePage() {
   }
 
   const statusInfo = statusConfig[normalizeMemberStatus(member.status)];
+  const isDeceased = normalizeMemberStatus(member.status) === 'deceased';
 
   return (
     <section className="page-section">
@@ -279,6 +280,17 @@ export default function MemberProfilePage() {
               </div>
             )}
 
+            {isDeceased && member.deathDate && (
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Fecha de Fallecimiento
+                </label>
+                <p className="text-sm">
+                  {format(member.deathDate.toDate(), 'd MMMM yyyy', { locale: es })}
+                </p>
+              </div>
+            )}
+
             <div>
               <label className="text-sm font-medium text-muted-foreground">
                 {t('memberProfile.status')}
@@ -346,7 +358,7 @@ export default function MemberProfilePage() {
               {member.baptismPhotos && member.baptismPhotos.length > 0 && (
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">
-                    {t('memberProfile.baptismPhotos')}
+                    {t('memberProfile.bathismPhotos')}
                   </label>
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     {member.baptismPhotos.map((photo, index) => (

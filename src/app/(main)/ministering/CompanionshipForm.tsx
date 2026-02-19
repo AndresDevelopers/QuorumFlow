@@ -1,14 +1,13 @@
-
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { addDoc, updateDoc, doc, getDocs, query, orderBy, where } from 'firebase/firestore';
-import { ministeringCollection, membersCollection } from '@/lib/collections';
+import { addDoc, updateDoc, doc, getDocs, query, orderBy, where, serverTimestamp, setDoc } from 'firebase/firestore';
+import { ministeringCollection, membersCollection, ministeringDistrictsCollection } from '@/lib/collections';
 import logger from '@/lib/logger';
 import { updateMinisteringTeachersOnCompanionshipChange } from '@/lib/ministering-reverse-sync';
 
@@ -17,9 +16,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Form, FormField, FormControl, FormItem, FormMessage } from '@/components/ui/form';
-import { PlusCircle, Trash2, UserCheck, Edit3 } from 'lucide-react';
+import { PlusCircle, Trash2, UserCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Select,
   SelectContent,
@@ -28,7 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import type { Companionship, Member } from '@/lib/types';
+import type { Companionship, Member, MinisteringDistrict } from '@/lib/types';
 import { normalizeMemberStatus } from '@/lib/members-data';
 import { validateCompanionshipData } from '@/lib/ministering-validations';
 
@@ -52,13 +50,14 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
 
    const isEditMode = !!companionship;
 
-   // New state for dual mode functionality
-   // En modo edición, iniciar en modo manual para mostrar los valores existentes
-   const [companionEntryMode, setCompanionEntryMode] = useState<'manual' | 'automatic'>(isEditMode ? 'manual' : 'automatic');
-  const [familyEntryMode, setFamilyEntryMode] = useState<'manual' | 'automatic'>(isEditMode ? 'manual' : 'automatic');
+   // All entry modes use automatic mode - no manual entry allowed
+   const companionEntryMode: 'automatic' = 'automatic';
+   const familyEntryMode: 'automatic' = 'automatic';
    const [members, setMembers] = useState<Member[]>([]);
-  const [loadingMembers, setLoadingMembers] = useState(false);
-  const entryModeInitializedRef = useRef(false);
+   const [districts, setDistricts] = useState<MinisteringDistrict[]>([]);
+   const [loadingMembers, setLoadingMembers] = useState(false);
+   
+   const [selectedDistrictId, setSelectedDistrictId] = useState<string>('');
 
   const defaultValues = isEditMode
   ? {
@@ -101,29 +100,63 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
     loadMembers();
   }, [loadMembers]);
 
+  // Load districts
   useEffect(() => {
-    if (!isEditMode || entryModeInitializedRef.current || members.length === 0 || !companionship) {
-      return;
+    const loadDistricts = async () => {
+      try {
+        const snapshot = await getDocs(query(ministeringDistrictsCollection, orderBy('name')));
+        const districtsList = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MinisteringDistrict));
+        setDistricts(districtsList);
+        
+        // Set initial selected district
+        if (companionship) {
+          const currentDistrict = districtsList.find(d => d.companionshipIds.includes(companionship.id));
+          if (currentDistrict) {
+            setSelectedDistrictId(currentDistrict.id);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading districts:", error);
+      }
+    };
+    loadDistricts();
+  }, [companionship]);
+
+  // Handle district assignment
+  const handleDistrictChange = async (districtId: string) => {
+    if (!companionship) return;
+    
+    try {
+      // Remove from previous district
+      for (const district of districts) {
+        if (district.companionshipIds.includes(companionship.id)) {
+          const newIds = district.companionshipIds.filter(id => id !== companionship.id);
+          await updateDoc(doc(ministeringDistrictsCollection, district.id), { 
+            companionshipIds: newIds,
+            updatedAt: serverTimestamp()
+          });
+        }
+      }
+      
+      // Add to new district (if selected)
+      if (districtId && districtId !== 'none') {
+        const district = districts.find(d => d.id === districtId);
+        if (district) {
+          const newIds = [...district.companionshipIds, companionship.id];
+          await updateDoc(doc(ministeringDistrictsCollection, districtId), { 
+            companionshipIds: newIds,
+            updatedAt: serverTimestamp()
+          });
+        }
+      }
+      
+      setSelectedDistrictId(districtId);
+      toast({ title: 'Éxito', description: 'Distrito actualizado correctamente' });
+    } catch (error) {
+      logger.error({ error, message: "Failed to update district" });
+      toast({ title: 'Error', description: 'Error al actualizar el distrito', variant: "destructive" });
     }
-
-    const companionsMatch = companionship.companions.every((companion) =>
-      members.some((member) => `${member.firstName} ${member.lastName}` === companion)
-    );
-
-    const familiesMatch = companionship.families.every((family) =>
-      members.some((member) => `Familia ${member.lastName}` === family.name)
-    );
-
-    if (companionsMatch) {
-      setCompanionEntryMode('automatic');
-    }
-
-    if (familiesMatch) {
-      setFamilyEntryMode('automatic');
-    }
-
-    entryModeInitializedRef.current = true;
-  }, [companionship, isEditMode, members]);
+  };
 
   const form = useForm<FormValues>({
     resolver: zodResolver(companionshipSchema),
@@ -143,28 +176,6 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
     return member?.id ?? '';
   };
 
-  // Handle entry mode changes
-  const handleCompanionModeChange = (mode: 'manual' | 'automatic') => {
-    setCompanionEntryMode(mode);
-    // En modo edición, no limpiar los campos al cambiar de modo
-    if (mode === 'manual' && !isEditMode) {
-      // Clear companion fields when switching to manual (solo en modo creación)
-      companionFields.forEach((_, index) => {
-        form.setValue(`companions.${index}.value`, '');
-      });
-    }
-  };
-
-  const handleFamilyModeChange = (mode: 'manual' | 'automatic') => {
-    setFamilyEntryMode(mode);
-    // En modo edición, no limpiar los campos al cambiar de modo
-    if (mode === 'manual' && !isEditMode) {
-      // Clear family fields when switching to manual (solo en modo creación)
-      familyFields.forEach((_, index) => {
-        form.setValue(`families.${index}.value`, '');
-      });
-    }
-  };
 
   const {
     fields: companionFields,
@@ -303,10 +314,24 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
                 observation: '',
             }));
 
-            await addDoc(ministeringCollection, {
+            // Add the new companionship
+            const newCompanionshipRef = doc(ministeringCollection);
+            await setDoc(newCompanionshipRef, {
                 companions: values.companions.map(c => c.value),
                 families: familiesWithObjects,
             });
+
+            // Add to selected district (if any)
+            if (selectedDistrictId && selectedDistrictId !== 'none') {
+                const district = districts.find(d => d.id === selectedDistrictId);
+                if (district) {
+                    const newIds = [...district.companionshipIds, newCompanionshipRef.id];
+                    await updateDoc(doc(ministeringDistrictsCollection, selectedDistrictId), { 
+                        companionshipIds: newIds,
+                        updatedAt: serverTimestamp()
+                    });
+                }
+            }
 
             toast({
                 title: "Compañerismo Agregado",
@@ -343,39 +368,12 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
             <div className="space-y-4">
               <div>
                 <Label className="text-base font-medium">Método de Registro - Compañeros</Label>
-                <p className="text-sm text-muted-foreground">
-                  {isEditMode
-                    ? 'Selecciona cómo deseas registrar los compañeros'
-                    : 'Registro automático habilitado para nuevos compañerismos'}
-                </p>
+                <p className="text-sm text-muted-foreground">Selecciona los compañeros de la lista de miembros</p>
               </div>
-              {isEditMode ? (
-                <RadioGroup
-                  value={companionEntryMode}
-                  onValueChange={(value) => handleCompanionModeChange(value as 'manual' | 'automatic')}
-                  className="flex flex-col space-y-2"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="manual" id="companion-manual" />
-                    <Label htmlFor="companion-manual" className="flex items-center gap-2 cursor-pointer">
-                      <Edit3 className="h-4 w-4" />
-                      Manual - Ingresar nombres manualmente
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="automatic" id="companion-automatic" />
-                    <Label htmlFor="companion-automatic" className="flex items-center gap-2 cursor-pointer">
-                      <UserCheck className="h-4 w-4" />
-                      Automático - Seleccionar miembros existentes
-                    </Label>
-                  </div>
-                </RadioGroup>
-              ) : (
-                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                  <UserCheck className="h-4 w-4" />
-                  <span>Automático - Seleccionar miembros existentes</span>
-                </div>
-              )}
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <UserCheck className="h-4 w-4" />
+                <span>Automático - Seleccionar miembros existentes</span>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -447,28 +445,12 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
             <div className="space-y-4">
               <div>
                 <Label className="text-base font-medium">Método de Registro - Familias</Label>
-                <p className="text-sm text-muted-foreground">Selecciona cómo deseas registrar las familias</p>
+                <p className="text-sm text-muted-foreground">Selecciona las familias de la lista de miembros</p>
               </div>
-              <RadioGroup
-                value={familyEntryMode}
-                onValueChange={(value) => handleFamilyModeChange(value as 'manual' | 'automatic')}
-                className="flex flex-col space-y-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="manual" id="family-manual" />
-                  <Label htmlFor="family-manual" className="flex items-center gap-2 cursor-pointer">
-                    <Edit3 className="h-4 w-4" />
-                    Manual - Ingresar nombres manualmente
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="automatic" id="family-automatic" />
-                  <Label htmlFor="family-automatic" className="flex items-center gap-2 cursor-pointer">
-                    <UserCheck className="h-4 w-4" />
-                    Automático - Seleccionar miembros existentes
-                  </Label>
-                </div>
-              </RadioGroup>
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <UserCheck className="h-4 w-4" />
+                <span>Automático - Seleccionar miembros existentes</span>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -534,6 +516,53 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Agregar Familia
               </Button>
+            </div>
+
+            {/* District Selection */}
+            <div className="space-y-4 pt-4 border-t">
+              <div>
+                <Label className="text-base font-medium">Distrito de Ministración</Label>
+                <p className="text-sm text-muted-foreground">Selecciona el distrito al que pertenece este compañerismo</p>
+              </div>
+              {isEditMode ? (
+                <Select
+                  value={selectedDistrictId}
+                  onValueChange={handleDistrictChange}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar distrito" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="none">Sin distrito</SelectItem>
+                    {districts.map((district) => (
+                      <SelectItem key={district.id} value={district.id}>
+                        {district.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Select
+                  value={selectedDistrictId}
+                  onValueChange={(value) => setSelectedDistrictId(value)}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar distrito" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="none">Sin distrito</SelectItem>
+                    {districts.map((district) => (
+                      <SelectItem key={district.id} value={district.id}>
+                        {district.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </CardContent>
           <CardFooter className="flex justify-end gap-2">
