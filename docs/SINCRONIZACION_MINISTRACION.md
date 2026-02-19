@@ -17,7 +17,7 @@ Se ha implementado un sistema de **sincronización bidireccional** entre la pág
 **¿Qué hace?**
 1. Detecta los maestros ministrantes asignados al miembro
 2. Busca si existe un compañerismo con esos mismos maestros
-3. Si existe, agrega la familia del miembro a ese compañerismo
+3. Si existe, agrega la familia del miembro a ese compañerismo con su memberId
 4. Si no existe, crea un nuevo compañerismo automáticamente
 
 **Ejemplo:**
@@ -27,7 +27,7 @@ Maestros Ministrantes: [Pedro García, Luis Martínez]
 
 → Se crea/actualiza el compañerismo:
    Compañeros: Pedro García, Luis Martínez
-   Familias: Familia Pérez
+   Familias: Familia Pérez (memberId)
 ```
 
 ### 2. De Ministración → Miembros (Sincronización Inversa)
@@ -50,7 +50,7 @@ Maestros Ministrantes: [Pedro García, Luis Martínez]
 ```
 Compañerismo eliminado:
    Compañeros: Pedro García, Luis Martínez
-   Familias: Familia Pérez, Familia López
+   Familias: Familia Pérez (memberId), Familia López (memberId)
 
 → Se actualiza:
    Juan Pérez: ministeringTeachers = [] (vacío)

@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import type { Member } from "@/lib/types";
 import {
   AlertTriangle,
   BookUser,
@@ -29,6 +30,33 @@ export const buildMemberEditUrl = (memberId: string, returnTo?: string) => {
     params.set('returnTo', returnTo);
   }
   return `/members?${params.toString()}`;
+};
+
+export const buildMemberLink = ({
+  name,
+  memberId,
+  members,
+  memberMap,
+}: {
+  name: string;
+  memberId?: string | null;
+  members: Member[];
+  memberMap: Map<string, string>;
+}) => {
+  if (memberId) return `/members/${memberId}`;
+  let searchName = name;
+  if (name.startsWith('Familia ')) {
+    const lastName = name.replace('Familia ', '');
+    const matchedMembers = members.filter(m => m.lastName === lastName);
+    if (matchedMembers.length === 1) {
+      return `/members/${matchedMembers[0].id}`;
+    }
+    searchName = lastName;
+  } else {
+    const mappedId = memberMap.get(name);
+    if (mappedId) return `/members/${mappedId}`;
+  }
+  return `/members?search=${encodeURIComponent(searchName)}`;
 };
 
 export const navigationItems: NavigationItem[] = [

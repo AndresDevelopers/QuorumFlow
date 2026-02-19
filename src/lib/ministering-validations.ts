@@ -1,4 +1,4 @@
-import { Companionship, Member } from './types';
+import { Companionship, Member, MinisteringDistrict } from './types';
 import { getDocs } from 'firebase/firestore';
 import { ministeringCollection, membersCollection } from './collections';
 
@@ -11,6 +11,95 @@ export interface ValidationResult {
     companionAlreadyAssigned: { companion: string; companionship: string }[];
     familyAlreadyAssigned: { family: string; companionship: string }[];
   };
+}
+
+export function resolveSelectedDistrictId({
+  districts,
+  companionshipId,
+  fallbackId,
+}: {
+  districts: MinisteringDistrict[];
+  companionshipId?: string | null;
+  fallbackId: string;
+}) {
+  if (!companionshipId) return fallbackId;
+  const currentDistrict = districts.find(d => d.companionshipIds.includes(companionshipId));
+  return currentDistrict?.id ?? fallbackId;
+}
+
+const normalizeName = (value: string) =>
+  value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+
+export function getAvailableCompanionMembers({
+  members,
+  companionships,
+  currentCompanionshipId,
+}: {
+  members: Member[];
+  companionships: Companionship[];
+  currentCompanionshipId?: string | null;
+}) {
+  const currentCompanionship = companionships.find(c => c.id === currentCompanionshipId);
+  const currentCompanionNames = new Set(
+    (currentCompanionship?.companions ?? []).map(normalizeName)
+  );
+  const assignedCompanionNames = new Set(
+    companionships
+      .filter(c => c.id !== currentCompanionshipId)
+      .flatMap(c => c.companions ?? [])
+      .map(normalizeName)
+  );
+  return members.filter(member => {
+    const fullName = normalizeName(`${member.firstName} ${member.lastName}`);
+    return !assignedCompanionNames.has(fullName) || currentCompanionNames.has(fullName);
+  });
+}
+
+export function getAvailableFamilyMembers({
+  members,
+  companionships,
+  currentCompanionshipId,
+}: {
+  members: Member[];
+  companionships: Companionship[];
+  currentCompanionshipId?: string | null;
+}) {
+  const currentCompanionship = companionships.find(c => c.id === currentCompanionshipId);
+  const currentFamilyIds = new Set(
+    (currentCompanionship?.families ?? [])
+      .map(f => f.memberId)
+      .filter((value): value is string => Boolean(value))
+  );
+  const currentFamilyNames = new Set(
+    (currentCompanionship?.families ?? []).map(f => normalizeName(f.name))
+  );
+  const assignedFamilyMemberIds = new Set(
+    companionships
+      .filter(c => c.id !== currentCompanionshipId)
+      .flatMap(c => c.families ?? [])
+      .map(f => f.memberId)
+      .filter((value): value is string => Boolean(value))
+  );
+  const assignedFamilyNames = new Set(
+    companionships
+      .filter(c => c.id !== currentCompanionshipId)
+      .flatMap(c => c.families ?? [])
+      .filter(f => !f.memberId)
+      .map(f => normalizeName(f.name))
+  );
+  return members.filter(member => {
+    if (assignedFamilyMemberIds.has(member.id) && !currentFamilyIds.has(member.id)) {
+      return false;
+    }
+    const familyName = normalizeName(`Familia ${member.lastName}`);
+    if (assignedFamilyNames.has(familyName) && !currentFamilyNames.has(familyName)) {
+      return false;
+    }
+    return true;
+  });
 }
 
 /**
@@ -40,7 +129,9 @@ export function validateNoDuplicateCompanions(companions: string[]): {
 /**
  * Valida que no haya familias duplicadas en el mismo compañerismo
  */
-export function validateNoDuplicateFamilies(families: string[]): {
+type FamilyInput = { name: string; memberId?: string | null };
+
+export function validateNoDuplicateFamilies(families: FamilyInput[]): {
   valid: boolean;
   duplicates: string[];
 } {
@@ -48,11 +139,12 @@ export function validateNoDuplicateFamilies(families: string[]): {
   const duplicates: string[] = [];
 
   families.forEach((family) => {
-    const normalized = family.trim().toLowerCase();
-    if (seen.has(normalized)) {
-      duplicates.push(family);
+    const normalizedName = family.name.trim().toLowerCase();
+    const key = family.memberId ? `id:${family.memberId}` : `name:${normalizedName}`;
+    if (seen.has(key)) {
+      duplicates.push(family.name);
     }
-    seen.add(normalized);
+    seen.add(key);
   });
 
   return {
@@ -104,12 +196,12 @@ export async function validateCompanionNotAlreadyAssigned(
  * Valida que una familia no esté ya asignada a otro compañerismo
  */
 export async function validateFamilyNotAlreadyAssigned(
-  familyName: string,
+  family: FamilyInput,
   excludeCompanionshipId?: string
 ): Promise<{ valid: boolean; assignedTo?: string }> {
   try {
     const companionships = await getDocs(ministeringCollection);
-    const normalizedFamily = familyName.trim().toLowerCase();
+    const normalizedFamily = family.name.trim().toLowerCase();
 
     for (const doc of companionships.docs) {
       // Saltar el compañerismo actual si es edición
@@ -121,7 +213,15 @@ export async function validateFamilyNotAlreadyAssigned(
       const families = companionshipData.families || [];
 
       const isAlreadyAssigned = families.some(
-        (f) => f.name.trim().toLowerCase() === normalizedFamily
+        (f) => {
+          if (family.memberId && f.memberId) {
+            return f.memberId === family.memberId;
+          }
+          if (!family.memberId) {
+            return f.name.trim().toLowerCase() === normalizedFamily;
+          }
+          return false;
+        }
       );
 
       if (isAlreadyAssigned) {
@@ -167,7 +267,7 @@ export function validateNoOverlap(companions: string[], families: string[]): {
  */
 export async function validateCompanionshipData(
   companions: string[],
-  families: string[],
+  families: FamilyInput[],
   excludeCompanionshipId?: string
 ): Promise<ValidationResult> {
   const conflicts = {
@@ -189,7 +289,7 @@ export async function validateCompanionshipData(
   }
 
   // Validar que no haya solapamiento (un compañero no es también familia)
-  const overlapCheck = validateNoOverlap(companions, families);
+  const overlapCheck = validateNoOverlap(companions, families.map(f => f.name));
   if (!overlapCheck.valid) {
     return {
       valid: false,
@@ -217,7 +317,7 @@ export async function validateCompanionshipData(
     const familyCheck = await validateFamilyNotAlreadyAssigned(family, excludeCompanionshipId);
     if (!familyCheck.valid) {
       conflicts.familyAlreadyAssigned.push({
-        family,
+        family: family.name,
         companionship: familyCheck.assignedTo || '',
       });
     }

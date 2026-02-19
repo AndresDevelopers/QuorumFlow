@@ -56,7 +56,7 @@ export async function syncMinisteringAssignments(
 
     // Agregar al miembro a nuevos compañerismos si es necesario
     if (currentTeachers.length > 0) {
-      await addToNewCompanionships(companionships, memberFamilyName, currentTeachers);
+      await addToNewCompanionships(companionships, memberFamilyName, currentTeachers, member.id);
     }
 
     console.log('✅ Ministering assignments synced successfully');
@@ -119,7 +119,8 @@ async function removeFromPreviousCompanionships(
 async function addToNewCompanionships(
   companionships: Companionship[],
   memberFamilyName: string,
-  currentTeachers: string[]
+  currentTeachers: string[],
+  memberId: string
 ): Promise<void> {
   console.log('➕ Adding to new companionships:', { memberFamilyName, currentTeachers });
 
@@ -139,7 +140,8 @@ async function addToNewCompanionships(
       const newFamily = {
         name: memberFamilyName,
         isUrgent: false,
-        observation: ''
+        observation: '',
+        memberId
       };
 
       const companionshipRef = doc(ministeringCollection, matchingCompanionship.id);
@@ -158,7 +160,8 @@ async function addToNewCompanionships(
       families: [{
         name: memberFamilyName,
         isUrgent: false,
-        observation: ''
+        observation: '',
+        memberId
       }]
     };
 

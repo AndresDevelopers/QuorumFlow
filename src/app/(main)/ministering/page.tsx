@@ -30,6 +30,7 @@ import { PlusCircle, Settings, Users, X } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
+import { buildMemberLink } from '@/lib/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -93,22 +94,8 @@ export default function MinisteringPage() {
 
   const totalCompanionships = companionships.length;
 
-  const getMemberLink = (name: string) => {
-    let searchName = name;
-    if (name.startsWith('Familia ')) {
-      const lastName = name.replace('Familia ', '');
-      // Find member with matching last name
-      const member = members.find(m => m.lastName === lastName);
-      if (member) {
-        return `/members/${member.id}`;
-      }
-      searchName = lastName;
-    } else {
-      const memberId = memberMap.get(name);
-      if (memberId) return `/members/${memberId}`;
-    }
-    return `/members?search=${encodeURIComponent(searchName)}`;
-  };
+  const getMemberLink = (name: string, memberId?: string | null) =>
+    buildMemberLink({ name, memberId, members, memberMap });
   const updateDistrict = async (districtId: string, updates: Partial<MinisteringDistrict>) => {
     try {
       await setDoc(doc(ministeringDistrictsCollection, districtId), {
@@ -481,7 +468,7 @@ export default function MinisteringPage() {
                         <TableCell>
                           {item.families.map((f, i) => (
                             <div key={i} className={i < item.families.length - 1 ? 'mb-1' : undefined}>
-                              <Link href={getMemberLink(f.name)} className="text-blue-600 hover:underline">
+                              <Link href={getMemberLink(f.name, f.memberId)} className="text-blue-600 hover:underline">
                                 {f.name}
                               </Link>
                               {f.isUrgent && renderUrgentIndicator(f.observation)}
@@ -538,7 +525,7 @@ export default function MinisteringPage() {
                                <p className="font-semibold text-muted-foreground">{t('ministering.assignedFamilies')}</p>
                                {item.families.map((f, i) => (
                                 <div key={i} className={i < item.families.length - 1 ? 'mb-1' : undefined}>
-                                  <Link href={getMemberLink(f.name)} className="text-blue-600 hover:underline">
+                                  <Link href={getMemberLink(f.name, f.memberId)} className="text-blue-600 hover:underline">
                                     <p>{f.name}</p>
                                   </Link>
                                   {f.isUrgent && renderUrgentIndicator(f.observation)}

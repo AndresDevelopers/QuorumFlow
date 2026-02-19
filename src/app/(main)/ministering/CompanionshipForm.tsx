@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { addDoc, updateDoc, doc, getDocs, query, orderBy, where, serverTimestamp, setDoc } from 'firebase/firestore';
+import { addDoc, updateDoc, doc, getDocs, getDoc, query, orderBy, where, serverTimestamp, setDoc } from 'firebase/firestore';
 import { ministeringCollection, membersCollection, ministeringDistrictsCollection } from '@/lib/collections';
 import logger from '@/lib/logger';
 import { updateMinisteringTeachersOnCompanionshipChange } from '@/lib/ministering-reverse-sync';
@@ -28,11 +28,17 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Companionship, Member, MinisteringDistrict } from '@/lib/types';
 import { normalizeMemberStatus } from '@/lib/members-data';
-import { validateCompanionshipData } from '@/lib/ministering-validations';
+import { getAvailableCompanionMembers, getAvailableFamilyMembers, resolveSelectedDistrictId, validateCompanionshipData } from '@/lib/ministering-validations';
 
 const companionshipSchema = z.object({
-   companions: z.array(z.object({ value: z.string().min(1, 'El nombre es requerido.') })).min(2, { message: 'Se requieren al menos dos compañeros.' }),
-   families: z.array(z.object({ value: z.string().min(1, 'El nombre es requerido.') })).min(1, { message: 'Se requiere al menos una familia.' }),
+   companions: z.array(z.object({
+     value: z.string().min(1, 'El nombre es requerido.'),
+     memberId: z.string().optional(),
+   })).min(2, { message: 'Se requieren al menos dos compañeros.' }),
+   families: z.array(z.object({
+     value: z.string().min(1, 'El nombre es requerido.'),
+     memberId: z.string().optional(),
+   })).min(1, { message: 'Se requiere al menos una familia.' }),
 });
 
 type FormValues = z.infer<typeof companionshipSchema>;
@@ -54,6 +60,7 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
    const companionEntryMode: 'automatic' = 'automatic';
    const familyEntryMode: 'automatic' = 'automatic';
    const [members, setMembers] = useState<Member[]>([]);
+  const [companionships, setCompanionships] = useState<Companionship[]>([]);
    const [districts, setDistricts] = useState<MinisteringDistrict[]>([]);
    const [loadingMembers, setLoadingMembers] = useState(false);
    
@@ -61,12 +68,12 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
 
   const defaultValues = isEditMode
   ? {
-      companions: companionship.companions.map(c => ({ value: c })),
-      families: companionship.families.map(f => ({ value: f.name })),
+      companions: companionship.companions.map(c => ({ value: c, memberId: '' })),
+      families: companionship.families.map(f => ({ value: f.name, memberId: f.memberId ?? '' })),
     }
   : {
-      companions: [{ value: '' }, { value: '' }],
-      families: [{ value: '' }],
+      companions: [{ value: '', memberId: '' }, { value: '', memberId: '' }],
+      families: [{ value: '', memberId: '' }],
     };
 
   // Load members for automatic mode
@@ -100,20 +107,47 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
     loadMembers();
   }, [loadMembers]);
 
+  useEffect(() => {
+    const loadCompanionships = async () => {
+      try {
+        const snapshot = await getDocs(ministeringCollection);
+        const companionshipList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Companionship[];
+        setCompanionships(companionshipList);
+      } catch (error) {
+        logger.error({ error, message: 'Error loading companionships' });
+        toast({
+          title: 'Error',
+          description: 'No se pudieron cargar los compañerismos.',
+          variant: 'destructive',
+        });
+      }
+    };
+    loadCompanionships();
+  }, [toast]);
+
   // Load districts
   useEffect(() => {
     const loadDistricts = async () => {
       try {
         const snapshot = await getDocs(query(ministeringDistrictsCollection, orderBy('name')));
-        const districtsList = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MinisteringDistrict));
+        const districtsList = snapshot.docs.map(d => {
+          const data = d.data() as Omit<MinisteringDistrict, 'id'>;
+          return { ...data, id: d.id, companionshipIds: data.companionshipIds ?? [] };
+        });
         setDistricts(districtsList);
         
         // Set initial selected district
         if (companionship) {
-          const currentDistrict = districtsList.find(d => d.companionshipIds.includes(companionship.id));
-          if (currentDistrict) {
-            setSelectedDistrictId(currentDistrict.id);
-          }
+          setSelectedDistrictId(
+            resolveSelectedDistrictId({
+              districts: districtsList,
+              companionshipId: companionship.id,
+              fallbackId: 'none',
+            })
+          );
         }
       } catch (error) {
         console.error("Error loading districts:", error);
@@ -162,6 +196,49 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
     resolver: zodResolver(companionshipSchema),
     defaultValues,
   });
+
+  useEffect(() => {
+    if (members.length === 0) return;
+    const companionsValues = form.getValues('companions');
+    companionsValues.forEach((companion, index) => {
+      if (!companion.memberId && companion.value) {
+        const member = members.find(m => `${m.firstName} ${m.lastName}` === companion.value);
+        if (member) {
+          form.setValue(`companions.${index}.memberId`, member.id);
+        }
+      }
+    });
+    const familiesValues = form.getValues('families');
+    familiesValues.forEach((family, index) => {
+      if (!family.memberId && family.value) {
+        const lastName = family.value.replace('Familia ', '').trim();
+        const member = members.find(m => m.lastName === lastName);
+        if (member) {
+          form.setValue(`families.${index}.memberId`, member.id);
+        }
+      }
+    });
+  }, [form, members]);
+
+  const availableCompanionMembers = useMemo(
+    () =>
+      getAvailableCompanionMembers({
+        members,
+        companionships,
+        currentCompanionshipId: companionship?.id ?? null,
+      }),
+    [members, companionships, companionship?.id]
+  );
+
+  const availableFamilyMembers = useMemo(
+    () =>
+      getAvailableFamilyMembers({
+        members,
+        companionships,
+        currentCompanionshipId: companionship?.id ?? null,
+      }),
+    [members, companionships, companionship?.id]
+  );
 
   const getCompanionMemberId = (name: string) => {
     if (!name) return '';
@@ -232,10 +309,14 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
         // Validar que no haya duplicados ni conflictos
         const companionNames = values.companions.map(c => c.value);
         const newFamilyNames = values.families.map(f => f.value);
+        const familyInputs = values.families.map(f => ({
+          name: f.value,
+          memberId: f.memberId || undefined,
+        }));
 
         const validationResult = await validateCompanionshipData(
           companionNames,
-          newFamilyNames,
+          familyInputs,
           isEditMode ? companionship.id : undefined
         );
 
@@ -254,13 +335,6 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
             const oldCompanions = companionship.companions;
             const oldFamilies = companionship.families.map(f => f.name);
             
-            console.log('📢 [FORM] Calling updateMinisteringTeachersOnCompanionshipChange with:', {
-              oldCompanions,
-              oldFamilies,
-              newCompanions: companionNames,
-              newFamilyNames
-            });
-            
             await updateMinisteringTeachersOnCompanionshipChange(
                 oldCompanions,
                 companionNames,
@@ -269,8 +343,19 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
             );
         } else {
             // For new companionships, add ministering assignments
-            for (const familyName of newFamilyNames) {
-                const lastName = familyName.replace('Familia ', '');
+            for (const family of values.families) {
+                if (family.memberId) {
+                    const memberRef = doc(membersCollection, family.memberId);
+                    const memberSnap = await getDoc(memberRef);
+                    if (memberSnap.exists()) {
+                      const member = { id: memberSnap.id, ...memberSnap.data() } as Member;
+                      const currentTeachers = member.ministeringTeachers || [];
+                      const newTeachers = [...new Set([...currentTeachers, ...companionNames])];
+                      await updateDoc(memberRef, { ministeringTeachers: newTeachers });
+                    }
+                    continue;
+                }
+                const lastName = family.value.replace('Familia ', '');
                 const memberQuery = query(membersCollection, where('lastName', '==', lastName));
                 const memberSnap = await getDocs(memberQuery);
                 if (!memberSnap.empty) {
@@ -287,11 +372,18 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
              const companionshipRef = doc(ministeringCollection, companionship.id);
              
              // Smartly update families: keep existing data, remove old, add new
-             const newFamilyNames = values.families.map(f => f.value);
              const existingFamilies = companionship.families;
-             const updatedFamilies = newFamilyNames.map(name => {
-                 const existing = existingFamilies.find(f => f.name === name);
-                 return existing || { name, isUrgent: false, observation: '' };
+             const updatedFamilies = values.families.map(family => {
+                 const existing = existingFamilies.find(f => f.name === family.value);
+                 if (existing) {
+                   return { ...existing, memberId: family.memberId || existing.memberId };
+                 }
+                 return {
+                   name: family.value,
+                   isUrgent: false,
+                   observation: '',
+                   memberId: family.memberId || undefined,
+                 };
              });
 
              await updateDoc(companionshipRef, {
@@ -312,6 +404,7 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
                 name: f.value,
                 isUrgent: false,
                 observation: '',
+                memberId: f.memberId || undefined,
             }));
 
             // Add the new companionship
@@ -383,17 +476,20 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
                   key={field.id}
                   control={form.control}
                   name={`companions.${index}.value`}
-                  render={({ field }) => (
+                  render={({ field }) => {
+                    const companionMemberId = form.watch(`companions.${index}.memberId`);
+                    return (
                     <FormItem>
                       <div className="flex items-center gap-2">
                         {companionEntryMode === 'automatic' ? (
                           <>
                             <Select
-                              value={getCompanionMemberId(field.value)}
+                              value={companionMemberId || getCompanionMemberId(field.value)}
                               onValueChange={(value) => {
                                 const member = members.find(m => m.id === value);
                                 if (member) {
                                   field.onChange(`${member.firstName} ${member.lastName}`);
+                                  form.setValue(`companions.${index}.memberId`, member.id, { shouldDirty: true });
                                 }
                               }}
                               disabled={loadingMembers}
@@ -404,7 +500,7 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                {members.map((member) => (
+                                {availableCompanionMembers.map((member) => (
                                   <SelectItem key={member.id} value={member.id}>
                                     <div className="flex items-center gap-2">
                                       <Avatar className="h-6 w-6">
@@ -432,10 +528,11 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
                       </div>
                       <FormMessage />
                     </FormItem>
-                  )}
+                    );
+                  }}
                 />
               ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => appendCompanion({ value: '' })}>
+              <Button type="button" variant="outline" size="sm" onClick={() => appendCompanion({ value: '', memberId: '' })}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Agregar Compañero
               </Button>
@@ -460,17 +557,20 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
                   key={field.id}
                   control={form.control}
                   name={`families.${index}.value`}
-                  render={({ field }) => (
+                  render={({ field }) => {
+                    const familyMemberId = form.watch(`families.${index}.memberId`);
+                    return (
                     <FormItem>
                       <div className="flex items-center gap-2">
                         {familyEntryMode === 'automatic' ? (
                           <>
                             <Select
-                              value={getFamilyMemberId(field.value)}
+                              value={familyMemberId || getFamilyMemberId(field.value)}
                               onValueChange={(value) => {
                                 const member = members.find(m => m.id === value);
                                 if (member) {
                                   field.onChange(`Familia ${member.lastName}`);
+                                  form.setValue(`families.${index}.memberId`, member.id, { shouldDirty: true });
                                 }
                               }}
                               disabled={loadingMembers}
@@ -481,7 +581,7 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                {members.map((member) => (
+                                {availableFamilyMembers.map((member) => (
                                   <SelectItem key={member.id} value={member.id}>
                                     <div className="flex items-center gap-2">
                                       <Avatar className="h-6 w-6">
@@ -509,10 +609,11 @@ export function CompanionshipForm({ companionship, onCancel }: CompanionshipForm
                       </div>
                       <FormMessage />
                     </FormItem>
-                  )}
+                    );
+                  }}
                 />
               ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => appendFamily({ value: '' })}>
+              <Button type="button" variant="outline" size="sm" onClick={() => appendFamily({ value: '', memberId: '' })}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Agregar Familia
               </Button>

@@ -5,6 +5,7 @@ export type Family = {
   name: string;
   isUrgent: boolean;
   observation: string;
+  memberId?: string;
 };
 
 export type Companionship = {
