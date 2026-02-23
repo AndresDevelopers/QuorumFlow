@@ -165,11 +165,11 @@ export function NotificationBell() {
           </span>}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80" align="end">
+      <PopoverContent className="w-80 max-h-[85vh] flex flex-col" align="end">
         <div className="flex justify-between items-center mb-2">
           <h4 className="font-medium text-sm">Notificaciones</h4>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 overflow-y-auto flex-1 pr-1">
             {hasUpdate && (
               <div className="relative rounded-md border border-primary/30 bg-primary/5 p-3">
                 <div className="flex items-start gap-3">
@@ -224,7 +224,7 @@ export function NotificationBell() {
                     return (
                         <div
                             key={notif.id}
-                            className={`text-sm p-2 rounded-md transition-colors ${
+                            className={`relative text-sm p-2 rounded-md transition-colors ${
                                 isClickable
                                     ? 'hover:bg-muted cursor-pointer border border-transparent hover:border-border'
                                     : 'hover:bg-muted/50'

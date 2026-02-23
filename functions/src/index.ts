@@ -89,7 +89,24 @@ interface Birthday {
     id: string;
     name: string;
     birthDate: admin.firestore.Timestamp;
+    memberId?: string;
 }
+
+interface MemberBasic {
+    status?: string;
+    firstName?: string;
+    lastName?: string;
+    birthDate?: admin.firestore.Timestamp;
+}
+
+const getBirthdayStatusLabel = (status?: string): string | null => {
+    if (!status) return null;
+    const s = status.toLowerCase().trim();
+    if (s === "inactive" || s === "inactivo") return "Inactivo";
+    if (s === "less_active" || s === "menos_activo" || s.startsWith("menos")) return "Menos Activo";
+    if (s === "active" || s === "activo") return "Activo";
+    return null;
+};
 
 interface Family {
     name: string;
@@ -1456,7 +1473,8 @@ function getEcuadorToday(): Date {
 
 interface UserNotificationData {
     userId: string;
-    visiblePages: string[];
+    /** null means the field was never configured → treat all pages as visible (same as frontend default). */
+    visiblePages: string[] | null;
     inAppEnabled: boolean;
     pushEnabled: boolean;
     notificationPrefs: {
@@ -1468,6 +1486,8 @@ interface UserNotificationData {
 /**
  * Fetch all users with their notification preferences and visible pages.
  * Defaults: inApp = true, push = false, all categories = true.
+ * visiblePages = null means "never configured" → all pages are visible
+ * (matches the frontend default in settings/page.tsx).
  */
 async function getAllUsersNotificationData(): Promise<UserNotificationData[]> {
     const snapshot = await firestore.collection("c_users").get();
@@ -1475,7 +1495,7 @@ async function getAllUsersNotificationData(): Promise<UserNotificationData[]> {
         const d = doc.data();
         return {
             userId: doc.id,
-            visiblePages: Array.isArray(d.visiblePages) ? (d.visiblePages as string[]) : [],
+            visiblePages: Array.isArray(d.visiblePages) ? (d.visiblePages as string[]) : null,
             inAppEnabled: d.inAppNotificationsEnabled !== false,
             pushEnabled: d.pushNotificationsEnabled === true,
             notificationPrefs: {
@@ -1527,7 +1547,8 @@ function getEligibleUsers(
     const pushUserIds: string[] = [];
 
     for (const u of users) {
-        const hasPage = u.visiblePages.includes(page);
+        // null = visiblePages was never configured → all pages are visible (matches frontend default)
+        const hasPage = u.visiblePages === null || u.visiblePages.includes(page);
         if (!hasPage) continue;
 
         const inAppCat = u.notificationPrefs.inApp[category] !== false;
@@ -1558,14 +1579,31 @@ export const dailyNotifications = functions.pubsub
         // ── Cumpleaños ──────────────────────────────────────────────────────
         const birthdayEligible = getEligibleUsers(allUsers, "birthdays");
         if (birthdayEligible.inAppUserIds.length > 0 || birthdayEligible.pushUserIds.length > 0) {
-            const birthdaysSnap = await firestore.collection("c_cumpleanos").get();
+            const [birthdaysSnap, membersForBirthdaySnap] = await Promise.all([
+                firestore.collection("c_cumpleanos").get(),
+                firestore.collection("c_miembros").get(),
+            ]);
+
             const sentBirthdays14 = new Set<string>();
             const sentBirthdaysToday = new Set<string>();
 
+            // Build member status map for quick lookup by memberId
+            const memberStatusMap = new Map<string, string>();
+            for (const memberDoc of membersForBirthdaySnap.docs) {
+                const m = memberDoc.data() as MemberBasic;
+                if (m.status) memberStatusMap.set(memberDoc.id, m.status);
+            }
+
+            // Process birthdays from c_cumpleanos collection
             for (const doc of birthdaysSnap.docs) {
                 const b = doc.data() as Birthday;
                 const bd = b.birthDate.toDate();
                 const nextBirthday = new Date(today.getFullYear(), bd.getMonth(), bd.getDate());
+
+                // Resolve member status if birthday is linked to a member
+                const memberStatus = b.memberId ? memberStatusMap.get(b.memberId) : undefined;
+                const statusLabel = getBirthdayStatusLabel(memberStatus);
+                const nameWithStatus = statusLabel ? `${b.name} (${statusLabel})` : b.name;
 
                 if (isSameDay(nextBirthday, in14Days) && !sentBirthdays14.has(b.name)) {
                     sentBirthdays14.add(b.name);
@@ -1573,7 +1611,7 @@ export const dailyNotifications = functions.pubsub
                         birthdayEligible.inAppUserIds,
                         {
                             title: "Próximo Cumpleaños",
-                            body: `Faltan 14 días para el cumpleaños de ${b.name}.`,
+                            body: `Faltan 14 días para el cumpleaños de ${nameWithStatus}.`,
                             url: "/birthdays",
                             tag: `birthday-14d-${doc.id}`,
                             context: { contextType: "birthday", actionUrl: "/birthdays", actionType: "navigate" },
@@ -1588,9 +1626,55 @@ export const dailyNotifications = functions.pubsub
                         birthdayEligible.inAppUserIds,
                         {
                             title: "¡Feliz Cumpleaños!",
-                            body: `¡Hoy es el cumpleaños de ${b.name}! No olvides felicitarle.`,
+                            body: `¡Hoy es el cumpleaños de ${nameWithStatus}! No olvides felicitarle.`,
                             url: "/birthdays",
                             tag: `birthday-today-${doc.id}`,
+                            context: { contextType: "birthday", actionUrl: "/birthdays", actionType: "navigate" },
+                        },
+                        birthdayEligible.pushUserIds
+                    );
+                }
+            }
+
+            // Also process member birthdays from c_miembros (not in c_cumpleanos)
+            for (const memberDoc of membersForBirthdaySnap.docs) {
+                const m = memberDoc.data() as MemberBasic;
+                if (!m.birthDate || !m.firstName || !m.lastName) continue;
+                if (m.status === "deceased" || m.status === "fallecido" || m.status === "fallecida") continue;
+
+                const memberName = `${m.firstName} ${m.lastName}`;
+                // Skip if already covered by c_cumpleanos record (deduplication by name)
+                if (sentBirthdays14.has(memberName) && sentBirthdaysToday.has(memberName)) continue;
+
+                const bd = m.birthDate.toDate();
+                const nextBirthday = new Date(today.getFullYear(), bd.getMonth(), bd.getDate());
+                const statusLabel = getBirthdayStatusLabel(m.status);
+                const nameWithStatus = statusLabel ? `${memberName} (${statusLabel})` : memberName;
+
+                if (isSameDay(nextBirthday, in14Days) && !sentBirthdays14.has(memberName)) {
+                    sentBirthdays14.add(memberName);
+                    await notificationDispatcher.broadcastToUsers(
+                        birthdayEligible.inAppUserIds,
+                        {
+                            title: "Próximo Cumpleaños",
+                            body: `Faltan 14 días para el cumpleaños de ${nameWithStatus}.`,
+                            url: "/birthdays",
+                            tag: `birthday-14d-member-${memberDoc.id}`,
+                            context: { contextType: "birthday", actionUrl: "/birthdays", actionType: "navigate" },
+                        },
+                        birthdayEligible.pushUserIds
+                    );
+                }
+
+                if (isSameDay(nextBirthday, today) && !sentBirthdaysToday.has(memberName)) {
+                    sentBirthdaysToday.add(memberName);
+                    await notificationDispatcher.broadcastToUsers(
+                        birthdayEligible.inAppUserIds,
+                        {
+                            title: "¡Feliz Cumpleaños!",
+                            body: `¡Hoy es el cumpleaños de ${nameWithStatus}! No olvides felicitarle.`,
+                            url: "/birthdays",
+                            tag: `birthday-today-member-${memberDoc.id}`,
                             context: { contextType: "birthday", actionUrl: "/birthdays", actionType: "navigate" },
                         },
                         birthdayEligible.pushUserIds
