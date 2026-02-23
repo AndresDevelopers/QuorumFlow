@@ -1,6 +1,5 @@
 import type { firestore as FirestoreNamespace } from "firebase-admin";
 import * as admin from "firebase-admin";
-import type * as webpush from "web-push";
 
 export type NotificationContextType =
   | "convert"
@@ -12,7 +11,10 @@ export type NotificationContextType =
   | "birthday"
   | "investigator"
   | "urgent_family"
-  | "missionary_assignment";
+  | "missionary_assignment"
+  | "observations"
+  | "family_search"
+  | "future_member";
 
 export interface NotificationContext {
   contextType?: NotificationContextType;
@@ -37,9 +39,9 @@ export interface BroadcastNotificationRequest {
   context?: NotificationContext;
 }
 
-interface SubscriptionRecord {
+interface FcmTokenRecord {
   userId: string;
-  subscription: webpush.PushSubscription;
+  fcmToken: string;
 }
 
 interface NotificationRecord {
@@ -85,73 +87,135 @@ class NotificationRepository {
   }
 }
 
-class SubscriptionRepository {
+class FcmRepository {
   private readonly collection: FirestoreNamespace.CollectionReference;
 
   constructor(
     private readonly db: FirestoreNamespace.Firestore,
-    private readonly pushClient: typeof webpush,
+    private readonly messaging: admin.messaging.Messaging,
     private readonly logger: LoggerPort
   ) {
     this.collection = this.db.collection("c_push_subscriptions");
   }
 
-  async getActiveSubscriptions(): Promise<SubscriptionRecord[]> {
+  async getActiveTokens(): Promise<FcmTokenRecord[]> {
     const snapshot = await this.collection.get();
-    const subscriptions: SubscriptionRecord[] = [];
+    const tokens: FcmTokenRecord[] = [];
 
     snapshot.forEach((doc) => {
       const data = doc.data();
-      const subscription = data.subscription as webpush.PushSubscription | null;
-      if (subscription && subscription.endpoint) {
-        subscriptions.push({
+      const fcmToken = data.fcmToken as string | null;
+      if (fcmToken) {
+        tokens.push({
           userId: data.userId as string,
-          subscription,
+          fcmToken,
         });
       }
     });
 
-    return subscriptions;
+    return tokens;
   }
 
-  async sendToSubscribers(
-    subscriptions: SubscriptionRecord[],
-    payload: Record<string, unknown>
+  async getTokensForUsers(userIds: string[]): Promise<FcmTokenRecord[]> {
+    if (userIds.length === 0) return [];
+    // Firestore 'in' query supports max 30 elements; batch if needed
+    const batches: Promise<FcmTokenRecord[]>[] = [];
+    for (let i = 0; i < userIds.length; i += 30) {
+      const batch = userIds.slice(i, i + 30);
+      batches.push(
+        this.collection
+          .where("userId", "in", batch)
+          .get()
+          .then((snap) => {
+            const results: FcmTokenRecord[] = [];
+            snap.forEach((doc) => {
+              const data = doc.data();
+              if (data.fcmToken) {
+                results.push({ userId: data.userId as string, fcmToken: data.fcmToken as string });
+              }
+            });
+            return results;
+          })
+      );
+    }
+    const results = await Promise.all(batches);
+    return results.flat();
+  }
+
+  async sendToTokens(
+    tokens: FcmTokenRecord[],
+    payload: { title: string; body: string; url?: string; tag?: string }
   ): Promise<void> {
-    if (subscriptions.length === 0) {
-      this.logger.log("No push subscriptions to notify.");
+    if (tokens.length === 0) {
+      this.logger.log("No FCM tokens to notify.");
       return;
     }
 
-    const serializedPayload = JSON.stringify(payload);
+    const rawTokens = tokens.map((t) => t.fcmToken);
 
-    const sendResults = await Promise.allSettled(
-      subscriptions.map(({ subscription, userId }) =>
-        this.pushClient
-          .sendNotification(subscription, serializedPayload)
-          .catch((error) => {
-            if (error?.statusCode === 404 || error?.statusCode === 410) {
-              this.logger.warn(
-                `Subscription for user ${userId} is invalid. Consider removing it.`
-              );
+    // FCM sendEachForMulticast supports up to 500 tokens per request
+    const chunkSize = 500;
+    for (let i = 0; i < rawTokens.length; i += chunkSize) {
+      const chunk = rawTokens.slice(i, i + chunkSize);
+      try {
+        const response = await this.messaging.sendEachForMulticast({
+          tokens: chunk,
+          notification: {
+            title: payload.title,
+            body: payload.body,
+          },
+          webpush: {
+            notification: {
+              title: payload.title,
+              body: payload.body,
+              tag: payload.tag,
+            },
+            fcmOptions: {
+              link: payload.url ?? "/",
+            },
+          },
+          data: {
+            url: payload.url ?? "/",
+            tag: payload.tag ?? "",
+          },
+        });
+
+        const failedTokens: string[] = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            const code = resp.error?.code;
+            if (
+              code === "messaging/registration-token-not-registered" ||
+              code === "messaging/invalid-registration-token"
+            ) {
+              failedTokens.push(chunk[idx]);
+              this.logger.warn(`Invalid FCM token removed: ${chunk[idx]}`);
             } else {
-              this.logger.error(
-                `Error sending push notification to user ${userId}: ${error}`
-              );
+              this.logger.error(`FCM send error for token ${chunk[idx]}: ${resp.error?.message}`);
             }
-            return null;
-          })
-      )
-    );
+          }
+        });
 
-    const rejected = sendResults.filter(
-      (result): result is PromiseRejectedResult => result.status === "rejected"
-    );
+        // Remove invalid tokens from Firestore
+        if (failedTokens.length > 0) {
+          await this.removeInvalidTokens(failedTokens);
+        }
+      } catch (error) {
+        this.logger.error(`Error sending FCM multicast: ${error}`);
+      }
+    }
+  }
 
-    if (rejected.length > 0) {
-      this.logger.warn(
-        `${rejected.length} push notifications were rejected during broadcast.`
-      );
+  private async removeInvalidTokens(tokens: string[]): Promise<void> {
+    try {
+      const batch = this.db.batch();
+      for (const token of tokens) {
+        const docs = await this.collection.where("fcmToken", "==", token).get();
+        docs.forEach((doc) => batch.delete(doc.ref));
+      }
+      await batch.commit();
+    } catch (error) {
+      this.logger.error(`Error removing invalid FCM tokens: ${error}`);
     }
   }
 }
@@ -179,26 +243,26 @@ class NotificationRecordFactory {
 export class NotificationDispatcher {
   private readonly userRepository: UserRepository;
   private readonly notificationRepository: NotificationRepository;
-  private readonly subscriptionRepository: SubscriptionRepository;
+  private readonly fcmRepository: FcmRepository;
   private readonly recordFactory: NotificationRecordFactory;
 
   constructor(
     db: FirestoreNamespace.Firestore,
-    pushClient: typeof webpush,
+    messaging: admin.messaging.Messaging,
     private readonly logger: LoggerPort
   ) {
     this.userRepository = new UserRepository(db);
     this.notificationRepository = new NotificationRepository(db);
-    this.subscriptionRepository = new SubscriptionRepository(db, pushClient, logger);
+    this.fcmRepository = new FcmRepository(db, messaging, logger);
     this.recordFactory = new NotificationRecordFactory();
   }
 
   async broadcast(request: BroadcastNotificationRequest): Promise<void> {
     this.logger.log(`Broadcasting notification: ${request.title}`);
 
-    const [userIds, subscriptions] = await Promise.all([
+    const [userIds, fcmTokens] = await Promise.all([
       this.userRepository.getAllUserIds(),
-      this.subscriptionRepository.getActiveSubscriptions(),
+      this.fcmRepository.getActiveTokens(),
     ]);
 
     if (userIds.length === 0) {
@@ -209,26 +273,46 @@ export class NotificationDispatcher {
       this.recordFactory.create(userId, request)
     );
 
-    const pushPayload: Record<string, unknown> = {
-      title: request.title,
-      body: request.body,
-      url: request.url ?? request.context?.actionUrl,
-      tag: request.tag,
-      actions: request.actions?.map((action) => ({
-        action: action.action,
-        title: action.title,
-        icon: action.icon,
-        url: action.url,
-      })),
-      data: {
-        contextType: request.context?.contextType,
-        contextId: request.context?.contextId,
-      },
-    };
+    await Promise.all([
+      this.notificationRepository.saveMany(records),
+      this.fcmRepository.sendToTokens(fcmTokens, {
+        title: request.title,
+        body: request.body,
+        url: request.url ?? request.context?.actionUrl,
+        tag: request.tag,
+      }),
+    ]);
+  }
+
+  /**
+   * Broadcast to specific users only (filtered by userId list).
+   * Used by scheduled functions that already determine eligible users.
+   */
+  async broadcastToUsers(
+    userIds: string[],
+    request: BroadcastNotificationRequest,
+    pushUserIds?: string[]
+  ): Promise<void> {
+    if (userIds.length === 0 && (!pushUserIds || pushUserIds.length === 0)) {
+      return;
+    }
+
+    const inAppUserIds = userIds;
+    const fcmTargetUserIds = pushUserIds ?? userIds;
+
+    const [records, fcmTokens] = await Promise.all([
+      Promise.resolve(inAppUserIds.map((uid) => this.recordFactory.create(uid, request))),
+      this.fcmRepository.getTokensForUsers(fcmTargetUserIds),
+    ]);
 
     await Promise.all([
       this.notificationRepository.saveMany(records),
-      this.subscriptionRepository.sendToSubscribers(subscriptions, pushPayload),
+      this.fcmRepository.sendToTokens(fcmTokens, {
+        title: request.title,
+        body: request.body,
+        url: request.url ?? request.context?.actionUrl,
+        tag: request.tag,
+      }),
     ]);
   }
 }

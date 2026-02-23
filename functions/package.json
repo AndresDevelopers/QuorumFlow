@@ -24,12 +24,10 @@
     "firebase-functions": "^7.0.1",
     "pizzip": "^3.2.0",
     "pngjs": "^7.0.0",
-    "webp-wasm": "^1.0.6",
-    "web-push": "^3.6.7"
+    "webp-wasm": "^1.0.6"
   },
   "devDependencies": {
     "@types/pngjs": "^6.0.5",
-    "@types/web-push": "^3.6.4",
     "@typescript-eslint/eslint-plugin": "^8.48.1",
     "@typescript-eslint/parser": "^8.48.1",
     "eslint": "^9.39.1",

@@ -92,6 +92,22 @@ export default function SettingsPage() {
   const [isInAppNotificationLoading, setIsInAppNotificationLoading] = useState(true);
   const [isPushNotificationLoading, setIsPushNotificationLoading] = useState(true);
   const [fcmToken, setFcmToken] = useState<string | null>(null);
+
+  // Per-category notification preferences
+  const defaultCategoryPrefs: Record<string, boolean> = {
+    observations: true,
+    converts: true,
+    futureMembers: true,
+    birthdays: true,
+    familySearch: true,
+    missionaryWork: true,
+    service: true,
+    council: true,
+    activities: true,
+  };
+  const [inAppCategoryPrefs, setInAppCategoryPrefs] = useState<Record<string, boolean>>(defaultCategoryPrefs);
+  const [pushCategoryPrefs, setPushCategoryPrefs] = useState<Record<string, boolean>>(defaultCategoryPrefs);
+  const [isCategoryPrefsSaving, setIsCategoryPrefsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isThemeSaving, setIsThemeSaving] = useState(false);
 
@@ -132,6 +148,12 @@ export default function SettingsPage() {
           // Si no existe la preferencia, por defecto es true para in-app, false para push
           setInAppNotificationsEnabled(userData.inAppNotificationsEnabled !== false);
           setPushNotificationsEnabled(userData.pushNotificationsEnabled === true);
+
+          // Load per-category prefs (default all true)
+          const savedInApp = (userData.notificationPrefs?.inApp as Record<string, boolean>) ?? {};
+          const savedPush = (userData.notificationPrefs?.push as Record<string, boolean>) ?? {};
+          setInAppCategoryPrefs({ ...defaultCategoryPrefs, ...savedInApp });
+          setPushCategoryPrefs({ ...defaultCategoryPrefs, ...savedPush });
         } else {
           // Usuario nuevo, activar in-app por defecto, push desactivado
           setInAppNotificationsEnabled(true);
@@ -489,6 +511,42 @@ export default function SettingsPage() {
     }
   };
 
+  const handleCategoryPrefChange = async (
+    type: 'inApp' | 'push',
+    category: string,
+    checked: boolean
+  ) => {
+    if (!user) return;
+    setIsCategoryPrefsSaving(true);
+
+    const newPrefs = type === 'inApp'
+      ? { ...inAppCategoryPrefs, [category]: checked }
+      : { ...pushCategoryPrefs, [category]: checked };
+
+    if (type === 'inApp') setInAppCategoryPrefs(newPrefs);
+    else setPushCategoryPrefs(newPrefs);
+
+    try {
+      const userDocRef = doc(usersCollection, user.uid);
+      // Use dot notation to deep-merge without overwriting the sibling key
+      await updateDoc(userDocRef, {
+        [`notificationPrefs.${type}`]: newPrefs,
+      });
+    } catch (error) {
+      logger.error({ error, message: 'Failed to update category notification preference' });
+      // Revert on error
+      if (type === 'inApp') setInAppCategoryPrefs((prev: Record<string, boolean>) => ({ ...prev, [category]: !checked }));
+      else setPushCategoryPrefs((prev: Record<string, boolean>) => ({ ...prev, [category]: !checked }));
+      toast({
+        title: 'Error',
+        description: 'No se pudo guardar la preferencia.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCategoryPrefsSaving(false);
+    }
+  };
+
   const handleMainPageChange = async (value: string) => {
     if (!firebaseUser || value === mainPage) {
       setMainPage(value);
@@ -542,6 +600,88 @@ export default function SettingsPage() {
     }
   };
 
+
+  const notificationCategories: Array<{
+    key: string;
+    label: string;
+    description: string;
+    page: string;
+    inAppDetail: string;
+    pushDetail: string;
+  }> = [
+    {
+      key: 'observations',
+      label: 'Observaciones',
+      description: 'Sin investidura, sin ordenanza de élderes, inactivos, familias en seguimiento, apoyo de salud',
+      page: '/observations',
+      inAppDetail: '1 vez a la semana',
+      pushDetail: '1 vez a la semana',
+    },
+    {
+      key: 'converts',
+      label: 'Conversos',
+      description: 'Nuevos conversos sin amigo asignado, sin llamamiento, sin recomendación, con observación',
+      page: '/converts',
+      inAppDetail: '1 vez a la semana',
+      pushDetail: '1 vez a la semana',
+    },
+    {
+      key: 'futureMembers',
+      label: 'Futuros Miembros',
+      description: 'Próximos bautismos o conversos',
+      page: '/future-members',
+      inAppDetail: '3 días antes del bautismo',
+      pushDetail: '3 días antes del bautismo',
+    },
+    {
+      key: 'birthdays',
+      label: 'Cumpleaños',
+      description: 'Próximos cumpleaños y cumpleaños del día',
+      page: '/birthdays',
+      inAppDetail: '14 días antes y el día del cumpleaños',
+      pushDetail: '14 días antes y el día del cumpleaños',
+    },
+    {
+      key: 'familySearch',
+      label: 'FamilySearch',
+      description: 'Familias pendientes de capacitación en FamilySearch',
+      page: '/family-search',
+      inAppDetail: '1 vez a la semana',
+      pushDetail: '1 vez a la semana',
+    },
+    {
+      key: 'missionaryWork',
+      label: 'Obra Misional',
+      description: 'Asignaciones misionales, investigadores y nuevos conversos',
+      page: '/missionary-work',
+      inAppDetail: '1 vez a la semana',
+      pushDetail: '1 vez a la semana',
+    },
+    {
+      key: 'service',
+      label: 'Servicio',
+      description: 'Próximos servicios, actualizaciones y eliminaciones',
+      page: '/service',
+      inAppDetail: '14 días antes, el día del servicio, al actualizar/eliminar',
+      pushDetail: '14 días antes, el día del servicio, al actualizar/eliminar',
+    },
+    {
+      key: 'council',
+      label: 'Consejo',
+      description: 'Necesidades urgentes de miembros y ministración, miembros menos activos',
+      page: '/council',
+      inAppDetail: 'Martes y miércoles a las 6 pm',
+      pushDetail: 'Martes y miércoles a las 6 pm',
+    },
+    {
+      key: 'activities',
+      label: 'Actividades',
+      description: 'Próximas actividades, actualizaciones y eliminaciones',
+      page: '/reports/activities',
+      inAppDetail: '14 días antes, el día de la actividad, al actualizar/eliminar',
+      pushDetail: '14 días antes, el día de la actividad, al actualizar/eliminar',
+    },
+  ];
 
   if (isCheckingRole) {
     return (
@@ -895,46 +1035,112 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="h-full">
+        <Card className="xl:col-span-full">
           <CardHeader>
             <CardTitle>{t('Notifications')}</CardTitle>
             <CardDescription>
-              {t('Configure how you receive notifications.')}
+              {t('Configure how you receive notifications.')} Solo recibirás notificaciones de las páginas que tienes visibles.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Notificaciones In-App */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Label htmlFor="inapp-notifications-switch" className="flex flex-col space-y-1">
-                <span className="text-sm font-medium sm:text-base">{t('In-App Notifications')}</span>
-                <span className="text-xs font-normal leading-snug text-muted-foreground sm:text-sm">
-                  {t('Receive notifications within the application about important activities.')}
-                </span>
-              </Label>
-              <Switch
-                id="inapp-notifications-switch"
-                checked={inAppNotificationsEnabled}
-                onCheckedChange={handleInAppNotificationChange}
-                disabled={isInAppNotificationLoading}
-              />
+          <CardContent className="space-y-8">
+            {/* ── Notificaciones In-App ─────────────────────────────────── */}
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Label htmlFor="inapp-notifications-switch" className="flex flex-col space-y-1">
+                  <span className="text-sm font-medium sm:text-base">{t('In-App Notifications')}</span>
+                  <span className="text-xs font-normal leading-snug text-muted-foreground sm:text-sm">
+                    {t('Receive notifications within the application about important activities.')}
+                  </span>
+                </Label>
+                <Switch
+                  id="inapp-notifications-switch"
+                  checked={inAppNotificationsEnabled}
+                  onCheckedChange={handleInAppNotificationChange}
+                  disabled={isInAppNotificationLoading}
+                />
+              </div>
+
+              {inAppNotificationsEnabled && (
+                <div className="ml-2 space-y-2 border-l-2 border-muted pl-4">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+                    Categorías de notificación (In-App)
+                  </p>
+                  {notificationCategories
+                    .filter(cat => visiblePages.includes(cat.page))
+                    .map(cat => (
+                      <div key={`inapp-${cat.key}`} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between py-2">
+                        <div className="flex flex-col space-y-0.5">
+                          <span className="text-sm font-medium">{cat.label}</span>
+                          <span className="text-xs text-muted-foreground">{cat.description}</span>
+                          <span className="text-xs text-muted-foreground/70">{cat.inAppDetail}</span>
+                        </div>
+                        <Switch
+                          id={`inapp-cat-${cat.key}`}
+                          checked={inAppCategoryPrefs[cat.key] !== false}
+                          onCheckedChange={(checked) => handleCategoryPrefChange('inApp', cat.key, checked)}
+                          disabled={isCategoryPrefsSaving}
+                          className="mt-1 sm:mt-0 shrink-0"
+                        />
+                      </div>
+                    ))}
+                  {notificationCategories.filter(cat => visiblePages.includes(cat.page)).length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">
+                      No tienes páginas visibles configuradas para notificaciones.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="border-t" />
 
-            {/* Notificaciones Push Android/iOS */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Label htmlFor="push-notifications-switch" className="flex flex-col space-y-1">
-                <span className="text-sm font-medium sm:text-base">{t('Mobile Push Notifications')}</span>
-                <span className="text-xs font-normal leading-snug text-muted-foreground sm:text-sm">
-                  {t('Receive push notifications on your Android/iOS device even when the app is closed.')}
-                </span>
-              </Label>
-              <Switch
-                id="push-notifications-switch"
-                checked={pushNotificationsEnabled}
-                onCheckedChange={handlePushNotificationChange}
-                disabled={isPushNotificationLoading}
-              />
+            {/* ── Notificaciones Push ───────────────────────────────────── */}
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Label htmlFor="push-notifications-switch" className="flex flex-col space-y-1">
+                  <span className="text-sm font-medium sm:text-base">{t('Mobile Push Notifications')}</span>
+                  <span className="text-xs font-normal leading-snug text-muted-foreground sm:text-sm">
+                    {t('Receive push notifications on your Android/iOS device even when the app is closed.')}
+                  </span>
+                </Label>
+                <Switch
+                  id="push-notifications-switch"
+                  checked={pushNotificationsEnabled}
+                  onCheckedChange={handlePushNotificationChange}
+                  disabled={isPushNotificationLoading}
+                />
+              </div>
+
+              {pushNotificationsEnabled && (
+                <div className="ml-2 space-y-2 border-l-2 border-muted pl-4">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+                    Categorías de notificación (Push)
+                  </p>
+                  {notificationCategories
+                    .filter(cat => visiblePages.includes(cat.page))
+                    .map(cat => (
+                      <div key={`push-${cat.key}`} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between py-2">
+                        <div className="flex flex-col space-y-0.5">
+                          <span className="text-sm font-medium">{cat.label}</span>
+                          <span className="text-xs text-muted-foreground">{cat.description}</span>
+                          <span className="text-xs text-muted-foreground/70">{cat.pushDetail}</span>
+                        </div>
+                        <Switch
+                          id={`push-cat-${cat.key}`}
+                          checked={pushCategoryPrefs[cat.key] !== false}
+                          onCheckedChange={(checked) => handleCategoryPrefChange('push', cat.key, checked)}
+                          disabled={isCategoryPrefsSaving}
+                          className="mt-1 sm:mt-0 shrink-0"
+                        />
+                      </div>
+                    ))}
+                  {notificationCategories.filter(cat => visiblePages.includes(cat.page)).length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">
+                      No tienes páginas visibles configuradas para notificaciones.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
