@@ -1473,7 +1473,8 @@ function getEcuadorToday(): Date {
 
 interface UserNotificationData {
     userId: string;
-    visiblePages: string[];
+    /** null means the field was never configured → treat all pages as visible (same as frontend default). */
+    visiblePages: string[] | null;
     inAppEnabled: boolean;
     pushEnabled: boolean;
     notificationPrefs: {
@@ -1485,6 +1486,8 @@ interface UserNotificationData {
 /**
  * Fetch all users with their notification preferences and visible pages.
  * Defaults: inApp = true, push = false, all categories = true.
+ * visiblePages = null means "never configured" → all pages are visible
+ * (matches the frontend default in settings/page.tsx).
  */
 async function getAllUsersNotificationData(): Promise<UserNotificationData[]> {
     const snapshot = await firestore.collection("c_users").get();
@@ -1492,7 +1495,7 @@ async function getAllUsersNotificationData(): Promise<UserNotificationData[]> {
         const d = doc.data();
         return {
             userId: doc.id,
-            visiblePages: Array.isArray(d.visiblePages) ? (d.visiblePages as string[]) : [],
+            visiblePages: Array.isArray(d.visiblePages) ? (d.visiblePages as string[]) : null,
             inAppEnabled: d.inAppNotificationsEnabled !== false,
             pushEnabled: d.pushNotificationsEnabled === true,
             notificationPrefs: {
@@ -1544,7 +1547,8 @@ function getEligibleUsers(
     const pushUserIds: string[] = [];
 
     for (const u of users) {
-        const hasPage = u.visiblePages.includes(page);
+        // null = visiblePages was never configured → all pages are visible (matches frontend default)
+        const hasPage = u.visiblePages === null || u.visiblePages.includes(page);
         if (!hasPage) continue;
 
         const inAppCat = u.notificationPrefs.inApp[category] !== false;
