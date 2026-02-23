@@ -5,7 +5,6 @@ import { getYear, startOfYear, endOfYear, format, addDays, isSameDay } from "dat
 import { es } from "date-fns/locale";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
-import * as webpush from "web-push";
 import ModernImageModule from "./modules/modern-image-module";
 import axios from "axios";
 import { NotificationDispatcher } from "./modules/notification-dispatcher";
@@ -16,19 +15,15 @@ admin.initializeApp();
 
 const firestore = admin.firestore();
 const storage = admin.storage();
+const messaging = admin.messaging();
 const notificationDispatcher = new NotificationDispatcher(
     firestore,
-    webpush,
+    messaging,
     functions.logger
 );
 
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-    webpush.setVapidDetails(
-        process.env.VAPID_SUBJECT_EMAIL || "mailto:example@yourdomain.org",
-        process.env.VAPID_PUBLIC_KEY,
-        process.env.VAPID_PRIVATE_KEY
-    );
-}
+// Ecuador timezone (no DST)
+const ECUADOR_TZ = "America/Guayaquil";
 
 interface Activity {
     id: string;
@@ -1140,30 +1135,202 @@ export const onActivityCreated = functions.firestore
             const detailText = details.length > 0 ? ` ${details.join(" ")}` : "";
             const body = `Se programó la actividad "${activityTitle}"${detailText}.`;
 
-            await notificationDispatcher.broadcast({
-                title: "Nueva Actividad Programada",
-                body,
-                url: "/reports",
-                tag: `activity-${activityId}`,
-                actions: [
-                    {
-                        action: "open",
-                        title: "Ver actividades",
-                        url: "/reports",
+            const allUsers = await getAllUsersNotificationData();
+            const eligible = getEligibleUsers(allUsers, "activities");
+
+            await notificationDispatcher.broadcastToUsers(
+                eligible.inAppUserIds,
+                {
+                    title: "Nueva Actividad Programada",
+                    body,
+                    url: "/reports/activities",
+                    tag: `activity-${activityId}`,
+                    context: {
+                        contextType: "activity",
+                        contextId: activityId,
+                        actionUrl: "/reports/activities",
+                        actionType: "navigate",
                     },
-                ],
-                context: {
-                    contextType: "activity",
-                    contextId: activityId,
-                    actionUrl: "/reports",
-                    actionType: "navigate",
                 },
-            });
+                eligible.pushUserIds
+            );
         } catch (error) {
             functions.logger.error("Failed to broadcast activity notification", {
                 error,
                 activityId: context.params.activityId,
             });
+        }
+    });
+
+export const onActivityUpdated = functions.firestore
+    .document("c_actividades/{activityId}")
+    .onUpdate(async (change, context) => {
+        try {
+            const before = change.before.data() as Activity | undefined;
+            const after = change.after.data() as Activity | undefined;
+            if (!after) return;
+
+            const activityId = context.params.activityId as string;
+            const activityTitle = after.title?.trim() || "Actividad";
+            const prevTitle = before?.title?.trim() || activityTitle;
+
+            const allUsers = await getAllUsersNotificationData();
+            const eligible = getEligibleUsers(allUsers, "activities");
+
+            await notificationDispatcher.broadcastToUsers(
+                eligible.inAppUserIds,
+                {
+                    title: "Actividad Actualizada",
+                    body: `La actividad "${prevTitle}" ha sido actualizada.`,
+                    url: "/reports/activities",
+                    tag: `activity-updated-${activityId}`,
+                    context: {
+                        contextType: "activity",
+                        contextId: activityId,
+                        actionUrl: "/reports/activities",
+                        actionType: "navigate",
+                    },
+                },
+                eligible.pushUserIds
+            );
+        } catch (error) {
+            functions.logger.error("Failed to broadcast activity update notification", {
+                error,
+                activityId: context.params.activityId,
+            });
+        }
+    });
+
+export const onActivityDeleted = functions.firestore
+    .document("c_actividades/{activityId}")
+    .onDelete(async (snapshot, context) => {
+        try {
+            const activity = snapshot.data() as Activity | undefined;
+            const activityTitle = activity?.title?.trim() || "Actividad";
+
+            const allUsers = await getAllUsersNotificationData();
+            const eligible = getEligibleUsers(allUsers, "activities");
+
+            await notificationDispatcher.broadcastToUsers(
+                eligible.inAppUserIds,
+                {
+                    title: "Actividad Eliminada",
+                    body: `La actividad "${activityTitle}" ha sido eliminada.`,
+                    url: "/reports/activities",
+                    tag: `activity-deleted-${context.params.activityId}`,
+                    context: {
+                        contextType: "activity",
+                        actionUrl: "/reports/activities",
+                        actionType: "navigate",
+                    },
+                },
+                eligible.pushUserIds
+            );
+        } catch (error) {
+            functions.logger.error("Failed to broadcast activity delete notification", {
+                error,
+                activityId: context.params.activityId,
+            });
+        }
+    });
+
+export const onServiceCreated = functions.firestore
+    .document("c_servicios/{serviceId}")
+    .onCreate(async (snapshot, context) => {
+        try {
+            const svc = snapshot.data() as Service;
+            const serviceId = context.params.serviceId as string;
+            const title = svc.title?.trim() || "Nuevo servicio";
+            const svcDate = svc.date?.toDate
+                ? format(svc.date.toDate(), "d MMM yyyy", { locale: es })
+                : "";
+
+            const allUsers = await getAllUsersNotificationData();
+            const eligible = getEligibleUsers(allUsers, "service");
+
+            await notificationDispatcher.broadcastToUsers(
+                eligible.inAppUserIds,
+                {
+                    title: "Nuevo Servicio Programado",
+                    body: `Se programó el servicio "${title}"${svcDate ? ` para el ${svcDate}` : ""}.`,
+                    url: "/service",
+                    tag: `service-created-${serviceId}`,
+                    context: {
+                        contextType: "service",
+                        contextId: serviceId,
+                        actionUrl: "/service",
+                        actionType: "navigate",
+                    },
+                },
+                eligible.pushUserIds
+            );
+        } catch (error) {
+            functions.logger.error("Failed to broadcast service creation notification", { error });
+        }
+    });
+
+export const onServiceUpdated = functions.firestore
+    .document("c_servicios/{serviceId}")
+    .onUpdate(async (change, context) => {
+        try {
+            const before = change.before.data() as Service | undefined;
+            const after = change.after.data() as Service | undefined;
+            if (!after) return;
+
+            const serviceId = context.params.serviceId as string;
+            const title = after.title?.trim() || before?.title?.trim() || "Servicio";
+
+            const allUsers = await getAllUsersNotificationData();
+            const eligible = getEligibleUsers(allUsers, "service");
+
+            await notificationDispatcher.broadcastToUsers(
+                eligible.inAppUserIds,
+                {
+                    title: "Servicio Actualizado",
+                    body: `El servicio "${title}" ha sido actualizado.`,
+                    url: "/service",
+                    tag: `service-updated-${serviceId}`,
+                    context: {
+                        contextType: "service",
+                        contextId: serviceId,
+                        actionUrl: "/service",
+                        actionType: "navigate",
+                    },
+                },
+                eligible.pushUserIds
+            );
+        } catch (error) {
+            functions.logger.error("Failed to broadcast service update notification", { error });
+        }
+    });
+
+export const onServiceDeleted = functions.firestore
+    .document("c_servicios/{serviceId}")
+    .onDelete(async (snapshot) => {
+        try {
+            const svc = snapshot.data() as Service | undefined;
+            const title = svc?.title?.trim() || "Servicio";
+
+            const allUsers = await getAllUsersNotificationData();
+            const eligible = getEligibleUsers(allUsers, "service");
+
+            await notificationDispatcher.broadcastToUsers(
+                eligible.inAppUserIds,
+                {
+                    title: "Servicio Eliminado",
+                    body: `El servicio "${title}" ha sido eliminado.`,
+                    url: "/service",
+                    tag: `service-deleted`,
+                    context: {
+                        contextType: "service",
+                        actionUrl: "/service",
+                        actionType: "navigate",
+                    },
+                },
+                eligible.pushUserIds
+            );
+        } catch (error) {
+            functions.logger.error("Failed to broadcast service delete notification", { error });
         }
     });
 
@@ -1193,6 +1360,9 @@ export const onUrgentFamilyFlagged = functions.firestore
             return;
         }
 
+        const allUsers = await getAllUsersNotificationData();
+        const eligible = getEligibleUsers(allUsers, "council");
+
         await Promise.all(
             newlyUrgent.map(async (family) => {
                 const familyName = family.name || "Familia";
@@ -1205,25 +1375,22 @@ export const onUrgentFamilyFlagged = functions.firestore
 
                     const contextId = `${context.params.companionshipId}:${familySlug}`;
 
-                    await notificationDispatcher.broadcast({
-                        title: "Nueva familia con necesidad urgente",
-                        body,
-                        url: "/ministering/urgent",
-                        tag: `urgent-family-${context.params.companionshipId}-${familySlug}`,
-                        actions: [
-                            {
-                                action: "open",
-                                title: "Ver familias urgentes",
-                                url: "/ministering/urgent",
+                    await notificationDispatcher.broadcastToUsers(
+                        eligible.inAppUserIds,
+                        {
+                            title: "Nueva familia con necesidad urgente",
+                            body,
+                            url: "/ministering/urgent",
+                            tag: `urgent-family-${context.params.companionshipId}-${familySlug}`,
+                            context: {
+                                contextType: "urgent_family",
+                                contextId,
+                                actionUrl: "/ministering/urgent",
+                                actionType: "navigate",
                             },
-                        ],
-                        context: {
-                            contextType: "urgent_family",
-                            contextId,
-                            actionUrl: "/ministering/urgent",
-                            actionType: "navigate",
                         },
-                    });
+                        eligible.pushUserIds
+                    );
                 } catch (error) {
                     functions.logger.error("Failed to broadcast urgent family notification", {
                         error,
@@ -1246,25 +1413,25 @@ export const onMissionaryAssignmentCreated = functions.firestore
                 ? description
                 : "Se registró una nueva asignación misional.";
 
-            await notificationDispatcher.broadcast({
-                title: "Nueva Asignación Misional",
-                body,
-                url: "/missionary-work",
-                tag: `missionary-assignment-${assignmentId}`,
-                actions: [
-                    {
-                        action: "open",
-                        title: "Ver asignaciones",
-                        url: "/missionary-work",
+            const allUsers = await getAllUsersNotificationData();
+            const eligible = getEligibleUsers(allUsers, "missionaryWork");
+
+            await notificationDispatcher.broadcastToUsers(
+                eligible.inAppUserIds,
+                {
+                    title: "Nueva Asignación Misional",
+                    body,
+                    url: "/missionary-work",
+                    tag: `missionary-assignment-${assignmentId}`,
+                    context: {
+                        contextType: "missionary_assignment",
+                        contextId: assignmentId,
+                        actionUrl: "/missionary-work",
+                        actionType: "navigate",
                     },
-                ],
-                context: {
-                    contextType: "missionary_assignment",
-                    contextId: assignmentId,
-                    actionUrl: "/missionary-work",
-                    actionType: "navigate",
                 },
-            });
+                eligible.pushUserIds
+            );
         } catch (error) {
             functions.logger.error("Failed to broadcast missionary assignment notification", {
                 error,
@@ -1274,118 +1441,533 @@ export const onMissionaryAssignmentCreated = functions.firestore
     });
 
 
-export const notifications = functions.pubsub.schedule("every day 09:00").onRun(async (context: any) => {
-    functions.logger.log("Checking for notifications to send...");
+// ─────────────────────────────────────────────────────────────────────────────
+// Notification helpers – Ecuador timezone (UTC-5, no DST)
+// ─────────────────────────────────────────────────────────────────────────────
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+/** Return "today" date object in Ecuador local time (midnight UTC-5). */
+function getEcuadorToday(): Date {
+    const utcNow = new Date();
+    // Ecuador = UTC-5
+    const ecMs = utcNow.getTime() - 5 * 60 * 60 * 1000;
+    const ec = new Date(ecMs);
+    return new Date(ec.getFullYear(), ec.getMonth(), ec.getDate());
+}
 
-    const fourteenDaysFromNow = addDays(today, 14);
-    const sevenDaysFromNow = addDays(today, 7);
-    const oneDayFromNow = addDays(today, 1);
+interface UserNotificationData {
+    userId: string;
+    visiblePages: string[];
+    inAppEnabled: boolean;
+    pushEnabled: boolean;
+    notificationPrefs: {
+        inApp: Record<string, boolean>;
+        push: Record<string, boolean>;
+    };
+}
 
-    const notificationsToSend: { title: string, body: string }[] = [];
-
-    const servicesSnapshot = await firestore.collection("c_servicios").get();
-    servicesSnapshot.forEach((doc) => {
-        const service = doc.data() as Service;
-        const serviceDate = service.date.toDate();
-        const timeString = service.time ? ` a las ${service.time}` : "";
-
-        if (isSameDay(serviceDate, sevenDaysFromNow)) {
-            notificationsToSend.push({
-                title: "Recordatorio de Servicio",
-                body: `El servicio "${service.title}" está programado para la próxima semana.`,
-            });
-        }
-        if (isSameDay(serviceDate, oneDayFromNow)) {
-            notificationsToSend.push({
-                title: "Recordatorio de Servicio",
-                body: `¡El servicio "${service.title}" es mañana${timeString}!`,
-            });
-        }
+/**
+ * Fetch all users with their notification preferences and visible pages.
+ * Defaults: inApp = true, push = false, all categories = true.
+ */
+async function getAllUsersNotificationData(): Promise<UserNotificationData[]> {
+    const snapshot = await firestore.collection("c_users").get();
+    return snapshot.docs.map((doc) => {
+        const d = doc.data();
+        return {
+            userId: doc.id,
+            visiblePages: Array.isArray(d.visiblePages) ? (d.visiblePages as string[]) : [],
+            inAppEnabled: d.inAppNotificationsEnabled !== false,
+            pushEnabled: d.pushNotificationsEnabled === true,
+            notificationPrefs: {
+                inApp: (d.notificationPrefs?.inApp as Record<string, boolean>) ?? {},
+                push: (d.notificationPrefs?.push as Record<string, boolean>) ?? {},
+            },
+        };
     });
+}
 
-    const ministeringSnapshot = await firestore.collection("c_ministracion").get();
-    ministeringSnapshot.forEach((doc) => {
-        const companionship = doc.data() as Companionship;
-        companionship.families.forEach((family) => {
-            if (family.isUrgent) {
-                notificationsToSend.push({
-                    title: "Necesidad Urgente",
-                    body: `Recordatorio: La familia ${family.name} tiene una necesidad urgente que requiere atención.`,
-                });
+type NotifCategory =
+    | "observations"
+    | "converts"
+    | "futureMembers"
+    | "birthdays"
+    | "familySearch"
+    | "missionaryWork"
+    | "service"
+    | "council"
+    | "activities";
+
+const CATEGORY_PAGE: Record<NotifCategory, string> = {
+    observations: "/observations",
+    converts: "/converts",
+    futureMembers: "/future-members",
+    birthdays: "/birthdays",
+    familySearch: "/family-search",
+    missionaryWork: "/missionary-work",
+    service: "/service",
+    council: "/council",
+    activities: "/reports/activities",
+};
+
+interface EligibleUsers {
+    inAppUserIds: string[];
+    pushUserIds: string[];
+}
+
+/**
+ * Given all users and a category, return those eligible to receive in-app
+ * and/or push notifications for that category.
+ */
+function getEligibleUsers(
+    users: UserNotificationData[],
+    category: NotifCategory
+): EligibleUsers {
+    const page = CATEGORY_PAGE[category];
+    const inAppUserIds: string[] = [];
+    const pushUserIds: string[] = [];
+
+    for (const u of users) {
+        const hasPage = u.visiblePages.includes(page);
+        if (!hasPage) continue;
+
+        const inAppCat = u.notificationPrefs.inApp[category] !== false;
+        const pushCat = u.notificationPrefs.push[category] !== false;
+
+        if (u.inAppEnabled && inAppCat) inAppUserIds.push(u.userId);
+        if (u.pushEnabled && pushCat) pushUserIds.push(u.userId);
+    }
+
+    return { inAppUserIds, pushUserIds };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DAILY NOTIFICATIONS – 09:00 Ecuador (America/Guayaquil)
+// Covers: Birthdays, Future Members, Services, Activities
+// ─────────────────────────────────────────────────────────────────────────────
+export const dailyNotifications = functions.pubsub
+    .schedule("0 9 * * *")
+    .timeZone(ECUADOR_TZ)
+    .onRun(async () => {
+        functions.logger.log("dailyNotifications: running...");
+        const today = getEcuadorToday();
+        const in14Days = addDays(today, 14);
+        const in3Days = addDays(today, 3);
+
+        const allUsers = await getAllUsersNotificationData();
+
+        // ── Cumpleaños ──────────────────────────────────────────────────────
+        const birthdayEligible = getEligibleUsers(allUsers, "birthdays");
+        if (birthdayEligible.inAppUserIds.length > 0 || birthdayEligible.pushUserIds.length > 0) {
+            const birthdaysSnap = await firestore.collection("c_cumpleanos").get();
+            const sentBirthdays14 = new Set<string>();
+            const sentBirthdaysToday = new Set<string>();
+
+            for (const doc of birthdaysSnap.docs) {
+                const b = doc.data() as Birthday;
+                const bd = b.birthDate.toDate();
+                const nextBirthday = new Date(today.getFullYear(), bd.getMonth(), bd.getDate());
+
+                if (isSameDay(nextBirthday, in14Days) && !sentBirthdays14.has(b.name)) {
+                    sentBirthdays14.add(b.name);
+                    await notificationDispatcher.broadcastToUsers(
+                        birthdayEligible.inAppUserIds,
+                        {
+                            title: "Próximo Cumpleaños",
+                            body: `Faltan 14 días para el cumpleaños de ${b.name}.`,
+                            url: "/birthdays",
+                            tag: `birthday-14d-${doc.id}`,
+                            context: { contextType: "birthday", actionUrl: "/birthdays", actionType: "navigate" },
+                        },
+                        birthdayEligible.pushUserIds
+                    );
+                }
+
+                if (isSameDay(nextBirthday, today) && !sentBirthdaysToday.has(b.name)) {
+                    sentBirthdaysToday.add(b.name);
+                    await notificationDispatcher.broadcastToUsers(
+                        birthdayEligible.inAppUserIds,
+                        {
+                            title: "¡Feliz Cumpleaños!",
+                            body: `¡Hoy es el cumpleaños de ${b.name}! No olvides felicitarle.`,
+                            url: "/birthdays",
+                            tag: `birthday-today-${doc.id}`,
+                            context: { contextType: "birthday", actionUrl: "/birthdays", actionType: "navigate" },
+                        },
+                        birthdayEligible.pushUserIds
+                    );
+                }
             }
+        }
+
+        // ── Futuros Miembros – 3 días antes del bautismo ────────────────────
+        const fmEligible = getEligibleUsers(allUsers, "futureMembers");
+        if (fmEligible.inAppUserIds.length > 0 || fmEligible.pushUserIds.length > 0) {
+            const fmSnap = await firestore.collection("c_futuros_miembros").get();
+            for (const doc of fmSnap.docs) {
+                const fm = doc.data() as { name: string; baptismDate: admin.firestore.Timestamp; isBaptized?: boolean };
+                if (fm.isBaptized) continue;
+                const baptismDate = fm.baptismDate?.toDate();
+                if (!baptismDate) continue;
+                const baptismDay = new Date(baptismDate.getFullYear(), baptismDate.getMonth(), baptismDate.getDate());
+
+                if (isSameDay(baptismDay, in3Days)) {
+                    await notificationDispatcher.broadcastToUsers(
+                        fmEligible.inAppUserIds,
+                        {
+                            title: "Próximo Bautismo",
+                            body: `Faltan 3 días para el bautismo de ${fm.name} (${format(baptismDate, "d MMM yyyy", { locale: es })}).`,
+                            url: "/future-members",
+                            tag: `future-member-${doc.id}`,
+                            context: { contextType: "future_member", contextId: doc.id, actionUrl: "/future-members", actionType: "navigate" },
+                        },
+                        fmEligible.pushUserIds
+                    );
+                }
+            }
+        }
+
+        // ── Servicios – 14 días antes y el mismo día ─────────────────────────
+        const serviceEligible = getEligibleUsers(allUsers, "service");
+        if (serviceEligible.inAppUserIds.length > 0 || serviceEligible.pushUserIds.length > 0) {
+            const servicesSnap = await firestore.collection("c_servicios").get();
+            for (const doc of servicesSnap.docs) {
+                const svc = doc.data() as Service;
+                const svcDate = svc.date.toDate();
+                const svcDay = new Date(svcDate.getFullYear(), svcDate.getMonth(), svcDate.getDate());
+                const timeStr = svc.time ? ` a las ${svc.time}` : "";
+
+                if (isSameDay(svcDay, in14Days)) {
+                    await notificationDispatcher.broadcastToUsers(
+                        serviceEligible.inAppUserIds,
+                        {
+                            title: "Recordatorio de Servicio",
+                            body: `El servicio "${svc.title}" es en 14 días (${format(svcDate, "d MMM yyyy", { locale: es })}).`,
+                            url: "/service",
+                            tag: `service-14d-${doc.id}`,
+                            context: { contextType: "service", contextId: doc.id, actionUrl: "/service", actionType: "navigate" },
+                        },
+                        serviceEligible.pushUserIds
+                    );
+                }
+
+                if (isSameDay(svcDay, today)) {
+                    await notificationDispatcher.broadcastToUsers(
+                        serviceEligible.inAppUserIds,
+                        {
+                            title: "¡Servicio Hoy!",
+                            body: `El servicio "${svc.title}" es hoy${timeStr}.`,
+                            url: "/service",
+                            tag: `service-today-${doc.id}`,
+                            context: { contextType: "service", contextId: doc.id, actionUrl: "/service", actionType: "navigate" },
+                        },
+                        serviceEligible.pushUserIds
+                    );
+                }
+            }
+        }
+
+        // ── Actividades – 14 días antes y el mismo día ───────────────────────
+        const actEligible = getEligibleUsers(allUsers, "activities");
+        if (actEligible.inAppUserIds.length > 0 || actEligible.pushUserIds.length > 0) {
+            const actSnap = await firestore.collection("c_actividades").get();
+            for (const doc of actSnap.docs) {
+                const act = doc.data() as Activity;
+                const actDate = act.date.toDate();
+                const actDay = new Date(actDate.getFullYear(), actDate.getMonth(), actDate.getDate());
+                const timeStr = act.time ? ` a las ${act.time}` : "";
+
+                if (isSameDay(actDay, in14Days)) {
+                    await notificationDispatcher.broadcastToUsers(
+                        actEligible.inAppUserIds,
+                        {
+                            title: "Recordatorio de Actividad",
+                            body: `La actividad "${act.title}" es en 14 días (${format(actDate, "d MMM yyyy", { locale: es })}).`,
+                            url: "/reports/activities",
+                            tag: `activity-14d-${doc.id}`,
+                            context: { contextType: "activity", contextId: doc.id, actionUrl: "/reports/activities", actionType: "navigate" },
+                        },
+                        actEligible.pushUserIds
+                    );
+                }
+
+                if (isSameDay(actDay, today)) {
+                    await notificationDispatcher.broadcastToUsers(
+                        actEligible.inAppUserIds,
+                        {
+                            title: "¡Actividad Hoy!",
+                            body: `La actividad "${act.title}" es hoy${timeStr}.`,
+                            url: "/reports/activities",
+                            tag: `activity-today-${doc.id}`,
+                            context: { contextType: "activity", contextId: doc.id, actionUrl: "/reports/activities", actionType: "navigate" },
+                        },
+                        actEligible.pushUserIds
+                    );
+                }
+            }
+        }
+
+        functions.logger.log("dailyNotifications: done.");
+        return null;
+    });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WEEKLY NOTIFICATIONS – Mondays 09:00 Ecuador
+// Covers: Observaciones, Conversos, FamilySearch, Obra Misional
+// ─────────────────────────────────────────────────────────────────────────────
+export const weeklyNotifications = functions.pubsub
+    .schedule("0 9 * * 1")
+    .timeZone(ECUADOR_TZ)
+    .onRun(async () => {
+        functions.logger.log("weeklyNotifications: running...");
+        const allUsers = await getAllUsersNotificationData();
+
+        // ── Observaciones ────────────────────────────────────────────────────
+        const obsEligible = getEligibleUsers(allUsers, "observations");
+        if (obsEligible.inAppUserIds.length > 0 || obsEligible.pushUserIds.length > 0) {
+            const [membersSnap, healthSnap, ministeringSnap] = await Promise.all([
+                firestore.collection("c_miembros").get(),
+                firestore.collection("c_observaciones_salud").get(),
+                firestore.collection("c_ministracion").get(),
+            ]);
+
+            let sinInvestidura = 0;
+            let sinOrdenanzaElder = 0;
+            let sinSacerdocioMayor = 0;
+            let inactivos = 0;
+            let menosActivos = 0;
+            let urgentes = 0;
+            let enConsejo = 0;
+
+            membersSnap.forEach((doc) => {
+                const m = doc.data() as {
+                    status?: string;
+                    ordinances?: string[];
+                    isUrgent?: boolean;
+                    isInCouncil?: boolean;
+                };
+                const ords = m.ordinances ?? [];
+                if (!ords.includes("endowment")) sinInvestidura++;
+                if (!ords.includes("elder_ordination") && !ords.includes("high_priest_ordination")) sinOrdenanzaElder++;
+                if (!ords.includes("high_priest_ordination") && !ords.includes("elder_ordination")) sinSacerdocioMayor++;
+                if (m.status === "inactive") inactivos++;
+                if (m.status === "less_active") menosActivos++;
+                if (m.isUrgent) urgentes++;
+                if (m.isInCouncil) enConsejo++;
+            });
+
+            let urgentFamilies = 0;
+            ministeringSnap.forEach((doc) => {
+                const c = doc.data() as Companionship;
+                (c.families ?? []).forEach((f) => { if (f.isUrgent) urgentFamilies++; });
+            });
+
+            const healthCount = healthSnap.size;
+            const bodyParts: string[] = [];
+            if (sinInvestidura > 0) bodyParts.push(`${sinInvestidura} sin investidura`);
+            if (sinOrdenanzaElder > 0) bodyParts.push(`${sinOrdenanzaElder} sin ordenanza de élderes`);
+            if (inactivos > 0) bodyParts.push(`${inactivos} inactivos`);
+            if (menosActivos > 0) bodyParts.push(`${menosActivos} menos activos`);
+            if (urgentFamilies > 0) bodyParts.push(`${urgentFamilies} familias con necesidad urgente`);
+            if (healthCount > 0) bodyParts.push(`${healthCount} con apoyo de salud`);
+            if (urgentes > 0) bodyParts.push(`${urgentes} miembros urgentes`);
+            if (enConsejo > 0) bodyParts.push(`${enConsejo} en seguimiento de consejo`);
+
+            if (bodyParts.length > 0) {
+                await notificationDispatcher.broadcastToUsers(
+                    obsEligible.inAppUserIds,
+                    {
+                        title: "Resumen Semanal – Observaciones",
+                        body: bodyParts.join(", ") + ".",
+                        url: "/observations",
+                        tag: "weekly-observations",
+                        context: { actionUrl: "/observations", actionType: "navigate" },
+                    },
+                    obsEligible.pushUserIds
+                );
+            }
+        }
+
+        // ── Conversos ────────────────────────────────────────────────────────
+        const convEligible = getEligibleUsers(allUsers, "converts");
+        if (convEligible.inAppUserIds.length > 0 || convEligible.pushUserIds.length > 0) {
+            const [convertsSnap, friendsSnap] = await Promise.all([
+                firestore.collection("c_conversos").get(),
+                firestore.collection("c_obra_misional_amigos_conversos").get(),
+            ]);
+
+            const assignedFriendConvertIds = new Set<string>();
+            friendsSnap.forEach((doc) => {
+                const f = doc.data() as { convertId?: string; friends?: string[] };
+                if (f.convertId && Array.isArray(f.friends) && f.friends.length > 0) {
+                    assignedFriendConvertIds.add(f.convertId);
+                }
+            });
+
+            let totalConverts = 0;
+            let conObservacion = 0;
+            let sinAmigo = 0;
+            let sinMinistrantesMaestros = 0;
+            let sinLlamamiento = 0;
+            let sinRecomendacion = 0;
+            let sinAutosuficiencia = 0;
+
+            convertsSnap.forEach((doc) => {
+                const c = doc.data() as {
+                    observation?: string;
+                    ministeringTeachers?: string[];
+                    hasCalling?: boolean;
+                    hasRecommendation?: boolean;
+                    hasSelfReliance?: boolean;
+                };
+                totalConverts++;
+                if (c.observation?.trim()) conObservacion++;
+                if (!assignedFriendConvertIds.has(doc.id)) sinAmigo++;
+                if (!Array.isArray(c.ministeringTeachers) || c.ministeringTeachers.length === 0) sinMinistrantesMaestros++;
+                if (c.hasCalling === false) sinLlamamiento++;
+                if (c.hasRecommendation === false) sinRecomendacion++;
+                if (c.hasSelfReliance === false) sinAutosuficiencia++;
+            });
+
+            const bodyParts: string[] = [];
+            if (totalConverts > 0) bodyParts.push(`${totalConverts} conversos registrados`);
+            if (sinAmigo > 0) bodyParts.push(`${sinAmigo} sin amigo asignado`);
+            if (sinLlamamiento > 0) bodyParts.push(`${sinLlamamiento} sin llamamiento`);
+            if (sinRecomendacion > 0) bodyParts.push(`${sinRecomendacion} sin recomendación`);
+            if (sinAutosuficiencia > 0) bodyParts.push(`${sinAutosuficiencia} sin curso de autosuficiencia`);
+            if (sinMinistrantesMaestros > 0) bodyParts.push(`${sinMinistrantesMaestros} sin maestros ministrantes`);
+            if (conObservacion > 0) bodyParts.push(`${conObservacion} con observación`);
+
+            if (bodyParts.length > 0) {
+                await notificationDispatcher.broadcastToUsers(
+                    convEligible.inAppUserIds,
+                    {
+                        title: "Resumen Semanal – Conversos",
+                        body: bodyParts.join(", ") + ".",
+                        url: "/converts",
+                        tag: "weekly-converts",
+                        context: { contextType: "convert", actionUrl: "/converts", actionType: "navigate" },
+                    },
+                    convEligible.pushUserIds
+                );
+            }
+        }
+
+        // ── FamilySearch ─────────────────────────────────────────────────────
+        const fsEligible = getEligibleUsers(allUsers, "familySearch");
+        if (fsEligible.inAppUserIds.length > 0 || fsEligible.pushUserIds.length > 0) {
+            const fsSnap = await firestore.collection("c_fs_capacitaciones").get();
+            const fsCount = fsSnap.size;
+            if (fsCount > 0) {
+                await notificationDispatcher.broadcastToUsers(
+                    fsEligible.inAppUserIds,
+                    {
+                        title: "FamilySearch – Familias por Capacitar",
+                        body: `Hay ${fsCount} familia${fsCount !== 1 ? "s" : ""} pendiente${fsCount !== 1 ? "s" : ""} de capacitación en FamilySearch.`,
+                        url: "/family-search",
+                        tag: "weekly-family-search",
+                        context: { actionUrl: "/family-search", actionType: "navigate" },
+                    },
+                    fsEligible.pushUserIds
+                );
+            }
+        }
+
+        // ── Obra Misional ─────────────────────────────────────────────────────
+        const mwEligible = getEligibleUsers(allUsers, "missionaryWork");
+        if (mwEligible.inAppUserIds.length > 0 || mwEligible.pushUserIds.length > 0) {
+            const [assignmentsSnap, investigatorsSnap, convertsThisWeek] = await Promise.all([
+                firestore.collection("c_obra_misional_asignaciones").where("isCompleted", "==", false).get(),
+                firestore.collection("c_obra_misional_investigadores").where("status", "==", "active").get(),
+                firestore.collection("c_conversos").get(),
+            ]);
+
+            const pendingAssignments = assignmentsSnap.size;
+            const activeInvestigators = investigatorsSnap.size;
+            const totalConverts = convertsThisWeek.size;
+
+            const bodyParts: string[] = [];
+            if (pendingAssignments > 0) bodyParts.push(`${pendingAssignments} asignación${pendingAssignments !== 1 ? "es" : ""} misional${pendingAssignments !== 1 ? "es" : ""} pendiente${pendingAssignments !== 1 ? "s" : ""}`);
+            if (activeInvestigators > 0) bodyParts.push(`${activeInvestigators} investigador${activeInvestigators !== 1 ? "es" : ""} activo${activeInvestigators !== 1 ? "s" : ""}`);
+            if (totalConverts > 0) bodyParts.push(`${totalConverts} nuevo${totalConverts !== 1 ? "s" : ""} converso${totalConverts !== 1 ? "s" : ""} registrado${totalConverts !== 1 ? "s" : ""}`);
+
+            if (bodyParts.length > 0) {
+                await notificationDispatcher.broadcastToUsers(
+                    mwEligible.inAppUserIds,
+                    {
+                        title: "Resumen Semanal – Obra Misional",
+                        body: bodyParts.join(", ") + ".",
+                        url: "/missionary-work",
+                        tag: "weekly-missionary-work",
+                        context: { contextType: "missionary_assignment", actionUrl: "/missionary-work", actionType: "navigate" },
+                    },
+                    mwEligible.pushUserIds
+                );
+            }
+        }
+
+        functions.logger.log("weeklyNotifications: done.");
+        return null;
+    });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COUNCIL NOTIFICATIONS – Tuesdays & Wednesdays 18:00 Ecuador
+// Covers: Consejo (Necesidades Urgentes, Menos Activos, Ministración)
+// ─────────────────────────────────────────────────────────────────────────────
+export const councilNotifications = functions.pubsub
+    .schedule("0 18 * * 2,3")
+    .timeZone(ECUADOR_TZ)
+    .onRun(async () => {
+        functions.logger.log("councilNotifications: running...");
+        const allUsers = await getAllUsersNotificationData();
+        const councilEligible = getEligibleUsers(allUsers, "council");
+
+        if (councilEligible.inAppUserIds.length === 0 && councilEligible.pushUserIds.length === 0) {
+            functions.logger.log("councilNotifications: no eligible users.");
+            return null;
+        }
+
+        const [membersSnap, ministeringSnap] = await Promise.all([
+            firestore.collection("c_miembros").get(),
+            firestore.collection("c_ministracion").get(),
+        ]);
+
+        let urgentMembers = 0;
+        let lessActiveMembers = 0;
+        let inCouncil = 0;
+
+        membersSnap.forEach((doc) => {
+            const m = doc.data() as { isUrgent?: boolean; status?: string; isInCouncil?: boolean };
+            if (m.isUrgent) urgentMembers++;
+            if (m.status === "less_active" || m.status === "inactive") lessActiveMembers++;
+            if (m.isInCouncil) inCouncil++;
         });
-    });
 
-    const birthdaysSnapshot = await firestore.collection("c_cumpleanos").get();
-    birthdaysSnapshot.forEach((doc) => {
-        const birthday = doc.data() as Birthday;
-        const birthDate = birthday.birthDate.toDate();
-        const nextBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
-        
-        if (isSameDay(nextBirthday, fourteenDaysFromNow)) {
-            notificationsToSend.push({
-                title: "Próximo Cumpleaños",
-                body: `En 2 semanas es el cumpleaños de ${birthday.name}.`
-            });
-        }
-        if (isSameDay(nextBirthday, today)) {
-             notificationsToSend.push({
-                title: "¡Feliz Cumpleaños!",
-                body: `Hoy es el cumpleaños de ${birthday.name}. ¡No olvides felicitarle!`
-            });
-        }
-    });
+        let urgentFamiliesMinistering = 0;
+        ministeringSnap.forEach((doc) => {
+            const c = doc.data() as Companionship;
+            (c.families ?? []).forEach((f) => { if (f.isUrgent) urgentFamiliesMinistering++; });
+        });
 
-    if (notificationsToSend.length === 0) {
-        functions.logger.log("No notifications to send today.");
-        return null;
-    }
+        const bodyParts: string[] = [];
+        if (urgentMembers > 0) bodyParts.push(`${urgentMembers} necesidad${urgentMembers !== 1 ? "es" : ""} urgente${urgentMembers !== 1 ? "s" : ""} de miembros`);
+        if (urgentFamiliesMinistering > 0) bodyParts.push(`${urgentFamiliesMinistering} necesidad${urgentFamiliesMinistering !== 1 ? "es" : ""} urgente${urgentFamiliesMinistering !== 1 ? "s" : ""} de ministración`);
+        if (lessActiveMembers > 0) bodyParts.push(`${lessActiveMembers} miembro${lessActiveMembers !== 1 ? "s" : ""} menos activo${lessActiveMembers !== 1 ? "s" : ""}`);
+        if (inCouncil > 0) bodyParts.push(`${inCouncil} en seguimiento de consejo`);
 
-    const subscriptionsSnapshot = await firestore.collection("c_push_subscriptions").get();
-    if (subscriptionsSnapshot.empty) {
-        functions.logger.log("No users subscribed to notifications.");
-        return null;
-    }
-
-    const sendPromises: Promise<any>[] = [];
-    const notificationSavePromises: Promise<any>[] = [];
-
-    subscriptionsSnapshot.forEach((subDoc) => {
-        const subData = subDoc.data();
-        const subscription = subData.subscription;
-        const userId = subData.userId;
-
-        notificationsToSend.forEach((notification) => {
-            const payload = JSON.stringify(notification);
-            
-            sendPromises.push(
-                webpush.sendNotification(subscription, payload)
-                    .catch((err) => {
-                        if (err.statusCode === 404 || err.statusCode === 410) {
-                             functions.logger.warn(`Subscription for user ${userId} is invalid. Consider removing it.`);
-                        } else {
-                            functions.logger.error("Error sending notification", err);
-                        }
-                        return null;
-                    })
+        if (bodyParts.length > 0) {
+            await notificationDispatcher.broadcastToUsers(
+                councilEligible.inAppUserIds,
+                {
+                    title: "Recordatorio – Consejo de Cuórum",
+                    body: bodyParts.join(", ") + ".",
+                    url: "/council",
+                    tag: "council-reminder",
+                    context: { contextType: "council", actionUrl: "/council", actionType: "navigate" },
+                },
+                councilEligible.pushUserIds
             );
+        }
 
-             notificationSavePromises.push(
-                firestore.collection("c_notifications").add({
-                    userId: userId,
-                    title: notification.title,
-                    body: notification.body,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    isRead: false
-                })
-             );
-        });
+        functions.logger.log("councilNotifications: done.");
+        return null;
     });
-
-    await Promise.all([...sendPromises, ...notificationSavePromises]);
-    functions.logger.log(`Sent ${notificationsToSend.length} types of notifications to ${subscriptionsSnapshot.size} users.`);
-    return null;
-});
