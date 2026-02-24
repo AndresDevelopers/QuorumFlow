@@ -1,0 +1,211 @@
+{
+  "current": "1.1.7",
+  "entries": [
+    {
+      "version": "1.1.7",
+      "date": "2025-09-21",
+      "changes": {
+        "es": [
+          "Mejoramos la vista móvil de Ajustes y Miembros para que todo el contenido se ajuste bien en pantallas pequeñas, en especial la sección de gestión de roles.",
+          "Ahora los tres roles de la presidencia pueden abrir Ajustes, pero solo la persona asignada como secretario puede cambiar los permisos de los usuarios.",
+          "Las notificaciones funcionan en celulares y avisan automáticamente sobre actividades nuevas, familias marcadas como urgentes y asignaciones recientes de Obra Misional.",
+          "Al cancelar o cerrar la edición de un miembro desde otra página, se regresa a la página de origen."
+        ],
+        "en": [
+          "Improved the mobile view of Settings and Members so all content fits well on small screens, especially the role management section.",
+          "All three presidency roles can now open Settings, but only the person assigned as secretary can change user permissions.",
+          "Notifications work on mobile phones and automatically alert about new activities, families marked as urgent, and recent Missionary Work assignments.",
+          "Canceling or closing member editing from another page now returns you to the original page."
+        ]
+      }
+    },
+    {
+      "version": "1.1.5",
+      "date": "2025-08-15",
+      "changes": {
+        "es": [
+          "Se añadió en Observaciones una vista dedicada para los compañerismos de ministración con familias menos activas o inactivas, facilitando el seguimiento de esas familias.",
+          "La tarjeta de Anotaciones del Tablero ahora mantiene la interacción en la misma página, evitando redirecciones inesperadas.",
+          "En Ministración el listado carga más compañerismos de forma incremental al desplazarse, superando el límite inicial de diez registros.",
+          "El registro de usuarios crea automáticamente el documento en c_users con el rol predeterminado usuario, además de la cuenta en Auth."
+        ],
+        "en": [
+          "Added a dedicated view in Observations for ministering companionships with less active or inactive families, making it easier to track those families.",
+          "The Dashboard Annotations card now keeps interaction on the same page, avoiding unexpected redirects.",
+          "In Ministering, the list now loads more companionships incrementally as you scroll, exceeding the initial limit of ten records.",
+          "User registration now automatically creates the document in c_users with the default user role, in addition to the Auth account."
+        ]
+      }
+    },
+    {
+      "version": "1.1.4",
+      "date": "2025-07-20",
+      "changes": {
+        "es": [
+          "Corregido problema donde los datos no se guardaban al crear o editar miembros en la página de Miembros.",
+          "Optimizada la sincronización en la página de Miembros para que solo ocurra al agregar, editar o eliminar miembros, en lugar de cada recarga de página.",
+          "En la página de Consejo, en la sección de Seguimiento de Conversos, ahora se muestra el nombre del miembro junto a su foto y encima del texto de Bautismo.",
+          "Las secciones del Dashboard ahora son clicables y redirigen a las páginas correspondientes que muestran los datos.",
+          "En la página de Consejo, en la sección de Anotaciones, solo se pueden editar o eliminar las notas creadas por el usuario autenticado."
+        ],
+        "en": [
+          "Fixed an issue where data wasn't being saved when creating or editing members on the Members page.",
+          "Optimized synchronization on the Members page to only occur when adding, editing, or deleting members, rather than on every page reload.",
+          "In the Council page, the Convert Tracking section now shows the member's name next to their photo and above the Baptism text.",
+          "Dashboard sections are now clickable and redirect to the corresponding pages that display the data.",
+          "In the Council page Annotations section, only notes created by the authenticated user can be edited or deleted."
+        ]
+      }
+    },
+    {
+      "version": "1.1.3",
+      "date": "2025-06-10",
+      "changes": {
+        "es": [
+          "Implementado componente reutilizable de anotaciones con reconocimiento de voz automático para facilitar el mantenimiento y consistencia en toda la aplicación.",
+          "Las anotaciones en Dashboard, Consejo y FamilySearch ahora incluyen reconocimiento de voz al abrir el diálogo.",
+          "Mejorada la sección de Seguimiento de Conversos en la página de Consejo: el nombre del miembro aparece prominentemente al lado de la imagen.",
+          "Las anotaciones en la página de Consejo ahora se guardan de forma persistente en Firebase en lugar de solo localmente.",
+          "Agregado manejo global de errores con Sentry para capturar y reportar errores de renderizado de React automáticamente.",
+          "Todas las funcionalidades de anotaciones ahora comparten la misma interfaz y comportamiento consistente en toda la aplicación."
+        ],
+        "en": [
+          "Implemented a reusable annotations component with automatic voice recognition to improve consistency throughout the app.",
+          "Annotations in Dashboard, Council, and FamilySearch now include voice recognition when opening the dialog.",
+          "Improved the Convert Tracking section in the Council page: the member's name now appears prominently next to their photo.",
+          "Annotations in the Council page are now saved persistently in Firebase instead of only locally.",
+          "Added global error handling with Sentry to automatically capture and report React rendering errors.",
+          "All annotation features now share the same consistent interface and behavior throughout the app."
+        ]
+      }
+    },
+    {
+      "version": "1.1.2",
+      "date": "2025-05-05",
+      "changes": {
+        "es": [
+          "En la página de Consejo, la sección de Seguimiento de Conversos ahora muestra los nombres y fotos de los miembros.",
+          "Agregada una nueva sección en Observación que muestra a las personas sin ordenanza del sacerdocio mayor.",
+          "Nueva pestaña de Imágenes en Obra Misional donde los usuarios pueden subir imágenes y la IA genera descripciones editables.",
+          "En Ministración, las familias y compañerismos son ahora clicables y llevan a los perfiles de los miembros.",
+          "Implementado caché inteligente para las páginas de Miembros y Reportes, almacenando datos y regenerando solo en cambios.",
+          "Agregada funcionalidad de voz a texto en las pestañas de Asignaciones e Investigadores de Obra Misional."
+        ],
+        "en": [
+          "In the Council page, the Convert Tracking section now shows member names and photos.",
+          "Added a new section in Observations showing people without the Melchizedek Priesthood ordinance.",
+          "New Images tab in Missionary Work where users can upload images and AI generates editable descriptions.",
+          "In Ministering, families and companionships are now clickable and link to member profiles.",
+          "Implemented smart caching for the Members and Reports pages, storing data and regenerating only on changes.",
+          "Added voice-to-text functionality in the Assignments and Investigators tabs of Missionary Work."
+        ]
+      }
+    },
+    {
+      "version": "1.1.1",
+      "date": "2025-04-01",
+      "changes": {
+        "es": [
+          "En Consejo, el Seguimiento de Conversos ahora muestra los miembros bautizados hace menos de dos años.",
+          "Corregido el error de suscripción de notificaciones en la página de Ajustes.",
+          "La página de Futuros Miembros ahora solo muestra miembros sin bautismo o con fecha de bautismo futura.",
+          "La imagen es ahora opcional al agregar o editar miembros, facilitando el proceso de registro.",
+          "Al cerrar el diálogo de actualización, se guarda el estado de la versión en las preferencias del usuario.",
+          "En Obra Misional, la sección de Amigos del Quórum muestra automáticamente nuevos conversos de los últimos dos años."
+        ],
+        "en": [
+          "In Council, Convert Tracking now shows members baptized less than two years ago.",
+          "Fixed the notification subscription error on the Settings page.",
+          "The Future Members page now only shows members without a baptism or with a future baptism date.",
+          "Photos are now optional when adding or editing members, making the registration process easier.",
+          "Closing the update dialog now saves the version state in user preferences.",
+          "In Missionary Work, the Quorum Friends section automatically shows new converts from the last two years."
+        ]
+      }
+    },
+    {
+      "version": "1.1.0",
+      "date": "2025-03-10",
+      "changes": {
+        "es": [
+          "Nueva página Observaciones para ver los miembros inactivos, sin ministrantes y sin ordenanzas.",
+          "La página de cumpleaños ahora muestra más información y es más fácil de usar.",
+          "El panel principal ahora muestra la información de manera más clara y organizada.",
+          "Nueva funcionalidad de notificaciones push para recibir alertas en el celular.",
+          "Los reportes descargados ahora muestran las imágenes correctamente en lugar de solo enlaces.",
+          "La aplicación ahora carga más rápido y funciona de manera más fluida."
+        ],
+        "en": [
+          "New Observations page to view inactive members, those without ministers, and those without ordinances.",
+          "The birthdays page now shows more information and is easier to use.",
+          "The main dashboard now displays information more clearly and in a more organized way.",
+          "New push notification functionality to receive alerts on your phone.",
+          "Downloaded reports now display images correctly instead of just links.",
+          "The app now loads faster and runs more smoothly."
+        ]
+      }
+    },
+    {
+      "version": "1.0.3",
+      "date": "2025-02-05",
+      "changes": {
+        "es": [
+          "Se solucionaron problemas con algunos íconos que no se mostraban correctamente.",
+          "Ahora se muestra automáticamente a los miembros bautizados del año en la sección de reportes.",
+          "Mejoras en la creación de reportes con información de bautismos.",
+          "La aplicación es más estable y rápida."
+        ],
+        "en": [
+          "Fixed issues with some icons that weren't displaying correctly.",
+          "Members baptized this year are now automatically shown in the reports section.",
+          "Improvements in report creation with baptism information.",
+          "The app is more stable and faster."
+        ]
+      }
+    },
+    {
+      "version": "1.0.2",
+      "date": "2025-01-20",
+      "changes": {
+        "es": [
+          "Nueva función para editar notas de miembros y conversos.",
+          "Se añadió la capacidad de subir fotos de bautismo en el registro de nuevos conversos.",
+          "Correcciones internas de estabilidad y mejoras de rendimiento."
+        ],
+        "en": [
+          "New feature to edit member and convert notes.",
+          "Added the ability to upload baptism photos in the new convert registration.",
+          "Internal stability fixes and performance improvements."
+        ]
+      }
+    },
+    {
+      "version": "1.0.1",
+      "date": "2025-01-10",
+      "changes": {
+        "es": [
+          "Se corrigió un error que impedía subir fotos de perfil.",
+          "Se agregó una nueva sección en Ministración para comparar el progreso actual con el del mes anterior."
+        ],
+        "en": [
+          "Fixed a bug that prevented uploading profile photos.",
+          "Added a new section in Ministering to compare current progress with the previous month."
+        ]
+      }
+    },
+    {
+      "version": "1.0.0",
+      "date": "2025-01-01",
+      "changes": {
+        "es": [
+          "Lanzamiento inicial de la aplicación.",
+          "Funcionalidades básicas de gestión de quórum."
+        ],
+        "en": [
+          "Initial app launch.",
+          "Basic quorum management features."
+        ]
+      }
+    }
+  ]
+}

@@ -333,6 +333,12 @@
   "memberProfile.notFound": "Member not found",
   "memberProfile.backToMembers": "Back to Members",
   "memberProfile.editMember": "Edit Member",
-  "memberProfile.viewProfile": "View Profile"
+  "memberProfile.viewProfile": "View Profile",
+
+  "changelog.title": "Changelog",
+  "changelog.description": "Here you can see the latest app updates.",
+  "changelog.loading": "Loading changelog...",
+  "changelog.error": "Could not load the changelog.",
+  "changelog.current": "Current"
 
 }

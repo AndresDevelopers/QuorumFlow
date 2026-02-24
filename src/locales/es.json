@@ -407,6 +407,12 @@
   "memberProfile.notFound": "Miembro no encontrado",
   "memberProfile.backToMembers": "Volver a Miembros",
   "memberProfile.editMember": "Editar Miembro",
-  "memberProfile.viewProfile": "Ver Perfil"
+  "memberProfile.viewProfile": "Ver Perfil",
+
+  "changelog.title": "Historial de Cambios",
+  "changelog.description": "Aquí puedes ver las últimas actualizaciones de la aplicación.",
+  "changelog.loading": "Cargando historial...",
+  "changelog.error": "No se pudo cargar el historial de cambios.",
+  "changelog.current": "Actual"
 
 }
