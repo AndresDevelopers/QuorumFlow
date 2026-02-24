@@ -37,20 +37,20 @@ function getLocalDateISO() {
 }
 
 /**
- * Returns the commit subjects + bodies from today (local time).
+ * Returns the full messages (subject + body) of all commits from today (local time).
  * Merge commits are excluded.
  */
 function getCommitsForToday() {
   const today = getLocalDateISO();
   try {
     const raw = execSync(
-      `git log --after="${today} 00:00:00" --before="${today} 23:59:59" --pretty=format:"%s" --no-merges`,
+      `git log --since="${today} 00:00:00" --pretty=format:"===COMMIT===%n%B" --no-merges`,
       { encoding: 'utf8', cwd: ROOT }
     ).trim();
 
     if (!raw) return [];
     return raw
-      .split('\n')
+      .split('===COMMIT===')
       .map(l => l.trim())
       .filter(l => l.length > 0 && !l.startsWith('Merge '));
   } catch (err) {

@@ -6,6 +6,7 @@
       "date": "2026-02-24",
       "changes": {
         "es": [
+          "feat: enhance date selection in forms and improve calendar UI",
           "feat: add approve-builds script to package.json and update changelog entries",
           "feat: add service worker for PWA and fix notification preferences",
           "fix(main-layout): fetch version from changelog.json instead of version.json",
@@ -15,6 +16,7 @@
           "feat: update version to 1.1.7 and add changelog functionality"
         ],
         "en": [
+          "feat: enhance date selection in forms and improve calendar UI",
           "feat: add approve-builds script to package.json and update changelog entries",
           "feat: add service worker for PWA and fix notification preferences",
           "fix(main-layout): fetch version from changelog.json instead of version.json",
