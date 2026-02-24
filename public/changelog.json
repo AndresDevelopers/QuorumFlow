@@ -6,9 +6,11 @@
       "date": "2026-02-24",
       "changes": {
         "es": [
+          "feat: update version to 1.1.8 and add changelog entry",
           "feat: update version to 1.1.7 and add changelog functionality"
         ],
         "en": [
+          "feat: update version to 1.1.8 and add changelog entry",
           "feat: update version to 1.1.7 and add changelog functionality"
         ]
       }
