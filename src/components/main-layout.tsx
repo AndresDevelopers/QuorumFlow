@@ -164,10 +164,10 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const [visibleNavItems, setVisibleNavItems] = useState(navigationItems);
 
   useEffect(() => {
-    fetch("/version.json")
+    fetch("/changelog.json")
       .then((res) => res.json())
       .then((data) => {
-        setVersion(data.version);
+        setVersion(data.current);
       })
       .catch((error) => console.error("Error fetching version:", error));
   }, []);
