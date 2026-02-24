@@ -306,6 +306,7 @@ export function ServiceForm({ service }: ServiceFormProps) {
                           mode="single"
                           selected={selectedDate || field.value}
                           onSelect={setSelectedDate}
+                          defaultMonth={selectedDate || field.value}
                           initialFocus
                           locale={es}
                         />

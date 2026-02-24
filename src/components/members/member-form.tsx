@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useWatch } from 'react-hook-form';
 import * as z from 'zod';
 import Image from 'next/image';
-import { Upload, X, AlertTriangle, Shield } from 'lucide-react';
+import { Upload, X, AlertTriangle, Shield, CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -129,9 +129,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
   const [allowContinueWithDuplicate, setAllowContinueWithDuplicate] = useState(false);
   const [duplicateDecisionMade, setDuplicateDecisionMade] = useState(false);
   
-  // Estados locales para los inputs de fecha
-  const [birthDateInput, setBirthDateInput] = useState('');
-  const [baptismDateInput, setBaptismDateInput] = useState('');
+  // Estado local para el input de fecha de fallecimiento (mantiene texto DD/MM/YYYY)
   const [deathDateInput, setDeathDateInput] = useState('');
 
   const form = useForm<MemberFormValues>({
@@ -227,9 +225,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       setBaptismPhotoPreviews(currentMember.baptismPhotos || []);
       setBaptismPhotoFiles([]); // Clear any selected files when loading existing member
       
-      // Actualizar los estados locales de los inputs de fecha
-      setBirthDateInput(formatDateForDisplay(birthDateValue));
-      setBaptismDateInput(formatDateForDisplay(baptismDateValue));
+      // Actualizar el estado local del input de fecha de fallecimiento
       setDeathDateInput(formatDateForDisplay(deathDateValue));
       
     } else {
@@ -256,9 +252,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       setBaptismPhotoPreviews([]);
       setBaptismPhotoFiles([]);
 
-      // Limpiar los inputs de fecha
-      setBirthDateInput('');
-      setBaptismDateInput('');
+      // Limpiar el input de fecha de fallecimiento
       setDeathDateInput('');
 
       // Reset duplicate states for new member
@@ -1082,47 +1076,42 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           control={form.control}
           name="birthDate"
           render={({ field }) => (
-            <FormItem>
+            <FormItem className="flex flex-col">
               <FormLabel>Fecha de Nacimiento</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="DD/MM/YYYY"
-                  value={birthDateInput}
-                  onChange={(e) => {
-                    const inputValue = e.target.value;
-                    setBirthDateInput(inputValue);
-                    
-                    // Only update the form field if we have a valid date
-                    const parsedDate = parseDate(inputValue, new Date().getFullYear());
-                    if (parsedDate || !inputValue.trim()) {
-                      field.onChange(parsedDate);
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-full pl-3 text-left font-normal',
+                        !field.value && 'text-muted-foreground'
+                      )}
+                    >
+                      {field.value ? (
+                        <span className="capitalize">
+                          {format(field.value, "d 'de' LLLL 'de' yyyy", { locale: es })}
+                        </span>
+                      ) : (
+                        <span>Selecciona una fecha</span>
+                      )}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={field.value}
+                    onSelect={field.onChange}
+                    defaultMonth={field.value}
+                    disabled={(date) =>
+                      date > new Date() || date < new Date('1900-01-01')
                     }
-                  }}
-                  onBlur={(e) => {
-                    const inputValue = e.target.value;
-                    const parsedDate = parseDate(inputValue, new Date().getFullYear());
-                    
-                    if (parsedDate) {
-                      // Valid date: format it properly
-                      const formattedDate = formatDateForDisplay(parsedDate);
-                      setBirthDateInput(formattedDate);
-                      field.onChange(parsedDate);
-                    } else if (!inputValue.trim()) {
-                      // Empty input: clear everything
-                      setBirthDateInput('');
-                      field.onChange(undefined);
-                    } else {
-                      // Invalid date: keep the input but clear the form field
-                      field.onChange(undefined);
-                    }
-                    
-                    field.onBlur();
-                  }}
-                />
-              </FormControl>
-              <FormDescription>
-                Ingresa la fecha en formato DD/MM/YYYY (ejemplo: 15/03/1990)
-              </FormDescription>
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
               <FormMessage />
             </FormItem>
           )}
@@ -1133,47 +1122,40 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           control={form.control}
           name="baptismDate"
           render={({ field }) => (
-            <FormItem>
+            <FormItem className="flex flex-col">
               <FormLabel>Fecha de Bautismo</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="DD/MM/YYYY"
-                  value={baptismDateInput}
-                  onChange={(e) => {
-                    const inputValue = e.target.value;
-                    setBaptismDateInput(inputValue);
-                    
-                    // Only update the form field if we have a valid date
-                    const parsedDate = parseDate(inputValue, new Date().getFullYear() + 10);
-                    if (parsedDate || !inputValue.trim()) {
-                      field.onChange(parsedDate);
-                    }
-                  }}
-                  onBlur={(e) => {
-                    const inputValue = e.target.value;
-                    const parsedDate = parseDate(inputValue, new Date().getFullYear() + 10);
-                    
-                    if (parsedDate) {
-                      // Valid date: format it properly
-                      const formattedDate = formatDateForDisplay(parsedDate);
-                      setBaptismDateInput(formattedDate);
-                      field.onChange(parsedDate);
-                    } else if (!inputValue.trim()) {
-                      // Empty input: clear everything
-                      setBaptismDateInput('');
-                      field.onChange(undefined);
-                    } else {
-                      // Invalid date: keep the input but clear the form field
-                      field.onChange(undefined);
-                    }
-                    
-                    field.onBlur();
-                  }}
-                />
-              </FormControl>
-              <FormDescription>
-                Ingresa la fecha en formato DD/MM/YYYY (ejemplo: 15/03/2023)
-              </FormDescription>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <FormControl>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-full pl-3 text-left font-normal',
+                        !field.value && 'text-muted-foreground'
+                      )}
+                    >
+                      {field.value ? (
+                        <span className="capitalize">
+                          {format(field.value, "d 'de' LLLL 'de' yyyy", { locale: es })}
+                        </span>
+                      ) : (
+                        <span>Selecciona una fecha</span>
+                      )}
+                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </FormControl>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={field.value}
+                    onSelect={field.onChange}
+                    defaultMonth={field.value}
+                    disabled={(date) => date < new Date('1900-01-01')}
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
               <FormMessage />
             </FormItem>
           )}

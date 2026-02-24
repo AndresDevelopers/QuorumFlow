@@ -22,45 +22,85 @@ function Calendar({
       showOutsideDays={showOutsideDays}
       locale={locale}
       weekStartsOn={1}
+      captionLayout="dropdown"
+      startMonth={new Date(1900, 0)}
+      endMonth={new Date(new Date().getFullYear() + 10, 11)}
       formatters={{
         formatWeekdayName: (date) => {
-          const days = ['D', 'L', 'M', 'M', 'J', 'V', 'S']
+          const days = ["D", "L", "M", "M", "J", "V", "S"]
           return days[date.getDay()]
         },
       }}
-      className={cn("p-3", className)}
+      className={cn("p-4", className)}
       classNames={{
-        months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
-        month: "space-y-4",
-        caption: "flex justify-center pt-1 relative items-center",
-        caption_label: "text-sm font-medium",
-        nav: "space-x-1 flex items-center",
-        nav_button: cn(
-          buttonVariants({ variant: "outline" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
-        ),
-        nav_button_previous: "absolute left-1",
-        nav_button_next: "absolute right-1",
-        table: "w-full border-collapse space-y-1",
-        head_row: "flex w-full gap-0",
-        head_cell:
-          "text-muted-foreground w-9 h-9 flex items-center justify-center font-normal text-[0.8rem] flex-1 text-center",
-        row: "flex w-full mt-2 gap-0",
-        cell: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
-        day: cn(
+        // Contenedor principal
+        months: "relative flex flex-col sm:flex-row gap-x-4",
+        month: "space-y-2",
+        // Cabecera del mes (donde va el título o los dropdowns)
+        month_caption: "flex h-9 items-center justify-center px-8",
+        // Navegación prev/next — absoluta sobre la cabecera
+        nav: "absolute top-0 inset-x-0 flex justify-between items-center h-9 px-1",
+        button_previous: cn(
           buttonVariants({ variant: "ghost" }),
-          "h-9 w-9 p-0 font-normal aria-selected:opacity-100 text-center"
+          "h-7 w-7 p-0 rounded-full opacity-60 hover:opacity-100"
         ),
-        day_range_end: "day-range-end",
-        day_selected:
-          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-        day_today: "bg-accent text-accent-foreground",
-        day_outside:
-          "day-outside text-muted-foreground aria-selected:bg-accent/50 aria-selected:text-muted-foreground",
-        day_disabled: "text-muted-foreground opacity-50",
-        day_range_middle:
-          "aria-selected:bg-accent aria-selected:text-accent-foreground",
-        day_hidden: "invisible",
+        button_next: cn(
+          buttonVariants({ variant: "ghost" }),
+          "h-7 w-7 p-0 rounded-full opacity-60 hover:opacity-100"
+        ),
+        // Dropdowns de mes/año
+        dropdowns: "flex items-center gap-0.5 justify-center",
+        dropdown_root: "relative inline-flex items-center",
+        // El <select> real es invisible y se superpone al label visible
+        dropdown: "absolute inset-0 opacity-0 cursor-pointer w-full",
+        months_dropdown: "",
+        years_dropdown: "",
+        // El span visible que actúa como botón del dropdown
+        caption_label:
+          "text-sm font-semibold capitalize inline-flex items-center gap-0.5 px-2 py-1 rounded-md hover:bg-accent transition-colors cursor-pointer select-none",
+        // Tabla del calendario
+        month_grid: "w-full border-collapse",
+        weekdays: "",
+        weekday:
+          "text-muted-foreground text-[0.75rem] font-medium p-0 text-center align-middle",
+        weeks: "",
+        week: "",
+        // Celda de día — las clases de modificador van aquí (en el <td>)
+        day: cn(
+          "p-0 text-center focus-within:relative focus-within:z-20",
+          // Día seleccionado: fondo primario en el botón
+          "[&[data-selected]>button]:bg-primary",
+          "[&[data-selected]>button]:text-primary-foreground",
+          "[&[data-selected]>button]:hover:bg-primary",
+          "[&[data-selected]>button]:hover:text-primary-foreground",
+          "[&[data-selected]>button]:shadow-sm",
+          // Hoy: anillo sutil (visible incluso al estar seleccionado)
+          "[&[data-today]>button]:ring-1",
+          "[&[data-today]>button]:ring-primary/40",
+          "[&[data-today]>button]:font-semibold",
+          // Días fuera del mes
+          "[&[data-outside]>button]:opacity-40",
+          "[&[data-outside]>button]:text-muted-foreground",
+          // Días deshabilitados
+          "[&[data-disabled]>button]:opacity-40",
+          "[&[data-disabled]>button]:pointer-events-none"
+        ),
+        // Botón dentro del <td>
+        day_button: cn(
+          buttonVariants({ variant: "ghost" }),
+          "h-9 w-9 p-0 font-normal text-center rounded-full transition-colors"
+        ),
+        // Clases de estado (se combinan con `day` via getClassNamesForModifiers)
+        selected: "",
+        today: "",
+        outside: "",
+        disabled: "",
+        hidden: "invisible",
+        focused: "",
+        range_start: "[&>button]:rounded-full",
+        range_end: "[&>button]:rounded-full",
+        range_middle:
+          "[&>button]:rounded-none [&>button]:bg-accent [&>button]:text-accent-foreground",
         ...classNames,
       }}
       components={{

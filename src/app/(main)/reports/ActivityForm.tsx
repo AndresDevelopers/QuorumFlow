@@ -308,6 +308,7 @@ export function ActivityForm({ activity }: ActivityFormProps) {
                           mode="single"
                           selected={selectedDate || field.value}
                           onSelect={setSelectedDate}
+                          defaultMonth={selectedDate || field.value}
                           initialFocus
                           locale={es}
                         />

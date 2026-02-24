@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bell, Mail, ExternalLink, ArrowDownCircle, X } from "lucide-react";
+import { Bell, Mail, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { useI18n } from "@/contexts/i18n-context";
@@ -18,7 +18,6 @@ import type { AppNotification } from "@/lib/types";
 import { formatRelative } from "date-fns";
 import { es } from "date-fns/locale";
 import { Skeleton } from "./ui/skeleton";
-import { useUpdateCheck } from "./update-notification";
 
 export function NotificationBell() {
   const { user } = useAuth();
@@ -27,8 +26,6 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasUnread, setHasUnread] = useState(false);
-  const { hasUpdate, handleDismiss, handleUpdate } = useUpdateCheck();
-
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -147,7 +144,7 @@ export function NotificationBell() {
     }
   };
 
-  const showIndicator = hasUnread || hasUpdate;
+  const showIndicator = hasUnread;
 
   return (
     <Popover onOpenChange={(isOpen) => { if (isOpen) fetchNotifications(); else handleMarkAsRead(); }}>
@@ -170,46 +167,6 @@ export function NotificationBell() {
           <h4 className="font-medium text-sm">Notificaciones</h4>
         </div>
         <div className="space-y-2 overflow-y-auto flex-1 pr-1">
-            {hasUpdate && (
-              <div className="relative rounded-md border border-primary/30 bg-primary/5 p-3">
-                <div className="flex items-start gap-3">
-                  <ArrowDownCircle className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-primary">
-                      {t("updateNotification.title")}
-                    </p>
-                    <p className="text-muted-foreground text-xs mt-0.5">
-                      {t("updateNotification.body")}
-                    </p>
-                    <div className="flex gap-2 mt-2">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={handleUpdate}
-                      >
-                        {t("updateNotification.update")}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={handleDismiss}
-                      >
-                        {t("updateNotification.dismiss")}
-                      </Button>
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleDismiss}
-                    className="text-muted-foreground hover:text-foreground flex-shrink-0"
-                    aria-label={t("updateNotification.dismiss")}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            )}
             {loading ? (
                 <>
                     <Skeleton className="h-12 w-full" />
@@ -257,12 +214,12 @@ export function NotificationBell() {
                         </div>
                     );
                 })
-            ) : !hasUpdate ? (
+            ) : (
                 <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-4">
                     <Mail className="h-8 w-8 mb-2" />
                     <p className="text-sm">No tienes notificaciones</p>
                 </div>
-            ) : null}
+            )}
         </div>
       </PopoverContent>
     </Popover>
