@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "postinstall": "patch-package",
+    "postinstall": "patch-package || echo 'No patches to apply'",
     "changelog": "node scripts/generate-changelog.js",
     "setup-hooks": "node scripts/setup-hooks.js"
   },

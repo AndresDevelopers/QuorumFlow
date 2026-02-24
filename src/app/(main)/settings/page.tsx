@@ -94,17 +94,20 @@ export default function SettingsPage() {
   const [fcmToken, setFcmToken] = useState<string | null>(null);
 
   // Per-category notification preferences
-  const defaultCategoryPrefs: Record<string, boolean> = {
-    observations: true,
-    converts: true,
-    futureMembers: true,
-    birthdays: true,
-    familySearch: true,
-    missionaryWork: true,
-    service: true,
-    council: true,
-    activities: true,
-  };
+  const defaultCategoryPrefs = useMemo<Record<string, boolean>>(
+    () => ({
+      observations: true,
+      converts: true,
+      futureMembers: true,
+      birthdays: true,
+      familySearch: true,
+      missionaryWork: true,
+      service: true,
+      council: true,
+      activities: true,
+    }),
+    []
+  );
   const [inAppCategoryPrefs, setInAppCategoryPrefs] = useState<Record<string, boolean>>(defaultCategoryPrefs);
   const [pushCategoryPrefs, setPushCategoryPrefs] = useState<Record<string, boolean>>(defaultCategoryPrefs);
   const [isCategoryPrefsSaving, setIsCategoryPrefsSaving] = useState(false);
@@ -170,7 +173,7 @@ export default function SettingsPage() {
     };
 
     loadNotificationPreferences();
-  }, [hasSettingsAccess, user]);
+  }, [hasSettingsAccess, user, defaultCategoryPrefs]);
 
   useEffect(() => {
     const initializeFCM = async () => {

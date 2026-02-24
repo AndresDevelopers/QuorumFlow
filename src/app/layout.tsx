@@ -17,6 +17,9 @@ export const metadata: Metadata = {
   title: "QuorumFlow",
   description: "Management tool for the Elders Quorum secretary.",
   manifest: "/manifest.json",
+  other: {
+    "google": "notranslate",
+  },
 };
 
 export default function RootLayout({
@@ -25,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning translate="no">
       <body className={`${ptSans.className} antialiased`}>
         <ThemeProvider
           attribute="class"

@@ -6,12 +6,14 @@
       "date": "2026-02-24",
       "changes": {
         "es": [
+          "fix(main-layout): fetch version from changelog.json instead of version.json",
           "docs: add missing changelog entry for version 1.1.8",
           "feat: add changelog entry for version 1.1.8",
           "feat: update version to 1.1.8 and add changelog entry",
           "feat: update version to 1.1.7 and add changelog functionality"
         ],
         "en": [
+          "fix(main-layout): fetch version from changelog.json instead of version.json",
           "docs: add missing changelog entry for version 1.1.8",
           "feat: add changelog entry for version 1.1.8",
           "feat: update version to 1.1.8 and add changelog entry",
