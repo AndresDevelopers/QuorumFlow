@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { getDocs, query, orderBy, where, Timestamp, addDoc, deleteDoc, doc, serverTimestamp, updateDoc, getDoc } from 'firebase/firestore';
+import { getDocs, query, orderBy, where, Timestamp, addDoc, deleteDoc, doc, serverTimestamp, updateDoc, getDoc, Firestore, onSnapshot, setDoc } from 'firebase/firestore';
 import { convertsCollection, membersCollection, annotationsCollection } from '@/lib/collections';
 import { Convert, Annotation } from '@/lib/types';
 import { normalizeMemberStatus } from '@/lib/members-data';
@@ -9,44 +9,92 @@ import { subMonths } from 'date-fns';
 import { AnnotationManager } from '@/components/shared/annotation-manager';
 import { useAuth } from '@/contexts/auth-context';
 import { useToast } from '@/hooks/use-toast';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { Save, Edit2, X, Check } from 'lucide-react';
+
+// Extended convert type with notes
+interface ConvertWithNotes extends Convert {
+  notes?: string;
+}
+
+// Helper function to get convert info from subcollection
+async function getConvertInfo(firestore: Firestore, convertId: string): Promise<{ notes?: string; calling?: string } | null> {
+  try {
+    const infoDoc = await getDoc(doc(firestore, 'c_conversos_info', convertId));
+    if (infoDoc.exists()) {
+      const data = infoDoc.data();
+      return {
+        notes: data.notes as string || '',
+        calling: data.calling as string || ''
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper function to save convert info to subcollection
+async function saveConvertNotes(firestore: Firestore, convertId: string, notes: string): Promise<void> {
+  try {
+    const infoRef = doc(firestore, 'c_conversos_info', convertId);
+    await setDoc(infoRef, {
+      notes,
+      updatedAt: Timestamp.now()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error saving convert notes:', error);
+    throw error;
+  }
+}
 
 const ConsejoPage: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
-  const [newConverts, setNewConverts] = useState<Convert[]>([]);
+  const [newConverts, setNewConverts] = useState<ConvertWithNotes[]>([]);
   const [loading, setLoading] = useState(true);
   const [annotationsLoading, setAnnotationsLoading] = useState(true);
+  
+  // State for editing notes
+  const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
+  const [editingNotesValue, setEditingNotesValue] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
 
-  const fetchAnnotations = async () => {
-    try {
-      setAnnotationsLoading(true);
-      const q = query(
-        annotationsCollection,
-        where('source', '==', 'council'),
-        orderBy('createdAt', 'desc')
-      );
-      const snapshot = await getDocs(q);
+  // Fetch annotations in real-time
+  useEffect(() => {
+    const annotationsQuery = query(
+      annotationsCollection,
+      where('source', '==', 'council'),
+      orderBy('createdAt', 'desc')
+    );
+    const annotationsUnsubscribe = onSnapshot(annotationsQuery, (snapshot) => {
       const annotationsData = snapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as Annotation)
       );
       setAnnotations(annotationsData);
-    } catch (error) {
-      console.error('Error fetching annotations:', error);
-    } finally {
       setAnnotationsLoading(false);
-    }
-  };
+    }, (error) => {
+      console.error('Error fetching annotations:', error);
+      setAnnotationsLoading(false);
+    });
 
+    return () => {
+      annotationsUnsubscribe();
+    };
+  }, []);
+
+  // Fetch converts in real-time
   useEffect(() => {
-    const fetchNewConverts = async () => {
+    const convertsQuery = query(convertsCollection, orderBy('baptismDate', 'desc'));
+    const membersQuery = query(membersCollection, orderBy('baptismDate', 'desc'));
+
+    const unsubscribeConverts = onSnapshot(convertsQuery, async (snapshot) => {
       try {
         const twentyFourMonthsAgo = subMonths(new Date(), 24);
-        const twentyFourMonthsAgoTimestamp = Timestamp.fromDate(twentyFourMonthsAgo);
 
-        // Obtener conversos de la colección c_conversos
-        const convertsSnapshot = await getDocs(query(convertsCollection, orderBy('baptismDate', 'desc')));
-        let convertsFromCollection = convertsSnapshot.docs
+        let convertsFromCollection = snapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() } as Convert))
           .filter(convert =>
               convert.baptismDate &&
@@ -54,13 +102,13 @@ const ConsejoPage: React.FC = () => {
               convert.baptismDate.toDate() > twentyFourMonthsAgo
           );
 
-        // Obtener fotos de miembros para conversos que tienen memberId
+        // Get member data for converts with memberId
+        const membersSnap = await getDocs(membersQuery);
         const memberIds = convertsFromCollection
           .map(convert => convert.memberId)
           .filter(id => id) as string[];
         const membersMap = new Map<string, any>();
         if (memberIds.length > 0) {
-          // Dividir memberIds en chunks de 10 para evitar límite de Firestore
           const chunks = [];
           for (let i = 0; i < memberIds.length; i += 10) {
             chunks.push(memberIds.slice(i, i + 10));
@@ -88,9 +136,8 @@ const ConsejoPage: React.FC = () => {
           });
         }
 
-        // Obtener miembros bautizados hace menos de 2 años
-        const membersSnapshot = await getDocs(query(membersCollection, orderBy('baptismDate', 'desc')));
-        const membersAsConverts = membersSnapshot.docs
+        // Get members baptized in the last 24 months
+        const membersAsConverts = membersSnap.docs
           .map(doc => {
             const memberData = doc.data();
             if (normalizeMemberStatus(memberData.status) === 'deceased') {
@@ -115,11 +162,10 @@ const ConsejoPage: React.FC = () => {
           })
           .filter(Boolean) as Convert[];
 
-        // Combinar y ordenar por fecha de bautismo (más reciente primero)
+        // Combine and sort
         const allConverts = [...convertsFromCollection, ...membersAsConverts]
           .sort((a, b) => b.baptismDate.toDate().getTime() - a.baptismDate.toDate().getTime());
 
-        // Eliminar duplicados basados en nombre y fecha de bautismo, y filtrar nombres vacíos
         const uniqueConverts = allConverts
           .filter(convert => convert.name && convert.name.trim() !== '')
           .filter((convert, index, self) =>
@@ -129,16 +175,33 @@ const ConsejoPage: React.FC = () => {
             )
           );
 
-        setNewConverts(uniqueConverts);
+        // Fetch notes for each convert
+        const convertsWithNotes = await Promise.all(
+          uniqueConverts.map(async (convert) => {
+            try {
+              const firestore = convertsCollection.firestore;
+              const info = await getConvertInfo(firestore, convert.id);
+              return {
+                ...convert,
+                notes: info?.notes || ''
+              } as ConvertWithNotes;
+            } catch {
+              return { ...convert, notes: '' } as ConvertWithNotes;
+            }
+          })
+        );
+
+        setNewConverts(convertsWithNotes);
+        setLoading(false);
       } catch (error) {
         console.error('Error fetching new converts:', error);
-      } finally {
         setLoading(false);
       }
-    };
+    });
 
-    fetchNewConverts();
-    fetchAnnotations();
+    return () => {
+      unsubscribeConverts();
+    };
   }, []);
 
   const handleAddAnnotation = async (description: string) => {
@@ -152,12 +215,10 @@ const ConsejoPage: React.FC = () => {
       createdAt: serverTimestamp(),
       userId: user.uid,
     });
-    await fetchAnnotations();
   };
 
   const handleDeleteAnnotation = async (id: string) => {
     await deleteDoc(doc(annotationsCollection, id));
-    await fetchAnnotations();
   };
 
   const handleResolveAnnotation = async (id: string) => {
@@ -172,24 +233,55 @@ const ConsejoPage: React.FC = () => {
 
       const annotationData = annotationSnap.data() as Annotation;
 
-      // If the annotation was marked for council (isCouncilAction), we need to unmark it
-      // Then delete the annotation since it's resolved
       if (annotationData.isCouncilAction) {
-        // First update to remove the council action flag (removes checkmark from dashboard)
         await updateDoc(annotationRef, {
           isCouncilAction: false,
           isResolved: true,
         });
       }
 
-      // Delete the annotation (removes the note)
       await deleteDoc(annotationRef);
       
       toast({ title: 'Anotación Resuelta', description: 'La anotación ha sido marcada como resuelta y eliminada.' });
-      await fetchAnnotations();
     } catch (error) {
       console.error('Error resolving annotation:', error);
       toast({ title: 'Error', description: 'No se pudo resolver la anotación.', variant: 'destructive' });
+    }
+  };
+
+  // Handle editing notes
+  const startEditingNotes = (convert: ConvertWithNotes) => {
+    setEditingNotesId(convert.id);
+    setEditingNotesValue(convert.notes || '');
+  };
+
+  const cancelEditingNotes = () => {
+    setEditingNotesId(null);
+    setEditingNotesValue('');
+  };
+
+  const saveNotes = async (convertId: string) => {
+    if (!user) return;
+    
+    setSavingNotes(true);
+    try {
+      const firestore = convertsCollection.firestore;
+      await saveConvertNotes(firestore, convertId, editingNotesValue);
+      
+      // Update local state
+      setNewConverts(prev => prev.map(c => 
+        c.id === convertId ? { ...c, notes: editingNotesValue } : c
+      ));
+      
+      setEditingNotesId(null);
+      setEditingNotesValue('');
+      
+      toast({ title: 'Observaciones guardadas', description: 'Las observaciones se han sincronizado correctamente.' });
+    } catch (error) {
+      console.error('Error saving notes:', error);
+      toast({ title: 'Error', description: 'No se pudieron guardar las observaciones.', variant: 'destructive' });
+    } finally {
+      setSavingNotes(false);
     }
   };
 
@@ -236,13 +328,69 @@ const ConsejoPage: React.FC = () => {
                     className="w-12 h-12 rounded-full object-cover"
                   />
                 )}
-                <div className="flex flex-col">
+                <div className="flex flex-col flex-1">
                   <span className="font-bold text-base mb-0.5">
                     {convert.name}
                   </span>
                   <span className="text-sm text-gray-600">
                     Bautismo: {convert.baptismDate?.toDate().toLocaleDateString('es-ES')}
                   </span>
+                  
+                  {/* Notes section - editable */}
+                  <div className="mt-2">
+                    {editingNotesId === convert.id ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          value={editingNotesValue}
+                          onChange={(e) => setEditingNotesValue(e.target.value)}
+                          placeholder="Escriba observaciones sobre este converso..."
+                          rows={3}
+                          className="text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => saveNotes(convert.id)}
+                            disabled={savingNotes}
+                            className="flex items-center gap-1"
+                          >
+                            <Check className="h-4 w-4" />
+                            {savingNotes ? 'Guardando...' : 'Guardar'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={cancelEditingNotes}
+                            disabled={savingNotes}
+                            className="flex items-center gap-1"
+                          >
+                            <X className="h-4 w-4" />
+                            Cancelar
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2">
+                        {convert.notes && convert.notes.trim() !== '' ? (
+                          <span className="text-sm text-gray-500 italic flex-1">
+                            Observaciones: {convert.notes}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400 italic">
+                            Sin observaciones
+                          </span>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => startEditingNotes(convert)}
+                          className="h-6 px-2 text-gray-500 hover:text-gray-700"
+                        >
+                          <Edit2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </li>
             ))}

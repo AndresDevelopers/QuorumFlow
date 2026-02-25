@@ -6,24 +6,26 @@
       "date": "2026-02-24",
       "changes": {
         "es": [
-          "feat: enhance date selection in forms and improve calendar UI",
+          "feat: update changelog with recent changes and improve service worker registration logic",
+          "feat: enhance date selection in forms and improve calendar UI\n\n- Added defaultMonth prop to date pickers in ConvertForm, FutureMemberForm, ActivityForm, and ServiceForm for better user experience.\n- Refactored MemberForm to replace manual date inputs with a calendar popover for birthDate and baptismDate, improving usability and consistency.\n- Updated NotificationBell component to remove update notification logic, simplifying the notification handling.\n- Enhanced calendar component with dropdowns for month and year selection, and improved styling for better visual clarity.",
           "feat: add approve-builds script to package.json and update changelog entries",
-          "feat: add service worker for PWA and fix notification preferences",
-          "fix(main-layout): fetch version from changelog.json instead of version.json",
-          "docs: add missing changelog entry for version 1.1.8",
+          "feat: add service worker for PWA and fix notification preferences\n\n- Add service worker (sw.js) with Workbox for offline support and caching\n- Include custom push notification handlers for better user engagement\n- Fix notification preferences by memoizing default category prefs to prevent stale closures\n- Update root layout language to Spanish and add no-translate meta tag\n- Improve postinstall script to handle missing patches gracefully\n- Update changelog with recent fixes",
+          "fix(main-layout): fetch version from changelog.json instead of version.json\n\nUpdate the data source for the version number to use the new changelog.json file structure, where the version is now under the 'current' key.",
+          "docs: add missing changelog entry for version 1.1.8\n\nThe entry for version 1.1.8 was duplicated but missing the standalone entry. This adds the missing entry in both English and Spanish to maintain consistency in the changelog structure.",
           "feat: add changelog entry for version 1.1.8",
           "feat: update version to 1.1.8 and add changelog entry",
-          "feat: update version to 1.1.7 and add changelog functionality"
+          "feat: update version to 1.1.7 and add changelog functionality\n\n- Updated package version to 1.1.7 in package.json.\n- Added scripts for generating changelog and setting up git hooks.\n- Implemented ChangelogDialog component to fetch and display changelog from changelog.json.\n- Created changelog.json to store version history and changes in both English and Spanish.\n- Added localization strings for changelog in en.json and es.json.\n- Set up automatic changelog generation on git commit via post-commit hook."
         ],
         "en": [
-          "feat: enhance date selection in forms and improve calendar UI",
+          "feat: update changelog with recent changes and improve service worker registration logic",
+          "feat: enhance date selection in forms and improve calendar UI\n\n- Added defaultMonth prop to date pickers in ConvertForm, FutureMemberForm, ActivityForm, and ServiceForm for better user experience.\n- Refactored MemberForm to replace manual date inputs with a calendar popover for birthDate and baptismDate, improving usability and consistency.\n- Updated NotificationBell component to remove update notification logic, simplifying the notification handling.\n- Enhanced calendar component with dropdowns for month and year selection, and improved styling for better visual clarity.",
           "feat: add approve-builds script to package.json and update changelog entries",
-          "feat: add service worker for PWA and fix notification preferences",
-          "fix(main-layout): fetch version from changelog.json instead of version.json",
-          "docs: add missing changelog entry for version 1.1.8",
+          "feat: add service worker for PWA and fix notification preferences\n\n- Add service worker (sw.js) with Workbox for offline support and caching\n- Include custom push notification handlers for better user engagement\n- Fix notification preferences by memoizing default category prefs to prevent stale closures\n- Update root layout language to Spanish and add no-translate meta tag\n- Improve postinstall script to handle missing patches gracefully\n- Update changelog with recent fixes",
+          "fix(main-layout): fetch version from changelog.json instead of version.json\n\nUpdate the data source for the version number to use the new changelog.json file structure, where the version is now under the 'current' key.",
+          "docs: add missing changelog entry for version 1.1.8\n\nThe entry for version 1.1.8 was duplicated but missing the standalone entry. This adds the missing entry in both English and Spanish to maintain consistency in the changelog structure.",
           "feat: add changelog entry for version 1.1.8",
           "feat: update version to 1.1.8 and add changelog entry",
-          "feat: update version to 1.1.7 and add changelog functionality"
+          "feat: update version to 1.1.7 and add changelog functionality\n\n- Updated package version to 1.1.7 in package.json.\n- Added scripts for generating changelog and setting up git hooks.\n- Implemented ChangelogDialog component to fetch and display changelog from changelog.json.\n- Created changelog.json to store version history and changes in both English and Spanish.\n- Added localization strings for changelog in en.json and es.json.\n- Set up automatic changelog generation on git commit via post-commit hook."
         ]
       }
     },
