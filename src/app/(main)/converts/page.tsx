@@ -33,6 +33,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { ConvertInfoSheet, type ConvertWithInfo } from './convert-info-sheet';
 import { syncMinisteringAssignments } from '@/lib/ministering-sync';
+import { useToast } from '@/hooks/use-toast';
 import { buildMemberEditUrl } from '@/lib/navigation';
 
 // Convert info collection for additional data
@@ -46,9 +47,9 @@ async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
   const convertsFromCollection = convertsSnapshot.docs
     .map(doc => ({ id: doc.id, ...doc.data() } as Convert))
     .filter(convert =>
-        convert.baptismDate &&
-        convert.baptismDate.toDate &&
-        convert.baptismDate.toDate() > twentyFourMonthsAgo
+      convert.baptismDate &&
+      convert.baptismDate.toDate &&
+      convert.baptismDate.toDate() > twentyFourMonthsAgo
     );
 
   // Obtener miembros bautizados hace 2 años
@@ -117,9 +118,9 @@ async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
       const infoDoc = await getDoc(convertInfoCollection(convert.id));
       if (infoDoc.exists()) {
         const data = infoDoc.data();
-        return { 
-          convertId: convert.id, 
-          calling: data.calling as string || '', 
+        return {
+          convertId: convert.id,
+          calling: data.calling as string || '',
           notes: data.notes as string || '',
           recommendationActive: data.recommendationActive === true,
           selfRelianceCourse: data.selfRelianceCourse === true
@@ -130,10 +131,10 @@ async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
       return null;
     }
   });
-  const convertInfos = (await Promise.all(convertInfoPromises)).filter(Boolean) as { 
-    convertId: string; 
-    calling: string; 
-    notes: string; 
+  const convertInfos = (await Promise.all(convertInfoPromises)).filter(Boolean) as {
+    convertId: string;
+    calling: string;
+    notes: string;
     recommendationActive: boolean;
     selfRelianceCourse: boolean;
   }[];
@@ -161,7 +162,7 @@ async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
     if (familyName) {
       const matchingComp = companionships.find(comp =>
         comp.families.some(f => f.name.toLowerCase().includes(familyName.toLowerCase()) ||
-        f.name.toLowerCase().includes(convert.name?.toLowerCase() || ''))
+          f.name.toLowerCase().includes(convert.name?.toLowerCase() || ''))
       );
       if (matchingComp) {
         ministeringTeachers = [...new Set([...ministeringTeachers, ...matchingComp.companions])];
@@ -187,6 +188,7 @@ async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
 export default function ConvertsPage() {
   const { user, loading: authLoading } = useAuth();
   const { t } = useI18n();
+  const { toast } = useToast();
   const [converts, setConverts] = useState<ConvertWithInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedConvert, setSelectedConvert] = useState<ConvertWithInfo | null>(null);
@@ -232,8 +234,10 @@ export default function ConvertsPage() {
       setConverts(prev => prev.map(c =>
         c.id === convertId ? { ...c, calling, notes, recommendationActive, selfRelianceCourse } : c
       ));
+      toast({ title: '✅ Información guardada', description: 'Los datos del converso se actualizaron correctamente.' });
     } catch (error) {
       console.error("Failed to save convert info:", error);
+      toast({ title: 'Error', description: 'No se pudo guardar la información.', variant: 'destructive' });
     }
     setSaving(false);
   };
@@ -245,11 +249,13 @@ export default function ConvertsPage() {
         // Update existing friendship
         if (friends.length === 0) {
           await deleteDoc(doc(newConvertFriendsCollection, friendshipId));
+          toast({ title: '✅ Amigos eliminados', description: 'La asignación de amigos fue removida.' });
         } else {
           await updateDoc(doc(newConvertFriendsCollection, friendshipId), {
             friends,
             updatedAt: Timestamp.now()
           });
+          toast({ title: '✅ Amigos guardados', description: 'La asignación de amigos se actualizó.' });
         }
       } else if (friends.length > 0) {
         // Create new friendship
@@ -259,12 +265,14 @@ export default function ConvertsPage() {
           friends,
           assignedAt: serverTimestamp()
         });
+        toast({ title: '✅ Amigos asignados', description: 'Se asignaron amigos al converso.' });
       }
 
       // Reload data to reflect changes
       await loadData();
     } catch (error) {
       console.error("Failed to save friends:", error);
+      toast({ title: 'Error', description: 'No se pudo guardar la asignación de amigos.', variant: 'destructive' });
     }
     setSaving(false);
   };
@@ -289,8 +297,10 @@ export default function ConvertsPage() {
 
       // Reload data to reflect changes
       await loadData();
+      toast({ title: '✅ Maestros guardados', description: 'Los maestros ministrantes se actualizaron.' });
     } catch (error) {
       console.error("Failed to save teachers:", error);
+      toast({ title: 'Error', description: 'No se pudo guardar los maestros ministrantes.', variant: 'destructive' });
     }
     setSaving(false);
   };
@@ -327,8 +337,8 @@ export default function ConvertsPage() {
                 <TableRow key={i}>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                        <Skeleton className="h-10 w-10 rounded-full" />
-                        <Skeleton className="h-5 w-32" />
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <Skeleton className="h-5 w-32" />
                     </div>
                   </TableCell>
                   <TableCell><Skeleton className="h-5 w-24" /></TableCell>
@@ -346,11 +356,11 @@ export default function ConvertsPage() {
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-3">
-                        <Avatar>
-                            <AvatarImage src={item.photoURL} data-ai-hint="profile picture" />
-                            <AvatarFallback>{item.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span>{item.name}</span>
+                      <Avatar>
+                        <AvatarImage src={item.photoURL} data-ai-hint="profile picture" />
+                        <AvatarFallback>{item.name.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <span>{item.name}</span>
                     </div>
                   </TableCell>
                   <TableCell>

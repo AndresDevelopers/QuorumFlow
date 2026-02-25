@@ -63,7 +63,7 @@ interface LoggerPort {
 }
 
 class UserRepository {
-  constructor(private readonly db: FirestoreNamespace.Firestore) {}
+  constructor(private readonly db: FirestoreNamespace.Firestore) { }
 
   async getAllUserIds(): Promise<string[]> {
     const snapshot = await this.db.collection("c_users").select().get();
@@ -164,19 +164,59 @@ class FcmRepository {
             title: payload.title,
             body: payload.body,
           },
+          // ── Android ──────────────────────────────────────────────────────
+          android: {
+            priority: "high",
+            notification: {
+              title: payload.title,
+              body: payload.body,
+              tag: payload.tag,
+              // Icon must be a drawable resource name registered in the app
+              // icon: "ic_notification",
+              clickAction: "FLUTTER_NOTIFICATION_CLICK",
+              defaultVibrateTimings: true,
+              defaultSound: true,
+            },
+            data: {
+              url: payload.url ?? "/",
+              tag: payload.tag ?? "",
+            },
+          },
+          // ── iOS (APNs) ────────────────────────────────────────────────────
+          apns: {
+            payload: {
+              aps: {
+                alert: {
+                  title: payload.title,
+                  body: payload.body,
+                },
+                badge: 1,
+                sound: "default",
+              },
+            },
+            fcmOptions: {
+              analyticsLabel: payload.tag ?? "quorumflow",
+            },
+          },
+          // ── Web (PWA) ─────────────────────────────────────────────────────
           webpush: {
             notification: {
               title: payload.title,
               body: payload.body,
               tag: payload.tag,
+              icon: "/logo.svg",
+              badge: "/logo.svg",
             },
             fcmOptions: {
               link: payload.url ?? "/",
             },
           },
+          // ── Data payload (available on all platforms) ─────────────────────
           data: {
             url: payload.url ?? "/",
             tag: payload.tag ?? "",
+            title: payload.title,
+            body: payload.body,
           },
         });
 

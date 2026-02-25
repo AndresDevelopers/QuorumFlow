@@ -6,6 +6,7 @@
       "date": "2026-02-24",
       "changes": {
         "es": [
+          "feat(consejo): add real-time notes editing for new converts\n\n- Implement real-time data fetching for annotations and converts using onSnapshot\n- Add notes editing functionality for each convert with ability to save to Firestore subcollection\n- Replace manual annotation refresh with real-time updates for better performance\n- Update UI with inline editing controls and improved visual feedback",
           "feat: update changelog with recent changes and improve service worker registration logic",
           "feat: enhance date selection in forms and improve calendar UI\n\n- Added defaultMonth prop to date pickers in ConvertForm, FutureMemberForm, ActivityForm, and ServiceForm for better user experience.\n- Refactored MemberForm to replace manual date inputs with a calendar popover for birthDate and baptismDate, improving usability and consistency.\n- Updated NotificationBell component to remove update notification logic, simplifying the notification handling.\n- Enhanced calendar component with dropdowns for month and year selection, and improved styling for better visual clarity.",
           "feat: add approve-builds script to package.json and update changelog entries",
@@ -17,6 +18,7 @@
           "feat: update version to 1.1.7 and add changelog functionality\n\n- Updated package version to 1.1.7 in package.json.\n- Added scripts for generating changelog and setting up git hooks.\n- Implemented ChangelogDialog component to fetch and display changelog from changelog.json.\n- Created changelog.json to store version history and changes in both English and Spanish.\n- Added localization strings for changelog in en.json and es.json.\n- Set up automatic changelog generation on git commit via post-commit hook."
         ],
         "en": [
+          "feat(consejo): add real-time notes editing for new converts\n\n- Implement real-time data fetching for annotations and converts using onSnapshot\n- Add notes editing functionality for each convert with ability to save to Firestore subcollection\n- Replace manual annotation refresh with real-time updates for better performance\n- Update UI with inline editing controls and improved visual feedback",
           "feat: update changelog with recent changes and improve service worker registration logic",
           "feat: enhance date selection in forms and improve calendar UI\n\n- Added defaultMonth prop to date pickers in ConvertForm, FutureMemberForm, ActivityForm, and ServiceForm for better user experience.\n- Refactored MemberForm to replace manual date inputs with a calendar popover for birthDate and baptismDate, improving usability and consistency.\n- Updated NotificationBell component to remove update notification logic, simplifying the notification handling.\n- Enhanced calendar component with dropdowns for month and year selection, and improved styling for better visual clarity.",
           "feat: add approve-builds script to package.json and update changelog entries",

@@ -128,7 +128,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [allowContinueWithDuplicate, setAllowContinueWithDuplicate] = useState(false);
   const [duplicateDecisionMade, setDuplicateDecisionMade] = useState(false);
-  
+
   // Estado local para el input de fecha de fallecimiento (mantiene texto DD/MM/YYYY)
   const [deathDateInput, setDeathDateInput] = useState('');
 
@@ -194,7 +194,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       const birthDateValue = safeGetDate((currentMember as any).birthDate) ?? undefined;
       const baptismDateValue = safeGetDate((currentMember as any).baptismDate) ?? undefined;
       const deathDateValue = safeGetDate((currentMember as any).deathDate) ?? undefined;
-      
+
       const valuesToSet = {
         firstName: currentMember.firstName || '',
         lastName: currentMember.lastName || '',
@@ -220,14 +220,14 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       const photoUrl = currentMember.photoURL && currentMember.photoURL.trim() ? currentMember.photoURL : null;
       setPhotoPreview(photoUrl);
       setPhotoFile(null); // Clear any selected file when loading existing member
-      
+
       // Set baptism photos
       setBaptismPhotoPreviews(currentMember.baptismPhotos || []);
       setBaptismPhotoFiles([]); // Clear any selected files when loading existing member
-      
+
       // Actualizar el estado local del input de fecha de fallecimiento
       setDeathDateInput(formatDateForDisplay(deathDateValue));
-      
+
     } else {
       // Reset to empty form for new member
       form.reset({
@@ -269,19 +269,19 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       console.log('👤 No user available for loading members');
       return;
     }
-    
+
     setLoadingMembers(true);
     try {
       console.log('📎 Loading available members for ministering assignment...');
       // Obtener todos los miembros (incluyendo inactivos) para maestros ministrantes
       const members = await getMembersForSelector(true);
       console.log(`📊 Found ${members.length} available members`);
-      
+
       // Filtrar el miembro actual si estamos editando
-      const filteredMembers = member 
+      const filteredMembers = member
         ? members.filter(m => m.id !== member.id)
         : members;
-      
+
       console.log(`🎣 After filtering: ${filteredMembers.length} members available`);
       setAvailableMembers(filteredMembers);
     } catch (error) {
@@ -402,7 +402,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
     }
 
     const date = new Date(year, month, day);
-    
+
     // Check if date is valid (handles invalid dates like Feb 30)
     if (date.getDate() !== day || date.getMonth() !== month || date.getFullYear() !== year) {
       return undefined;
@@ -447,7 +447,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       }
 
       setPhotoFile(file);
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -471,7 +471,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
     if (files.length > 0) {
       // Validar que sean imágenes
       const validFiles = files.filter(file => file.type.startsWith('image/'));
-      
+
       if (validFiles.length !== files.length) {
         toast({
           title: 'Formato inválido',
@@ -559,10 +559,10 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         try {
           const uploadedPhotos = await uploadBaptismPhotos(baptismPhotoFiles, user.uid);
           baptismPhotoURLs = uploadedPhotos;
-          
+
           // Mantener las fotos existentes que no fueron eliminadas
           if (member?.baptismPhotos) {
-            const existingPhotos = member.baptismPhotos.filter(url => 
+            const existingPhotos = member.baptismPhotos.filter(url =>
               baptismPhotoPreviews.includes(url)
             );
             baptismPhotoURLs = [...existingPhotos, ...uploadedPhotos];
@@ -584,10 +584,10 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
 
       // Eliminar fotos de bautismo que fueron removidas
       if (member?.baptismPhotos) {
-        const photosToDelete = member.baptismPhotos.filter(url => 
+        const photosToDelete = member.baptismPhotos.filter(url =>
           !baptismPhotoPreviews.includes(url)
         );
-        
+
         for (const photoUrl of photosToDelete) {
           try {
             if (photoUrl.startsWith('https://firebasestorage.googleapis.com')) {
@@ -605,10 +605,10 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
       const isRecentBaptism = values.baptismDate &&
         values.baptismDate >= twoYearsAgo;
-      
+
       // Verificar si hay cambios en la fecha de bautismo
       const previousBaptismDate = member?.baptismDate?.toDate ? member.baptismDate.toDate() :
-                                  member?.baptismDate instanceof Date ? member.baptismDate : null;
+        member?.baptismDate instanceof Date ? member.baptismDate : null;
       const previousBaptismYear = previousBaptismDate?.getFullYear();
       const newBaptismYear = values.baptismDate?.getFullYear();
       const baptismYearChanged = previousBaptismYear !== newBaptismYear;
@@ -694,10 +694,10 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         // Si es una actualización y la fecha de bautismo cambió, eliminar el registro anterior
         if (member && (baptismYearChanged || baptismDateRemoved)) {
           const baptismQuery = query(
-             collection(firestore, 'c_bautismos'),
-             where('name', '==', `${values.firstName.trim()} ${values.lastName.trim()}`),
-             where('source', '==', 'Automático')
-           );
+            collection(firestore, 'c_bautismos'),
+            where('name', '==', `${values.firstName.trim()} ${values.lastName.trim()}`),
+            where('source', '==', 'Automático')
+          );
           const existingBaptisms = await getDocs(baptismQuery);
           existingBaptisms.forEach(async (baptismDoc) => {
             await deleteDoc(doc(firestore, 'c_bautismos', baptismDoc.id));
@@ -712,7 +712,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       if (member) {
         // Get previous ministering teachers before update
         const previousTeachers = member.ministeringTeachers || [];
-        
+
         await updateMember(member.id, {
           firstName: values.firstName.trim(),
           lastName: values.lastName.trim(),
@@ -843,15 +843,15 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       onClose();
     } catch (error) {
       console.error('Error saving member:', error);
-      
-      let errorMessage = member 
-        ? 'No se pudo actualizar el miembro.' 
+
+      let errorMessage = member
+        ? 'No se pudo actualizar el miembro.'
         : 'No se pudo crear el miembro.';
-      
+
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-      
+
       toast({
         title: 'Error',
         description: errorMessage,
@@ -895,8 +895,8 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
                           <p className="text-sm font-medium">{dupMember.firstName} {dupMember.lastName}</p>
                           <p className="text-xs text-muted-foreground capitalize">
                             Estado: {dupMember.status === 'active' ? 'Activo' :
-                                   dupMember.status === 'less_active' ? 'Menos Activo' :
-                                   dupMember.status === 'inactive' ? 'Inactivo' : 'Fallecido'}
+                              dupMember.status === 'less_active' ? 'Menos Activo' :
+                                dupMember.status === 'inactive' ? 'Inactivo' : 'Fallecido'}
                           </p>
                         </div>
                       </div>
@@ -932,561 +932,504 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       </AlertDialog>
 
       <Form key={member?.id || 'new'} {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
-        {/* Photo Upload */}
-        <div className="space-y-4">
-          <Label>Foto de Perfil (Opcional)</Label>
-          <div className="flex items-center gap-4">
-            <Avatar className="w-20 h-20">
-              <AvatarImage src={photoPreview || undefined} />
-              <AvatarFallback className="text-lg">
-                {form.watch('firstName')?.[0]?.toUpperCase()}
-                {form.watch('lastName')?.[0]?.toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                <Label htmlFor="photo-upload" className="cursor-pointer">
-                  <Button type="button" variant="outline" size="sm" asChild>
-                    <span>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Subir Foto
-                    </span>
-                  </Button>
-                </Label>
-                <Input
-                  id="photo-upload"
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoChange}
-                  className="hidden"
-                />
-                {photoPreview && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={removePhoto}
-                  >
-                    <X className="mr-2 h-4 w-4" />
-                    Quitar
-                  </Button>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Formatos: JPG, PNG, GIF. Máximo 5MB.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Name Fields */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="firstName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nombre *</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Nombre"
-                    {...field}
-                    onBlur={(e) => {
-                      field.onBlur();
-                      const firstName = e.target.value.trim();
-                      const lastName = form.getValues('lastName')?.trim() || '';
-                      checkForDuplicates(firstName, lastName);
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="lastName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Apellido *</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Apellido"
-                    {...field}
-                    onBlur={(e) => {
-                      field.onBlur();
-                      const lastName = e.target.value.trim();
-                      const firstName = form.getValues('firstName')?.trim() || '';
-                      checkForDuplicates(firstName, lastName);
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        {/* Phone Number */}
-        <FormField
-          control={form.control}
-          name="phoneNumber"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Número de Teléfono</FormLabel>
-              <FormControl>
-                <Input 
-                  placeholder="Ej: +1 234 567 8900" 
-                  type="tel"
-                  {...field} 
-                />
-              </FormControl>
-              <FormDescription>
-                Opcional. Incluye el código de país si es necesario.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Member ID */}
-        <FormField
-          control={form.control}
-          name="memberId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('memberProfile.memberId')}</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="Ej: 123456"
-                  {...field}
-                />
-              </FormControl>
-              <FormDescription>
-                {t('memberProfile.memberIdDescription')}
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Birth Date */}
-        <FormField
-          control={form.control}
-          name="birthDate"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Fecha de Nacimiento</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        'w-full pl-3 text-left font-normal',
-                        !field.value && 'text-muted-foreground'
-                      )}
-                    >
-                      {field.value ? (
-                        <span className="capitalize">
-                          {format(field.value, "d 'de' LLLL 'de' yyyy", { locale: es })}
-                        </span>
-                      ) : (
-                        <span>Selecciona una fecha</span>
-                      )}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
+          {/* Photo Upload */}
+          <div className="space-y-4">
+            <Label>Foto de Perfil (Opcional)</Label>
+            <div className="flex items-center gap-4">
+              <Avatar className="w-20 h-20">
+                <AvatarImage src={photoPreview || undefined} />
+                <AvatarFallback className="text-lg">
+                  {form.watch('firstName')?.[0]?.toUpperCase()}
+                  {form.watch('lastName')?.[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <Label htmlFor="photo-upload" className="cursor-pointer">
+                    <Button type="button" variant="outline" size="sm" asChild>
+                      <span>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Subir Foto
+                      </span>
                     </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={field.value}
-                    onSelect={field.onChange}
-                    defaultMonth={field.value}
-                    disabled={(date) =>
-                      date > new Date() || date < new Date('1900-01-01')
-                    }
-                    locale={es}
+                  </Label>
+                  <Input
+                    id="photo-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoChange}
+                    className="hidden"
                   />
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Baptism Date */}
-        <FormField
-          control={form.control}
-          name="baptismDate"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Fecha de Bautismo</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <FormControl>
+                  {photoPreview && (
                     <Button
-                      variant="outline"
-                      className={cn(
-                        'w-full pl-3 text-left font-normal',
-                        !field.value && 'text-muted-foreground'
-                      )}
-                    >
-                      {field.value ? (
-                        <span className="capitalize">
-                          {format(field.value, "d 'de' LLLL 'de' yyyy", { locale: es })}
-                        </span>
-                      ) : (
-                        <span>Selecciona una fecha</span>
-                      )}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={field.value}
-                    onSelect={field.onChange}
-                    defaultMonth={field.value}
-                    disabled={(date) => date < new Date('1900-01-01')}
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Baptism Photos */}
-        <div className="space-y-4">
-          <Label>Fotos de Bautismo (Opcional)</Label>
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <Label htmlFor="baptism-photos-upload" className="cursor-pointer">
-                <Button type="button" variant="outline" size="sm" asChild>
-                  <span>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Agregar Fotos
-                  </span>
-                </Button>
-              </Label>
-              <Input
-                id="baptism-photos-upload"
-                ref={baptismPhotosInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleBaptismPhotosChange}
-                className="hidden"
-              />
-            </div>
-            
-            {baptismPhotoPreviews.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {baptismPhotoPreviews.map((preview, index) => (
-                  <div key={index} className="relative group">
-                    <div className="relative w-full h-24 rounded-md border overflow-hidden">
-                      <Image
-                        src={preview}
-                        alt={`Foto de bautismo ${index + 1}`}
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
-                    </div>
-                    <button
                       type="button"
-                      onClick={() => removeBaptismPhoto(index)}
-                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Eliminar foto de bautismo"
-                      aria-label={`Eliminar foto de bautismo ${index + 1}`}
+                      variant="outline"
+                      size="sm"
+                      onClick={removePhoto}
                     >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
+                      <X className="mr-2 h-4 w-4" />
+                      Quitar
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Formatos: JPG, PNG, GIF. Máximo 5MB.
+                </p>
               </div>
-            )}
-            
-            <p className="text-xs text-muted-foreground">
-              Puedes subir hasta 10 fotos. Formatos: JPG, PNG, GIF. Máximo 5MB por foto.
-            </p>
+            </div>
           </div>
-        </div>
 
-        {/* Ordenanzas */}
-        <FormField
-          control={form.control}
-          name="ordinances"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Ordenanzas Recibidas</FormLabel>
-              <FormDescription>
-                Selecciona las ordenanzas que ha recibido el miembro.
-              </FormDescription>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                {(Object.entries(OrdinanceLabels) as [Ordinance, string][]).map(([ordinance, label]) => (
-                  <div key={ordinance} className="flex items-center space-x-2">
-                    <Checkbox
-                      checked={field.value?.includes(ordinance) || false}
-                      onCheckedChange={(checked) => {
-                        const currentOrdinances = field.value || [];
-                        if (checked) {
-                          field.onChange([...currentOrdinances, ordinance]);
-                        } else {
-                          field.onChange(currentOrdinances.filter(o => o !== ordinance));
-                        }
+          {/* Name Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="firstName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nombre *</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Nombre"
+                      {...field}
+                      onBlur={(e) => {
+                        field.onBlur();
+                        const firstName = e.target.value.trim();
+                        const lastName = form.getValues('lastName')?.trim() || '';
+                        checkForDuplicates(firstName, lastName);
                       }}
                     />
-                    <Label className="text-sm font-normal cursor-pointer" htmlFor={ordinance}>
-                      {label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Maestros Ministrantes */}
-        <FormField
-          control={form.control}
-          name="ministeringTeachers"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Maestros Ministrantes</FormLabel>
-              <FormDescription>
-                Selecciona los miembros que ministran a esta persona/familia.
-              </FormDescription>
-              <div className="max-h-48 overflow-y-auto border rounded-md p-3">
-                {loadingMembers ? (
-                  <div className="text-sm text-muted-foreground text-center py-4">
-                    Cargando miembros disponibles...
-                  </div>
-                ) : availableMembers.length === 0 ? (
-                  <div className="text-sm text-muted-foreground text-center py-4">
-                    No hay miembros disponibles para asignar.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {availableMembers.map((availableMember) => {
-                      const memberName = `${availableMember.firstName} ${availableMember.lastName}`;
-                      const isSelected = field.value?.includes(memberName) || false;
-                      
-                      return (
-                        <div key={availableMember.id} className="flex items-center space-x-3">
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={(checked) => {
-                              const currentTeachers = field.value || [];
-                              if (checked) {
-                                field.onChange([...currentTeachers, memberName]);
-                              } else {
-                                field.onChange(currentTeachers.filter(name => name !== memberName));
-                              }
-                            }}
-                          />
-                          <div className="flex items-center space-x-2 flex-1">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={availableMember.photoURL} />
-                              <AvatarFallback className="text-xs">
-                                {availableMember.firstName.charAt(0)}{availableMember.lastName.charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <Label className="text-sm font-normal cursor-pointer">
-                                {memberName}
-                              </Label>
-                              {availableMember.status && (
-                                <p className="text-xs text-muted-foreground capitalize">
-                                  {availableMember.status === 'active' ? 'Activo' : 
-                                   availableMember.status === 'less_active' ? 'Menos Activo' :
-                                   availableMember.status === 'inactive' ? 'Inactivo' : 'Fallecido'}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              {field.value && field.value.length > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  {field.value.length} ministrante(s) seleccionado(s)
-                </p>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Status */}
-        <FormField
-          control={form.control}
-          name="status"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Estado de Actividad *</FormLabel>
-              <Select
-                onValueChange={field.onChange}
-                value={normalizeMemberStatus(field.value)}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona el estado" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="active">Activo</SelectItem>
-                  <SelectItem value="less_active">Menos Activo</SelectItem>
-                  <SelectItem value="inactive">Inactivo</SelectItem>
-                  <SelectItem value="deceased">Fallecido</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormDescription>
-                El estado determina cómo aparece el miembro en los reportes y seguimientos.
-              </FormDescription>
-              {member && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Estado guardado: {member.status === 'active' ? 'Activo' :
-                                   member.status === 'less_active' ? 'Menos Activo' :
-                                   member.status === 'inactive' ? 'Inactivo' : 'Fallecido'}
-                </p>
+            />
+            <FormField
+              control={form.control}
+              name="lastName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Apellido *</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Apellido"
+                      {...field}
+                      onBlur={(e) => {
+                        field.onBlur();
+                        const lastName = e.target.value.trim();
+                        const firstName = form.getValues('firstName')?.trim() || '';
+                        checkForDuplicates(firstName, lastName);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+            />
+          </div>
 
-        {watchedStatus === 'deceased' && (
+          {/* Phone Number */}
           <FormField
             control={form.control}
-            name="deathDate"
+            name="phoneNumber"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Fecha de Fallecimiento</FormLabel>
+                <FormLabel>Número de Teléfono</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder="DD/MM/YYYY"
-                    value={deathDateInput}
-                    onChange={(e) => {
-                      const inputValue = e.target.value;
-                      setDeathDateInput(inputValue);
-
-                      const parsedDate = parseDate(inputValue, new Date().getFullYear());
-                      if (parsedDate || !inputValue.trim()) {
-                        field.onChange(parsedDate);
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const inputValue = e.target.value;
-                      const parsedDate = parseDate(inputValue, new Date().getFullYear());
-
-                      if (parsedDate) {
-                        const formattedDate = formatDateForDisplay(parsedDate);
-                        setDeathDateInput(formattedDate);
-                        field.onChange(parsedDate);
-                      } else if (!inputValue.trim()) {
-                        setDeathDateInput('');
-                        field.onChange(undefined);
-                      } else {
-                        field.onChange(undefined);
-                      }
-
-                      field.onBlur();
-                    }}
+                    placeholder="Ej: +1 234 567 8900"
+                    type="tel"
+                    {...field}
                   />
                 </FormControl>
                 <FormDescription>
-                  Opcional. Ingresa la fecha en formato DD/MM/YYYY (ejemplo: 15/03/1990)
+                  Opcional. Incluye el código de país si es necesario.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
-        )}
 
-        <div className={member ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 sm:grid-cols-2 gap-4'}>
+          {/* Member ID */}
           <FormField
             control={form.control}
-            name="isUrgent"
+            name="memberId"
             render={({ field }) => (
-              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+              <FormItem>
+                <FormLabel>{t('memberProfile.memberId')}</FormLabel>
                 <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
+                  <Input
+                    placeholder="Ej: 123456"
+                    {...field}
                   />
                 </FormControl>
-                <div className="space-y-1 leading-none">
-                  <FormLabel className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-orange-500" />
-                    Marcar como Urgente
-                  </FormLabel>
-                  <FormDescription>
-                    Indica que este miembro requiere atención prioritaria.
-                  </FormDescription>
-                </div>
+                <FormDescription>
+                  {t('memberProfile.memberIdDescription')}
+                </FormDescription>
+                <FormMessage />
               </FormItem>
             )}
           />
-          {!member && (
+
+          {/* Birth Date */}
+          <FormField
+            control={form.control}
+            name="birthDate"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>Fecha de Nacimiento</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'w-full pl-3 text-left font-normal',
+                          !field.value && 'text-muted-foreground'
+                        )}
+                      >
+                        {field.value ? (
+                          <span className="capitalize">
+                            {format(field.value, "d 'de' LLLL 'de' yyyy", { locale: es })}
+                          </span>
+                        ) : (
+                          <span>Selecciona una fecha</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={field.onChange}
+                      defaultMonth={field.value}
+                      disabled={(date) =>
+                        date > new Date() || date < new Date('1900-01-01')
+                      }
+                      locale={es}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Baptism Date */}
+          <FormField
+            control={form.control}
+            name="baptismDate"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>Fecha de Bautismo</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'w-full pl-3 text-left font-normal',
+                          !field.value && 'text-muted-foreground'
+                        )}
+                      >
+                        {field.value ? (
+                          <span className="capitalize">
+                            {format(field.value, "d 'de' LLLL 'de' yyyy", { locale: es })}
+                          </span>
+                        ) : (
+                          <span>Selecciona una fecha</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={field.onChange}
+                      defaultMonth={field.value}
+                      disabled={(date) => date < new Date('1900-01-01')}
+                      locale={es}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Baptism Photos */}
+          <div className="space-y-4">
+            <Label>Fotos de Bautismo (Opcional)</Label>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <Label htmlFor="baptism-photos-upload" className="cursor-pointer">
+                  <Button type="button" variant="outline" size="sm" asChild>
+                    <span>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Agregar Fotos
+                    </span>
+                  </Button>
+                </Label>
+                <Input
+                  id="baptism-photos-upload"
+                  ref={baptismPhotosInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleBaptismPhotosChange}
+                  className="hidden"
+                />
+              </div>
+
+              {baptismPhotoPreviews.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {baptismPhotoPreviews.map((preview, index) => (
+                    <div key={index} className="relative group">
+                      <div className="relative w-full h-24 rounded-md border overflow-hidden">
+                        <Image
+                          src={preview}
+                          alt={`Foto de bautismo ${index + 1}`}
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeBaptismPhoto(index)}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Eliminar foto de bautismo"
+                        aria-label={`Eliminar foto de bautismo ${index + 1}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">
+                Puedes subir hasta 10 fotos. Formatos: JPG, PNG, GIF. Máximo 5MB por foto.
+              </p>
+            </div>
+          </div>
+
+          {/* Ordenanzas */}
+          <FormField
+            control={form.control}
+            name="ordinances"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Ordenanzas Recibidas</FormLabel>
+                <FormDescription>
+                  Selecciona las ordenanzas que ha recibido el miembro.
+                </FormDescription>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                  {(Object.entries(OrdinanceLabels) as [Ordinance, string][]).map(([ordinance, label]) => (
+                    <div key={ordinance} className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={field.value?.includes(ordinance) || false}
+                        onCheckedChange={(checked) => {
+                          const currentOrdinances = field.value || [];
+                          if (checked) {
+                            field.onChange([...currentOrdinances, ordinance]);
+                          } else {
+                            field.onChange(currentOrdinances.filter(o => o !== ordinance));
+                          }
+                        }}
+                      />
+                      <Label className="text-sm font-normal cursor-pointer" htmlFor={ordinance}>
+                        {label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Maestros Ministrantes */}
+          <FormField
+            control={form.control}
+            name="ministeringTeachers"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Maestros Ministrantes</FormLabel>
+                <FormDescription>
+                  Selecciona los miembros que ministran a esta persona/familia.
+                </FormDescription>
+                <div className="max-h-48 overflow-y-auto border rounded-md p-3">
+                  {loadingMembers ? (
+                    <div className="text-sm text-muted-foreground text-center py-4">
+                      Cargando miembros disponibles...
+                    </div>
+                  ) : availableMembers.length === 0 ? (
+                    <div className="text-sm text-muted-foreground text-center py-4">
+                      No hay miembros disponibles para asignar.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {availableMembers.map((availableMember) => {
+                        const memberName = `${availableMember.firstName} ${availableMember.lastName}`;
+                        const isSelected = field.value?.includes(memberName) || false;
+
+                        return (
+                          <div key={availableMember.id} className="flex items-center space-x-3">
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                const currentTeachers = field.value || [];
+                                if (checked) {
+                                  field.onChange([...currentTeachers, memberName]);
+                                } else {
+                                  field.onChange(currentTeachers.filter(name => name !== memberName));
+                                }
+                              }}
+                            />
+                            <div className="flex items-center space-x-2 flex-1">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={availableMember.photoURL} />
+                                <AvatarFallback className="text-xs">
+                                  {availableMember.firstName.charAt(0)}{availableMember.lastName.charAt(0)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <Label className="text-sm font-normal cursor-pointer">
+                                  {memberName}
+                                </Label>
+                                {availableMember.status && (
+                                  <p className="text-xs text-muted-foreground capitalize">
+                                    {availableMember.status === 'active' ? 'Activo' :
+                                      availableMember.status === 'less_active' ? 'Menos Activo' :
+                                        availableMember.status === 'inactive' ? 'Inactivo' : 'Fallecido'}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                {field.value && field.value.length > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {field.value.length} ministrante(s) seleccionado(s)
+                  </p>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Status */}
+          <FormField
+            control={form.control}
+            name="status"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Estado de Actividad *</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  value={normalizeMemberStatus(field.value)}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona el estado" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="active">Activo</SelectItem>
+                    <SelectItem value="less_active">Menos Activo</SelectItem>
+                    <SelectItem value="inactive">Inactivo</SelectItem>
+                    <SelectItem value="deceased">Fallecido</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  El estado determina cómo aparece el miembro en los reportes y seguimientos.
+                </FormDescription>
+
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {watchedStatus === 'deceased' && (
             <FormField
               control={form.control}
-              name="isInCouncil"
+              name="deathDate"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                <FormItem>
+                  <FormLabel>Fecha de Fallecimiento</FormLabel>
                   <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
+                    <Input
+                      placeholder="DD/MM/YYYY"
+                      value={deathDateInput}
+                      onChange={(e) => {
+                        const inputValue = e.target.value;
+                        setDeathDateInput(inputValue);
+
+                        const parsedDate = parseDate(inputValue, new Date().getFullYear());
+                        if (parsedDate || !inputValue.trim()) {
+                          field.onChange(parsedDate);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const inputValue = e.target.value;
+                        const parsedDate = parseDate(inputValue, new Date().getFullYear());
+
+                        if (parsedDate) {
+                          const formattedDate = formatDateForDisplay(parsedDate);
+                          setDeathDateInput(formattedDate);
+                          field.onChange(parsedDate);
+                        } else if (!inputValue.trim()) {
+                          setDeathDateInput('');
+                          field.onChange(undefined);
+                        } else {
+                          field.onChange(undefined);
+                        }
+
+                        field.onBlur();
+                      }}
                     />
                   </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel className="flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-blue-500" />
-                      En Consejo de Barrio
-                    </FormLabel>
-                    <FormDescription>
-                      Selecciona para incluir en el consejo de barrio.
-                    </FormDescription>
-                  </div>
+                  <FormDescription>
+                    Opcional. Ingresa la fecha en formato DD/MM/YYYY (ejemplo: 15/03/1990)
+                  </FormDescription>
+                  <FormMessage />
                 </FormItem>
               )}
             />
           )}
-        </div>
 
-        {/* Form Actions */}
-        <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 space-y-2 space-y-reverse sm:space-y-0">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            disabled={loading}
-          >
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={loading}>
-            {loading ? (
-              <>
-                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-current" />
-                {member ? 'Actualizando...' : 'Creando...'}
-              </>
-            ) : (
-              `${member ? 'Actualizar' : 'Crear'} Miembro`
-            )}
-          </Button>
-        </div>
-      </form>
-    </Form>
+          {/* Form Actions */}
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 space-y-2 space-y-reverse sm:space-y-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={loading}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? (
+                <>
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-current" />
+                  {member ? 'Actualizando...' : 'Creando...'}
+                </>
+              ) : (
+                `${member ? 'Actualizar' : 'Crear'} Miembro`
+              )}
+            </Button>
+          </div>
+        </form>
+      </Form>
     </>
   );
 }

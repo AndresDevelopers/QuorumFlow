@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Plus, Search, Filter, Edit, Trash2, Users, UserCheck, UserX, Eye, ChevronUp, RefreshCw, Clock, CheckCircle, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Filter, Edit, Trash2, Users, UserCheck, UserX, Eye, ChevronUp, AlertTriangle } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -182,22 +182,7 @@ export default function MembersPage() {
       router.push(returnTo);
       return;
     }
-
-    // Clear cache and refresh immediately
-    clearCache();
-
-    // Force refresh to get updated data with multiple attempts
-    fetchMembers(true);
-    
-    // Additional refresh after a short delay to ensure data is updated
-    setTimeout(() => {
-      fetchMembers(true);
-    }, 500);
-    
-    // Final refresh attempt
-    setTimeout(() => {
-      fetchMembers(true);
-    }, 1500);
+    // Los miembros se actualizan automáticamente via el listener en tiempo real de Firestore
   };
 
   const handleViewProfile = (memberId: string) => {
@@ -266,20 +251,20 @@ export default function MembersPage() {
       member.lastName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || member.status === statusFilter;
     const isBaptized = member.ordinances?.includes('baptism') ?? false;
-    
+
     // Safely get baptism date
     const baptismDate = safeGetDate(member.baptismDate);
     const hasFutureBaptism = baptismDate && baptismDate > new Date();
-    
+
     const matchesBaptism = baptismFilter === 'all' ||
       (baptismFilter === 'baptized' && isBaptized) ||
       (baptismFilter === 'not_baptized' && !isBaptized && hasFutureBaptism);
-    
+
     // Filter for urgent status
     const matchesUrgent = urgentFilter === 'all' ||
       (urgentFilter === 'urgent' && member.isUrgent) ||
       (urgentFilter === 'not_urgent' && !member.isUrgent);
-    
+
     return matchesSearch && matchesStatus && matchesBaptism && matchesUrgent;
   });
 
@@ -308,16 +293,6 @@ export default function MembersPage() {
           />
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-          <Button
-            variant="outline"
-            onClick={() => fetchMembers(true)}
-            disabled={loading || syncStatus === 'syncing'}
-            title="Actualizar lista de miembros"
-            className="w-full sm:w-auto"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${(loading || syncStatus === 'syncing') ? 'animate-spin' : ''}`} />
-            {syncStatus === 'syncing' ? 'Sincronizando...' : 'Actualizar'}
-          </Button>
           <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
             <DialogTrigger asChild>
               <Button className="w-full sm:w-auto">
@@ -533,7 +508,7 @@ export default function MembersPage() {
                           {safeFormatDate(member.birthDate, 'd MMM yyyy', { locale: es })}
                         </TableCell>
                         <TableCell>
-                          {member.deathDate 
+                          {member.deathDate
                             ? safeFormatDate(member.deathDate, 'd MMM yyyy', { locale: es })
                             : '-'}
                         </TableCell>

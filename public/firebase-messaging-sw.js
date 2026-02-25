@@ -1,9 +1,8 @@
-// Import Firebase Messaging for Service Worker
-importScripts('https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js');
-importScripts('https://www.gstatic.com/firebasejs/9.6.10/firebase-messaging.js');
+// Firebase Messaging Service Worker — Modular SDK (v10 compat)
+// Must match the Firebase version used by the app
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
 
-// Initialize the Firebase app in the service worker by passing in the messagingSenderId.
-// Usar valores predeterminados seguros que serán reemplazados por el script de build si es necesario
 firebase.initializeApp({
   apiKey: 'AIzaSyBsUZcqxqrseCd0xchrNRw6zAzaJQG74YY',
   authDomain: 'quorumflow-dlqh0.firebaseapp.com',
@@ -13,44 +12,53 @@ firebase.initializeApp({
   appId: '1:865790845881:web:522f762727495861e20c68'
 });
 
-// Retrieve an instance of Firebase Messaging so that it can handle background messages
 const messaging = firebase.messaging();
 
-// Handle background messages
-messaging.onBackgroundMessage(function(payload) {
-  console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  // Customize notification here
-  const notificationTitle = payload.notification.title || 'QuorumFlow';
+// Handle background messages (app is in background or closed)
+messaging.onBackgroundMessage(function (payload) {
+  console.log('[firebase-messaging-sw.js] Received background message:', payload);
+
+  const notificationTitle = payload.notification?.title || payload.data?.title || 'QuorumFlow';
+  const notificationBody = payload.notification?.body || payload.data?.body || 'Tienes una nueva notificación';
+  const notificationUrl = payload.data?.url || payload.fcmOptions?.link || '/';
+  const notificationTag = payload.data?.tag || 'quorumflow-notification';
+
   const notificationOptions = {
-    body: payload.notification.body || 'Tienes una nueva notificación',
+    body: notificationBody,
     icon: '/logo.svg',
     badge: '/logo.svg',
+    tag: notificationTag,
+    renotify: true,
     data: {
-      url: payload.data && payload.data.url ? payload.data.url : '/'
-    }
+      url: notificationUrl
+    },
+    // Vibrate pattern for Android
+    vibrate: [200, 100, 200]
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// Handle notification click
-self.addEventListener('notificationclick', function(event) {
+// Handle notification click — open or focus the correct URL
+self.addEventListener('notificationclick', function (event) {
   console.log('[firebase-messaging-sw.js] Notification click received.');
   event.notification.close();
 
-  const urlToOpen = event.notification.data.url || '/';
+  const urlToOpen = event.notification.data?.url || '/';
 
   event.waitUntil(
     clients.matchAll({
       type: 'window',
       includeUncontrolled: true
-    }).then(function(clientList) {
+    }).then(function (clientList) {
+      // Try to focus an existing window with this URL
       for (let i = 0; i < clientList.length; i++) {
         const client = clientList[i];
-        if (client.url === urlToOpen && 'focus' in client) {
+        if (client.url.includes(urlToOpen) && 'focus' in client) {
           return client.focus();
         }
       }
+      // If no existing window → open a new one
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }

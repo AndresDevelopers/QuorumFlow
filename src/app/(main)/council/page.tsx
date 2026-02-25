@@ -3,9 +3,9 @@
 
 export const dynamic = 'force-dynamic';
 
-import { getDocs, query, orderBy, where, Timestamp, doc, updateDoc, getDoc, deleteDoc, collection } from 'firebase/firestore';
-import { membersCollection, futureMembersCollection, ministeringCollection, annotationsCollection, servicesCollection, activitiesCollection, convertsCollection } from '@/lib/collections';
-import type { Member, FutureMember, Companionship, Family, Annotation, Service, Activity, Convert } from '@/lib/types';
+import { getDocs, query, orderBy, where, Timestamp, doc, updateDoc, getDoc, deleteDoc, collection, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { membersCollection, futureMembersCollection, ministeringCollection, annotationsCollection, servicesCollection, activitiesCollection, newConvertFriendsCollection } from '@/lib/collections';
+import type { Member, FutureMember, Companionship, Family, Annotation, Service, Activity, NewConvertFriendship } from '@/lib/types';
 import { getLessActiveMembers, getUrgentMembers, normalizeMemberStatus, updateMember } from '@/lib/members-data';
 import { createNotificationsForAll } from '@/lib/notification-helpers';
 import { useCallback, useEffect, useState } from 'react';
@@ -27,9 +27,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { format, subMonths, subYears, addDays, subHours, isAfter, isBefore } from 'date-fns';
+import { format, subYears, addDays, subHours, isAfter, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { UserCheck, Users, CalendarClock, AlertTriangle, CheckCircle, NotebookPen, Trash2, Save, Wrench, BellRing, UserMinus, Calendar, Info } from 'lucide-react';
+import { UserCheck, UserMinus, Users, CalendarClock, AlertTriangle, CheckCircle, Wrench, BellRing, Calendar, Info, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -43,37 +43,37 @@ import { VoiceAnnotations } from '@/components/shared/voice-annotations';
 import { useAuth } from '@/contexts/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import logger from '@/lib/logger';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { ConvertInfoSheet, type ConvertWithInfo } from '@/app/(main)/converts/convert-info-sheet';
+import { syncMinisteringAssignments } from '@/lib/ministering-sync';
 
 
 async function getAnnotations(source: 'dashboard' | 'council', forCouncil: boolean = false): Promise<Annotation[]> {
-    try {
-        let q;
-        if (forCouncil) {
-             const fromDashboardQuery = query(annotationsCollection, where('isCouncilAction', '==', true), where('isResolved', '==', false));
-             const fromCouncilQuery = query(annotationsCollection, where('source', '==', 'council'), where('isResolved', '==', false));
-             
-             const [dashboardSnapshot, councilSnapshot] = await Promise.all([
-                 getDocs(fromDashboardQuery),
-                 getDocs(fromCouncilQuery)
-             ]);
+  try {
+    let q;
+    if (forCouncil) {
+      const fromDashboardQuery = query(annotationsCollection, where('isCouncilAction', '==', true), where('isResolved', '==', false));
+      const fromCouncilQuery = query(annotationsCollection, where('source', '==', 'council'), where('isResolved', '==', false));
 
-             const dashboardAnns = dashboardSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Annotation));
-             const councilAnns = councilSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Annotation));
-             
-             const allAnns = new Map([...dashboardAnns, ...councilAnns].map(ann => [ann.id, ann]));
-             return Array.from(allAnns.values());
-        } else {
-            q = query(annotationsCollection, where('source', '==', source), where('isResolved', '==', false), orderBy('createdAt', 'desc'));
-            const snapshot = await getDocs(q);
-            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Annotation));
-        }
+      const [dashboardSnapshot, councilSnapshot] = await Promise.all([
+        getDocs(fromDashboardQuery),
+        getDocs(fromCouncilQuery)
+      ]);
 
-    } catch (error) {
-        console.error("Error fetching annotations", { error, source, forCouncil });
-        return [];
+      const dashboardAnns = dashboardSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Annotation));
+      const councilAnns = councilSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Annotation));
+
+      const allAnns = new Map([...dashboardAnns, ...councilAnns].map(ann => [ann.id, ann]));
+      return Array.from(allAnns.values());
+    } else {
+      q = query(annotationsCollection, where('source', '==', source), where('isResolved', '==', false), orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Annotation));
     }
+
+  } catch (error) {
+    console.error("Error fetching annotations", { error, source, forCouncil });
+    return [];
+  }
 }
 
 async function getCouncilMembers(): Promise<Member[]> {
@@ -117,53 +117,47 @@ async function getUpcomingBaptisms(): Promise<FutureMember[]> {
 
   const snapshot = await getDocs(q);
   const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FutureMember));
-  
-  return data.sort((a,b) => a.baptismDate.toMillis() - b.baptismDate.toMillis());
+
+  return data.sort((a, b) => a.baptismDate.toMillis() - b.baptismDate.toMillis());
 }
 
 type UrgentFamily = Family & { companionshipId: string, companions: string[] };
 
 async function getUrgentNeeds(): Promise<UrgentFamily[]> {
-    const snapshot = await getDocs(ministeringCollection);
-    const urgentNeeds: UrgentFamily[] = [];
+  const snapshot = await getDocs(ministeringCollection);
+  const urgentNeeds: UrgentFamily[] = [];
 
-    snapshot.forEach(doc => {
-        const comp = { id: doc.id, ...doc.data() } as Companionship;
-        comp.families.forEach(family => {
-            if (family.isUrgent) {
-                urgentNeeds.push({
-                    ...family,
-                    companionshipId: comp.id,
-                    companions: comp.companions,
-                });
-            }
+  snapshot.forEach(doc => {
+    const comp = { id: doc.id, ...doc.data() } as Companionship;
+    comp.families.forEach(family => {
+      if (family.isUrgent) {
+        urgentNeeds.push({
+          ...family,
+          companionshipId: comp.id,
+          companions: comp.companions,
         });
+      }
     });
+  });
 
-    return urgentNeeds;
+  return urgentNeeds;
 }
 
 async function getCouncilAnnotations(): Promise<Annotation[]> {
-    const councilAnns = await getAnnotations('council', true);
-    return councilAnns.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+  const councilAnns = await getAnnotations('council', true);
+  return councilAnns.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
 }
 
 async function getUpcomingServices(): Promise<Service[]> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // We need two queries because Firestore doesn't support 'OR' or '!=' in a way that works for this.
-  // One query for documents where councilNotified is false
-  const notifiedFalseQuery = query(
-    servicesCollection,
-    where('date', '>=', Timestamp.fromDate(today)),
-    where('councilNotified', '==', false)
-  );
-  
+  // Query all upcoming services and filter out already-notified ones in memory
+  // (Firestore doesn't support OR / != cleanly for this pattern)
   // A separate query to get documents that don't have the councilNotified field at all
   const coll = collection(firestore, 'c_servicios');
   const allServicesSnapshot = await getDocs(query(coll, where('date', '>=', Timestamp.fromDate(today))));
-  
+
   const notNotifiedOrFieldMissing = allServicesSnapshot.docs
     .map(doc => ({ id: doc.id, ...doc.data() } as Service))
     .filter(service => service.councilNotified === false || service.councilNotified === undefined);
@@ -177,23 +171,23 @@ async function getUpcomingActivities(): Promise<Activity[]> {
   try {
     const now = new Date();
     const fourteenDaysFromNow = addDays(now, 14);
-    
+
     // Get all activities using the same query as Reports page
     const q = query(activitiesCollection, orderBy('date', 'desc'));
     const snapshot = await getDocs(q);
-    
+
     const activities = snapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() } as Activity))
       .filter(activity => {
         const activityDate = activity.date.toDate();
-        
+
         // Show activities that are:
         // 1. Within 14 days from now (upcoming)
         // 2. Not past their date (hide after date passes)
         return isBefore(activityDate, fourteenDaysFromNow) && isAfter(activityDate, now);
       })
       .sort((a, b) => a.date.toMillis() - b.date.toMillis()); // Sort by date ascending for council view
-    
+
     return activities;
   } catch (error) {
     logger.error({ error, message: 'Error fetching upcoming activities from Reports data source' });
@@ -201,6 +195,30 @@ async function getUpcomingActivities(): Promise<Activity[]> {
   }
 }
 
+
+// Helper to convert a Member (convert) into the ConvertWithInfo shape the sheet expects
+const convertInfoCollection = (convertId: string) => doc(membersCollection.firestore, 'c_conversos_info', convertId);
+
+function memberToConvertWithInfo(member: Member): ConvertWithInfo {
+  return {
+    id: `member_${member.id}`,
+    name: `${member.firstName} ${member.lastName}`,
+    baptismDate: member.baptismDate!,
+    photoURL: member.photoURL,
+    councilCompleted: member.councilCompleted || false,
+    councilCompletedAt: member.councilCompletedAt || null,
+    observation: '',
+    missionaryReference: '',
+    memberId: member.id,
+    memberData: member,
+    ministeringTeachers: member.ministeringTeachers || [],
+    friendship: null,
+    calling: '',
+    notes: '',
+    recommendationActive: false,
+    selfRelianceCourse: false,
+  } as ConvertWithInfo;
+}
 
 export default function CouncilPage() {
   const { user, loading: authLoading } = useAuth();
@@ -215,12 +233,17 @@ export default function CouncilPage() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const [observationInputs, setObservationInputs] = useState<Record<string, string>>({});
+  // Convert Info Sheet state
+  const [selectedConvert, setSelectedConvert] = useState<ConvertWithInfo | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [sheetSaving, setSheetSaving] = useState(false);
+  const [sheetLoading, setSheetLoading] = useState<string | null>(null); // memberId being loaded
+  const [availableMembers, setAvailableMembers] = useState<Member[]>([]);
 
   const fetchAllData = useCallback(async () => {
     setLoading(true);
     try {
-        const [converts, baptisms, needs, notes, upcomingServices, lessActive, urgent, activities] = await Promise.all([
+      const [converts, baptisms, needs, notes, upcomingServices, lessActive, urgent, activities, membersSnap] = await Promise.all([
         getCouncilMembers(),
         getUpcomingBaptisms(),
         getUrgentNeeds(),
@@ -229,32 +252,28 @@ export default function CouncilPage() {
         getLessActiveMembers(),
         getUrgentMembers(),
         getUpcomingActivities(),
-        ]);
-        setCouncilConverts(converts);
-        setUpcomingBaptisms(baptisms);
-        setUrgentNeeds(needs);
-        setAnnotations(notes);
-        setServices(upcomingServices);
-        setLessActiveMembers(lessActive);
-        setUrgentMembers(urgent);
-        setUpcomingActivities(activities);
+        getDocs(query(membersCollection, orderBy('firstName', 'asc'))),
+      ]);
+      setCouncilConverts(converts);
+      setUpcomingBaptisms(baptisms);
+      setUrgentNeeds(needs);
+      setAnnotations(notes);
+      setServices(upcomingServices);
+      setLessActiveMembers(lessActive);
+      setUrgentMembers(urgent);
+      setUpcomingActivities(activities);
+      setAvailableMembers(membersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Member)));
 
-        // Send daily notifications for urgent members (fire-and-forget)
-        sendDailyUrgentNotifications(urgent).catch(() => {});
-
-        const initialObservations: Record<string, string> = {};
-        converts.forEach((c: Member) => {
-            initialObservations[c.id] = c.lessActiveObservation || '';
-        });
-        setObservationInputs(initialObservations);
+      // Send daily notifications for urgent members (fire-and-forget)
+      sendDailyUrgentNotifications(urgent).catch(() => { });
     } catch (error) {
-        logger.error({ error, message: 'Error fetching council data' });
-        toast({ title: "Error", description: "No se pudieron cargar los datos del consejo.", variant: "destructive" });
+      logger.error({ error, message: 'Error fetching council data' });
+      toast({ title: "Error", description: "No se pudieron cargar los datos del consejo.", variant: "destructive" });
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   }, [toast]);
-  
+
   useEffect(() => {
     if (authLoading || !user) return;
     fetchAllData();
@@ -262,31 +281,31 @@ export default function CouncilPage() {
 
   const handleResolveAnnotation = async (id: string) => {
     try {
-        const annotationRef = doc(annotationsCollection, id);
-        const annotationSnap = await getDoc(annotationRef);
+      const annotationRef = doc(annotationsCollection, id);
+      const annotationSnap = await getDoc(annotationRef);
 
-        if (!annotationSnap.exists()) {
-             logger.warn({ annotationId: id, message: 'Attempted to resolve non-existent annotation' });
-             toast({ title: 'Error', description: 'Annotation not found.', variant: 'destructive' });
-             return;
-        }
+      if (!annotationSnap.exists()) {
+        logger.warn({ annotationId: id, message: 'Attempted to resolve non-existent annotation' });
+        toast({ title: 'Error', description: 'Annotation not found.', variant: 'destructive' });
+        return;
+      }
 
-        const annotationData = annotationSnap.data() as Annotation;
+      const annotationData = annotationSnap.data() as Annotation;
 
-        if (annotationData.source === 'council') {
-            await deleteDoc(annotationRef);
-        } else {
-            await updateDoc(annotationRef, {
-                isResolved: true,
-                isCouncilAction: false,
-            });
-        }
-        toast({ title: 'Anotación Resuelta', description: 'La anotación ha sido marcada como resuelta.' });
-        fetchAllData();
+      if (annotationData.source === 'council') {
+        await deleteDoc(annotationRef);
+      } else {
+        await updateDoc(annotationRef, {
+          isResolved: true,
+          isCouncilAction: false,
+        });
+      }
+      toast({ title: 'Anotación Resuelta', description: 'La anotación ha sido marcada como resuelta.' });
+      fetchAllData();
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        logger.error({ error: errorMessage, message: 'Error resolving annotation', id });
-        toast({ title: 'Error al Resolver', description: `Failed to resolve annotation: ${errorMessage}`, variant: 'destructive' });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage, message: 'Error resolving annotation', id });
+      toast({ title: 'Error al Resolver', description: `Failed to resolve annotation: ${errorMessage}`, variant: 'destructive' });
     }
   }
 
@@ -302,53 +321,143 @@ export default function CouncilPage() {
     }
   }
 
-  const handleSaveObservation = async (memberId: string) => {
-    const observation = observationInputs[memberId];
+  // ── Convert Info Sheet handlers ────────────────────────────────────────
+  const handleSaveConvertInfo = async (convertId: string, calling: string, notes: string, recommendationActive: boolean, selfRelianceCourse: boolean) => {
+    setSheetSaving(true);
     try {
-        const memberRef = doc(membersCollection, memberId);
-        await updateDoc(memberRef, { lessActiveObservation: observation });
-        toast({ title: 'Éxito', description: 'Observación guardada.' });
-        fetchAllData();
+      const infoRef = convertInfoCollection(convertId);
+      await setDoc(infoRef, { calling, notes, recommendationActive, selfRelianceCourse, updatedAt: Timestamp.now() }, { merge: true });
+      toast({ title: '✅ Información guardada', description: 'Los datos del converso se actualizaron correctamente.' });
     } catch (error) {
-        logger.error({ error, memberId, message: 'Error saving observation' });
-        toast({ title: 'Error', description: 'No se pudo guardar la observación.', variant: 'destructive' });
+      logger.error({ error, convertId, message: 'Error saving convert info from council' });
+      toast({ title: 'Error', description: 'No se pudo guardar la información.', variant: 'destructive' });
+    }
+    setSheetSaving(false);
+  };
+
+  const handleSaveFriends = async (convertId: string, convertName: string, friends: string[], friendshipId?: string) => {
+    setSheetSaving(true);
+    try {
+      if (friendshipId) {
+        if (friends.length === 0) {
+          await deleteDoc(doc(newConvertFriendsCollection, friendshipId));
+          toast({ title: '✅ Amigos eliminados', description: 'La asignación de amigos fue removida.' });
+        } else {
+          await updateDoc(doc(newConvertFriendsCollection, friendshipId), { friends, updatedAt: Timestamp.now() });
+          toast({ title: '✅ Amigos guardados', description: 'La asignación de amigos se actualizó.' });
+        }
+      } else if (friends.length > 0) {
+        await addDoc(newConvertFriendsCollection, { convertId, convertName, friends, assignedAt: serverTimestamp() });
+        toast({ title: '✅ Amigos asignados', description: 'Se asignaron amigos al converso.' });
+      }
+    } catch (error) {
+      logger.error({ error, convertId, message: 'Error saving friends from council' });
+      toast({ title: 'Error', description: 'No se pudo guardar la asignación de amigos.', variant: 'destructive' });
+    }
+    setSheetSaving(false);
+  };
+
+  const handleSaveTeachers = async (memberId: string, teachers: string[], previousTeachers: string[]) => {
+    setSheetSaving(true);
+    try {
+      await updateDoc(doc(membersCollection, memberId), { ministeringTeachers: teachers, updatedAt: Timestamp.now() });
+      const member = availableMembers.find(m => m.id === memberId);
+      if (member) {
+        await syncMinisteringAssignments({ ...member, ministeringTeachers: teachers }, previousTeachers);
+      }
+      toast({ title: '✅ Maestros guardados', description: 'Los maestros ministrantes se actualizaron.' });
+    } catch (error) {
+      logger.error({ error, memberId, message: 'Error saving teachers from council' });
+      toast({ title: 'Error', description: 'No se pudo guardar los maestros ministrantes.', variant: 'destructive' });
+    }
+    setSheetSaving(false);
+  };
+
+
+  // Opens the sheet AFTER loading all real Firestore data.
+  // The convertId is `member_${member.id}` — the same key the Converts page uses,
+  // so any edit here is immediately visible there too.
+  const openConvertSheet = async (member: Member) => {
+    setSheetLoading(member.id);
+    const convertId = `member_${member.id}`;
+    try {
+      const [infoSnap, friendshipsSnap, memberSnap] = await Promise.all([
+        getDoc(convertInfoCollection(convertId)),
+        getDocs(query(newConvertFriendsCollection, where('convertId', '==', convertId))),
+        getDoc(doc(membersCollection, member.id)),
+      ]);
+
+      const info = infoSnap.exists() ? infoSnap.data() : null;
+      const friendship = friendshipsSnap.docs.length > 0
+        ? ({ id: friendshipsSnap.docs[0].id, ...friendshipsSnap.docs[0].data() } as NewConvertFriendship)
+        : null;
+      const freshMember = memberSnap.exists()
+        ? ({ id: memberSnap.id, ...memberSnap.data() } as Member)
+        : member;
+
+      setSelectedConvert({
+        id: convertId,
+        name: `${member.firstName} ${member.lastName}`,
+        baptismDate: member.baptismDate!,
+        photoURL: member.photoURL,
+        councilCompleted: freshMember.councilCompleted || false,
+        councilCompletedAt: freshMember.councilCompletedAt || null,
+        observation: '',
+        missionaryReference: '',
+        memberId: member.id,
+        memberData: freshMember,
+        ministeringTeachers: freshMember.ministeringTeachers || [],
+        friendship,
+        calling: info?.calling || '',
+        notes: info?.notes || '',
+        recommendationActive: info?.recommendationActive === true,
+        selfRelianceCourse: info?.selfRelianceCourse === true,
+      } as ConvertWithInfo);
+
+      setIsSheetOpen(true);
+    } catch (error) {
+      logger.error({ error, memberId: member.id, message: 'Error loading convert info for council sheet' });
+      toast({ title: 'Error', description: 'No se pudo cargar la información del converso.', variant: 'destructive' });
+    } finally {
+      setSheetLoading(null);
     }
   };
 
+
   const handleMarkCouncilCompleted = async (memberId: string) => {
-      try {
-        const memberRef = doc(membersCollection, memberId);
-        await updateDoc(memberRef, {
-            councilCompleted: true,
-            councilCompletedAt: Timestamp.now()
-        });
-        toast({ title: 'Éxito', description: 'Seguimiento de miembro marcado como completado.' });
-        fetchAllData();
-      } catch (error) {
-        logger.error({ error, memberId, message: 'Error marking council as completed' });
-        toast({ title: 'Error', description: 'No se pudo marcar como completado.', variant: 'destructive' });
-      }
+    try {
+      const memberRef = doc(membersCollection, memberId);
+      await updateDoc(memberRef, {
+        councilCompleted: true,
+        councilCompletedAt: Timestamp.now()
+      });
+      toast({ title: 'Éxito', description: 'Seguimiento de miembro marcado como completado.' });
+      fetchAllData();
+    } catch (error) {
+      logger.error({ error, memberId, message: 'Error marking council as completed' });
+      toast({ title: 'Error', description: 'No se pudo marcar como completado.', variant: 'destructive' });
+    }
   }
 
   const handleResolveUrgentNeed = async (companionshipId: string, familyName: string) => {
     try {
-        const companionshipRef = doc(ministeringCollection, companionshipId);
-        const companionshipSnap = await getDoc(companionshipRef);
+      const companionshipRef = doc(ministeringCollection, companionshipId);
+      const companionshipSnap = await getDoc(companionshipRef);
 
-        if (!companionshipSnap.exists()) throw new Error("Companionship not found");
-        
-        const companionship = companionshipSnap.data() as Companionship;
-        const familyIndex = companionship.families.findIndex(f => f.name === familyName);
-        if (familyIndex === -1) throw new Error("Family not found");
+      if (!companionshipSnap.exists()) throw new Error("Companionship not found");
 
-        const updatedFamilies = [...companionship.families];
-        updatedFamilies[familyIndex] = { ...updatedFamilies[familyIndex], isUrgent: false, observation: '' };
-        await updateDoc(companionshipRef, { families: updatedFamilies });
-        toast({ title: 'Éxito', description: 'La necesidad urgente ha sido marcada como resuelta.' });
-        fetchAllData();
+      const companionship = companionshipSnap.data() as Companionship;
+      const familyIndex = companionship.families.findIndex(f => f.name === familyName);
+      if (familyIndex === -1) throw new Error("Family not found");
+
+      const updatedFamilies = [...companionship.families];
+      updatedFamilies[familyIndex] = { ...updatedFamilies[familyIndex], isUrgent: false, observation: '' };
+      await updateDoc(companionshipRef, { families: updatedFamilies });
+      toast({ title: 'Éxito', description: 'La necesidad urgente ha sido marcada como resuelta.' });
+      fetchAllData();
     } catch (error) {
-        logger.error({ error, companionshipId, familyName, message: 'Error resolving urgent need' });
-        toast({ title: 'Error', description: 'No se pudo resolver la necesidad urgente.', variant: 'destructive' });
+      logger.error({ error, companionshipId, familyName, message: 'Error resolving urgent need' });
+      toast({ title: 'Error', description: 'No se pudo resolver la necesidad urgente.', variant: 'destructive' });
     }
   }
 
@@ -367,7 +476,7 @@ export default function CouncilPage() {
   const handleMarkLessActiveMemberCompleted = async (memberId: string) => {
     try {
       const memberRef = doc(collection(firestore, 'c_miembros'), memberId);
-      await updateDoc(memberRef, { 
+      await updateDoc(memberRef, {
         councilCompleted: true,
         councilCompletedAt: Timestamp.now()
       });
@@ -426,19 +535,19 @@ export default function CouncilPage() {
     <div className="space-y-8">
       <Card>
         <CardContent className="pt-6">
-            <VoiceAnnotations
-                title="Anotaciones para el Consejo"
-                description="Notas del quórum y puntos marcados para seguimiento en el consejo."
-                source="council"
-                annotations={annotations}
-                isLoading={loading}
-                onAnnotationAdded={fetchAllData}
-                onAnnotationToggled={fetchAllData}
-                showCouncilView={true}
-                onResolveAnnotation={handleResolveAnnotation}
-                onDeleteAnnotation={handleDeleteAnnotation}
-                currentUserId={user?.uid}
-            />
+          <VoiceAnnotations
+            title="Anotaciones para el Consejo"
+            description="Notas del quórum y puntos marcados para seguimiento en el consejo."
+            source="council"
+            annotations={annotations}
+            isLoading={loading}
+            onAnnotationAdded={fetchAllData}
+            onAnnotationToggled={fetchAllData}
+            showCouncilView={true}
+            onResolveAnnotation={handleResolveAnnotation}
+            onDeleteAnnotation={handleDeleteAnnotation}
+            currentUserId={user?.uid}
+          />
         </CardContent>
       </Card>
 
@@ -522,7 +631,7 @@ export default function CouncilPage() {
           </div>
         </CardContent>
       </Card>
-      
+
       <Card>
         <CardHeader>
           <div className="flex items-start gap-3">
@@ -594,7 +703,7 @@ export default function CouncilPage() {
       <Card>
         <CardHeader>
           <div className="flex items-start gap-3">
-             <Users className="h-8 w-8 text-primary" />
+            <Users className="h-8 w-8 text-primary" />
             <div>
               <CardTitle>Seguimiento de Conversos</CardTitle>
               <CardDescription>
@@ -605,145 +714,148 @@ export default function CouncilPage() {
         </CardHeader>
         <CardContent>
           {loading ? <Skeleton className="h-24 w-full" /> : councilConverts.length === 0 ? (
-             <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
-               No hay conversos pendientes de seguimiento.
+            <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
+              No hay conversos pendientes de seguimiento.
             </p>
           ) : (
             <>
-            {/* Desktop Table */}
-            <div className="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Foto</TableHead>
-                    <TableHead>Bautismo</TableHead>
-                    <TableHead className="w-[40%]">Observación</TableHead>
-                    <TableHead className="text-right">Acción</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {councilConverts.map((item) => (
-                    <TableRow key={item.id} className={item.councilCompleted ? 'bg-green-500/10' : ''}>
-                      <TableCell>
-                        {item.photoURL ? (
-                          <Image
-                            src={item.photoURL}
-                            alt={`Foto de ${item.firstName} ${item.lastName}`}
-                            width={40}
-                            height={40}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                            <UserCheck className="w-6 h-6 text-gray-500" />
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col items-start gap-1">
-                          <span className="text-xs font-medium text-foreground">{item.firstName} {item.lastName}</span>
-                          <span>{item.baptismDate ? format(item.baptismDate.toDate(), 'd LLLL yyyy', { locale: es }) : 'N/A'}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                          <div className="flex items-center gap-2">
-                              <Textarea
-                                  placeholder="Añadir observación..."
-                                  value={observationInputs[item.id] || ''}
-                                  onChange={(e) => setObservationInputs(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                  rows={1}
-                                  disabled={item.councilCompleted}
-                              />
-                              {observationInputs[item.id] !== (item.lessActiveObservation || '') && (
-                                  <Button size="sm" variant="outline" onClick={() => handleSaveObservation(item.id)}>
-                                      <Save className="h-4 w-4" />
-                                  </Button>
-                              )}
-                          </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.councilCompleted ? (
-                          <Badge variant="default">Completado</Badge>
-                        ) : (
-                          <Button variant="outline" size="sm" onClick={() => handleMarkCouncilCompleted(item.id)}>
-                            <UserCheck className="mr-2 h-4 w-4" />
-                            Marcar Completado
-                          </Button>
-                        )}
-                      </TableCell>
+              {/* Desktop Table */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Foto</TableHead>
+                      <TableHead>Bautismo</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Mobile Cards */}
-            <div className="md:hidden space-y-4">
-               {councilConverts.map((item) => (
-                 <Card key={item.id} className={item.councilCompleted ? 'bg-green-500/10' : ''}>
-                   <CardContent className="pt-4 space-y-4">
-                     <div className="flex justify-between items-start">
-                       <div className="flex items-center gap-3">
-                         {item.photoURL ? (
-                           <Image
-                             src={item.photoURL}
-                             alt={`Foto de ${item.firstName} ${item.lastName}`}
-                             width={48}
-                             height={48}
-                             className="w-12 h-12 rounded-full object-cover"
-                           />
-                         ) : (
-                           <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
-                             <UserCheck className="w-6 h-6 text-gray-500" />
-                           </div>
-                         )}
-                         <div>
-                           <p className="font-bold text-foreground">{item.firstName} {item.lastName}</p>
-                           <p className="text-sm text-muted-foreground">
-                             Bautismo: {item.baptismDate ? format(item.baptismDate.toDate(), 'd LLL yyyy', { locale: es }) : 'N/A'}
-                           </p>
-                         </div>
-                       </div>
-                       {item.councilCompleted ? (
-                          <Badge variant="default">Completado</Badge>
-                        ) : (
-                          <Button variant="outline" size="sm" onClick={() => handleMarkCouncilCompleted(item.id)}>
-                            <UserCheck className="mr-2 h-4 w-4" />
-                            Completar
-                          </Button>
-                        )}
-                     </div>
-                     <div className="space-y-2">
-                       <Label htmlFor={`obs-${item.id}`}>Observación</Label>
-                       <div className="flex items-center gap-2">
-                           <Textarea
-                               id={`obs-${item.id}`}
-                                placeholder="Añadir observación..."
-                                value={observationInputs[item.id] || ''}
-                                onChange={(e) => setObservationInputs(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                rows={2}
-                                disabled={item.councilCompleted}
+                  </TableHeader>
+                  <TableBody>
+                    {councilConverts.map((item) => (
+                      <TableRow key={item.id} className={item.councilCompleted ? 'bg-green-500/10' : ''}>
+                        <TableCell>
+                          {item.photoURL ? (
+                            <Image
+                              src={item.photoURL}
+                              alt={`Foto de ${item.firstName} ${item.lastName}`}
+                              width={40}
+                              height={40}
+                              className="w-10 h-10 rounded-full object-cover"
                             />
-                            {observationInputs[item.id] !== (item.lessActiveObservation || '') && (
-                                <Button size="icon" variant="outline" onClick={() => handleSaveObservation(item.id)}>
-                                    <Save className="h-4 w-4" />
-                                </Button>
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                              <UserCheck className="w-6 h-6 text-gray-500" />
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col items-start gap-1">
+                            <span className="text-xs font-medium text-foreground">{item.firstName} {item.lastName}</span>
+                            <span>{item.baptismDate ? format(item.baptismDate.toDate(), 'd LLLL yyyy', { locale: es }) : 'N/A'}</span>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="text-right">
+                          <div className="flex justify-end items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={sheetLoading === item.id}
+                              onClick={() => openConvertSheet(item)}
+                            >
+                              {sheetLoading === item.id
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : <Info className="h-4 w-4" />}
+                            </Button>
+                            {item.councilCompleted ? (
+                              <Badge variant="default">Completado</Badge>
+                            ) : (
+                              <Button variant="outline" size="sm" onClick={() => handleMarkCouncilCompleted(item.id)}>
+                                <UserCheck className="mr-2 h-4 w-4" />
+                                Marcar Completado
+                              </Button>
                             )}
-                       </div>
-                     </div>
-                   </CardContent>
-                 </Card>
-               ))}
-            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Cards */}
+              <div className="md:hidden space-y-4">
+                {councilConverts.map((item) => (
+                  <Card key={item.id} className={item.councilCompleted ? 'bg-green-500/10' : ''}>
+                    <CardContent className="pt-4 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-3">
+                          {item.photoURL ? (
+                            <Image
+                              src={item.photoURL}
+                              alt={`Foto de ${item.firstName} ${item.lastName}`}
+                              width={48}
+                              height={48}
+                              className="w-12 h-12 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
+                              <UserCheck className="w-6 h-6 text-gray-500" />
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-bold text-foreground">{item.firstName} {item.lastName}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Bautismo: {item.baptismDate ? format(item.baptismDate.toDate(), 'd LLL yyyy', { locale: es }) : 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={sheetLoading === item.id}
+                            onClick={() => openConvertSheet(item)}
+                          >
+                            {sheetLoading === item.id
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <Info className="h-4 w-4" />}
+                          </Button>
+                          {item.councilCompleted ? (
+                            <Badge variant="default">Completado</Badge>
+                          ) : (
+                            <Button variant="outline" size="sm" onClick={() => handleMarkCouncilCompleted(item.id)}>
+                              <UserCheck className="mr-2 h-4 w-4" />
+                              Completar
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </>
           )}
         </CardContent>
       </Card>
-      
+
+      {/* Convert Info Sheet — same as in the Converts page */}
+      <ConvertInfoSheet
+        convert={selectedConvert}
+        isOpen={isSheetOpen}
+        onOpenChange={setIsSheetOpen}
+        onSave={handleSaveConvertInfo}
+        onSaveFriends={handleSaveFriends}
+        onSaveTeachers={handleSaveTeachers}
+        saving={sheetSaving}
+        availableMembers={availableMembers}
+      />
+
       <Card>
         <CardHeader>
           <div className="flex items-start gap-3">
-             <CalendarClock className="h-8 w-8 text-primary" />
+            <CalendarClock className="h-8 w-8 text-primary" />
             <div>
               <CardTitle>Bautismos en los Próximos 7 Días</CardTitle>
               <CardDescription>
@@ -753,41 +865,41 @@ export default function CouncilPage() {
           </div>
         </CardHeader>
         <CardContent>
-         {loading ? <Skeleton className="h-24 w-full" /> : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nombre del Futuro Miembro</TableHead>
-                <TableHead>Fecha Programada</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {upcomingBaptisms.length === 0 ? (
+          {loading ? <Skeleton className="h-24 w-full" /> : (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={2} className="h-24 text-center">
-                    No hay bautismos programados para los próximos 7 días.
-                  </TableCell>
+                  <TableHead>Nombre del Futuro Miembro</TableHead>
+                  <TableHead>Fecha Programada</TableHead>
                 </TableRow>
-              ) : (
-                upcomingBaptisms.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell>
-                       {item.baptismDate ? format(item.baptismDate.toDate(), 'd LLLL yyyy', { locale: es }) : 'N/A'}
+              </TableHeader>
+              <TableBody>
+                {upcomingBaptisms.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={2} className="h-24 text-center">
+                      No hay bautismos programados para los próximos 7 días.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-         )}
+                ) : (
+                  upcomingBaptisms.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TableCell>
+                        {item.baptismDate ? format(item.baptismDate.toDate(), 'd LLLL yyyy', { locale: es }) : 'N/A'}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
           <div className="flex items-start gap-3">
-             <Calendar className="h-8 w-8 text-blue-600" />
+            <Calendar className="h-8 w-8 text-blue-600" />
             <div>
               <CardTitle>Actividades Registradas</CardTitle>
               <CardDescription>
@@ -841,7 +953,7 @@ export default function CouncilPage() {
       <Card>
         <CardHeader>
           <div className="flex items-start gap-3">
-             <AlertTriangle className="h-8 w-8 text-destructive" />
+            <AlertTriangle className="h-8 w-8 text-destructive" />
             <div>
               <CardTitle>Necesidades Urgentes de Ministración</CardTitle>
               <CardDescription>
@@ -851,45 +963,45 @@ export default function CouncilPage() {
           </div>
         </CardHeader>
         <CardContent>
-           {loading ? <Skeleton className="h-24 w-full" /> : urgentNeeds.length === 0 ? (
-             <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
-                No hay necesidades urgentes reportadas.
-             </p>
-           ) : (
+          {loading ? <Skeleton className="h-24 w-full" /> : urgentNeeds.length === 0 ? (
+            <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
+              No hay necesidades urgentes reportadas.
+            </p>
+          ) : (
             <Accordion type="single" collapsible className="w-full">
-                {urgentNeeds.map((item, index) => (
-                     <AccordionItem value={`item-${index}`} key={`${item.companionshipId}-${item.name}`}>
-                        <AccordionTrigger>
-                           <div className='flex items-center justify-between w-full pr-4'>
-                                <div>
-                                    <span className='font-semibold'>{item.name}</span>
-                                    <p className='text-sm text-muted-foreground font-normal'>Asignados a: {item.companions.join(' y ')}</p>
-                                </div>
-                                <Badge variant="destructive">Urgente</Badge>
-                           </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                           <div className="p-4 bg-muted/50 rounded-md space-y-4">
-                             <p className="text-sm">
-                                <span className="font-semibold">Observación:</span> {item.observation}
-                            </p>
-                            <Button size="sm" onClick={() => handleResolveUrgentNeed(item.companionshipId, item.name)}>
-                                <CheckCircle className="mr-2 h-4 w-4" />
-                                Marcar como Resuelto
-                            </Button>
-                           </div>
-                        </AccordionContent>
-                    </AccordionItem>
-                ))}
+              {urgentNeeds.map((item, index) => (
+                <AccordionItem value={`item-${index}`} key={`${item.companionshipId}-${item.name}`}>
+                  <AccordionTrigger>
+                    <div className='flex items-center justify-between w-full pr-4'>
+                      <div>
+                        <span className='font-semibold'>{item.name}</span>
+                        <p className='text-sm text-muted-foreground font-normal'>Asignados a: {item.companions.join(' y ')}</p>
+                      </div>
+                      <Badge variant="destructive">Urgente</Badge>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="p-4 bg-muted/50 rounded-md space-y-4">
+                      <p className="text-sm">
+                        <span className="font-semibold">Observación:</span> {item.observation}
+                      </p>
+                      <Button size="sm" onClick={() => handleResolveUrgentNeed(item.companionshipId, item.name)}>
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Marcar como Resuelto
+                      </Button>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
             </Accordion>
-           )}
+          )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
           <div className="flex items-start gap-3">
-             <UserMinus className="h-8 w-8 text-orange-500" />
+            <UserMinus className="h-8 w-8 text-orange-500" />
             <div>
               <CardTitle>Miembros Menos Activos</CardTitle>
               <CardDescription>
@@ -900,66 +1012,66 @@ export default function CouncilPage() {
         </CardHeader>
         <CardContent>
           {loading ? <Skeleton className="h-24 w-full" /> : lessActiveMembers.length === 0 ? (
-             <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
-               No hay miembros menos activos registrados.
+            <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
+              No hay miembros menos activos registrados.
             </p>
           ) : (
             <>
-            {/* Desktop Table */}
-            <div className="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Inactivo Desde</TableHead>
-                    <TableHead className="text-right">Acción</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lessActiveMembers.map((member) => (
-                    <TableRow key={member.id} className={member.councilCompleted ? 'bg-green-500/10' : ''}>
-                      <TableCell className="font-medium">{member.firstName} {member.lastName}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-orange-600 border-orange-600">
-                          Menos Activo
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {member.inactiveSince ? format(member.inactiveSince.toDate(), 'd LLLL yyyy', { locale: es }) : 'N/A'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {member.councilCompleted ? (
-                          <Badge variant="default">Completado</Badge>
-                        ) : (
-                          <Button variant="outline" size="sm" onClick={() => handleMarkLessActiveMemberCompleted(member.id)}>
-                            <UserCheck className="mr-2 h-4 w-4" />
-                            Marcar Completado
-                          </Button>
-                        )}
-                      </TableCell>
+              {/* Desktop Table */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Inactivo Desde</TableHead>
+                      <TableHead className="text-right">Acción</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {lessActiveMembers.map((member) => (
+                      <TableRow key={member.id} className={member.councilCompleted ? 'bg-green-500/10' : ''}>
+                        <TableCell className="font-medium">{member.firstName} {member.lastName}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-orange-600 border-orange-600">
+                            Menos Activo
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {member.inactiveSince ? format(member.inactiveSince.toDate(), 'd LLLL yyyy', { locale: es }) : 'N/A'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {member.councilCompleted ? (
+                            <Badge variant="default">Completado</Badge>
+                          ) : (
+                            <Button variant="outline" size="sm" onClick={() => handleMarkLessActiveMemberCompleted(member.id)}>
+                              <UserCheck className="mr-2 h-4 w-4" />
+                              Marcar Completado
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
 
-            {/* Mobile Cards */}
-            <div className="md:hidden space-y-4">
-               {lessActiveMembers.map((member) => (
-                 <Card key={member.id} className={member.councilCompleted ? 'bg-green-500/10' : ''}>
-                   <CardContent className="pt-4 space-y-4">
-                     <div className="flex justify-between items-start">
-                       <div>
-                         <p className="font-bold">{member.firstName} {member.lastName}</p>
-                         <p className="text-sm text-muted-foreground">
-                           Inactivo desde: {member.inactiveSince ? format(member.inactiveSince.toDate(), 'd LLL yyyy', { locale: es }) : 'N/A'}
-                         </p>
-                         <Badge variant="outline" className="text-orange-600 border-orange-600 mt-2">
-                           Menos Activo
-                         </Badge>
-                       </div>
-                       {member.councilCompleted ? (
+              {/* Mobile Cards */}
+              <div className="md:hidden space-y-4">
+                {lessActiveMembers.map((member) => (
+                  <Card key={member.id} className={member.councilCompleted ? 'bg-green-500/10' : ''}>
+                    <CardContent className="pt-4 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-bold">{member.firstName} {member.lastName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Inactivo desde: {member.inactiveSince ? format(member.inactiveSince.toDate(), 'd LLL yyyy', { locale: es }) : 'N/A'}
+                          </p>
+                          <Badge variant="outline" className="text-orange-600 border-orange-600 mt-2">
+                            Menos Activo
+                          </Badge>
+                        </div>
+                        {member.councilCompleted ? (
                           <Badge variant="default">Completado</Badge>
                         ) : (
                           <Button variant="outline" size="sm" onClick={() => handleMarkLessActiveMemberCompleted(member.id)}>
@@ -967,11 +1079,11 @@ export default function CouncilPage() {
                             Completar
                           </Button>
                         )}
-                     </div>
-                   </CardContent>
-                 </Card>
-               ))}
-            </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </>
           )}
         </CardContent>

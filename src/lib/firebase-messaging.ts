@@ -24,7 +24,7 @@ export const initializeMessaging = () => {
 export const requestNotificationPermission = async (): Promise<string | null> => {
   try {
     const permission = await Notification.requestPermission();
-    
+
     if (permission !== 'granted') {
       console.log('Notification permission denied');
       return null;
@@ -35,8 +35,14 @@ export const requestNotificationPermission = async (): Promise<string | null> =>
       throw new Error('Messaging not initialized');
     }
 
-    // Get registration token
-    const token = await getToken(messagingInstance);
+    const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapidKey) {
+      console.error('VAPID key not found in environment variables');
+      throw new Error('VAPID key not configured');
+    }
+
+    // Get registration token — vapidKey is required for web push
+    const token = await getToken(messagingInstance, { vapidKey });
 
     return token;
   } catch (error) {
