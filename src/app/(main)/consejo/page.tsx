@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Save, Edit2, X, Check } from 'lucide-react';
+import { createNewConvertCouncilNotificationsForAll } from '@/lib/notification-helpers';
 
 // Extended convert type with notes
 interface ConvertWithNotes extends Convert {
@@ -263,6 +264,11 @@ const ConsejoPage: React.FC = () => {
   const saveNotes = async (convertId: string) => {
     if (!user) return;
     
+    // Get current notes before saving to detect changes
+    const currentConvert = newConverts.find(c => c.id === convertId);
+    const previousNotes = currentConvert?.notes || '';
+    const notesChanged = previousNotes !== editingNotesValue;
+    
     setSavingNotes(true);
     try {
       const firestore = convertsCollection.firestore;
@@ -277,6 +283,19 @@ const ConsejoPage: React.FC = () => {
       setEditingNotesValue('');
       
       toast({ title: 'Observaciones guardadas', description: 'Las observaciones se han sincronizado correctamente.' });
+      
+      // Send in-app notification only if notes changed (not first time)
+      if (notesChanged && currentConvert) {
+        try {
+          await createNewConvertCouncilNotificationsForAll(
+            currentConvert.name || 'Converso',
+            convertId,
+            'actualizado'
+          );
+        } catch (notifError) {
+          console.error('Error sending new convert notification:', notifError);
+        }
+      }
     } catch (error) {
       console.error('Error saving notes:', error);
       toast({ title: 'Error', description: 'No se pudieron guardar las observaciones.', variant: 'destructive' });

@@ -14,6 +14,10 @@ export interface CreateNotificationParams {
   contextId?: string;
   actionUrl?: string;
   actionType?: 'navigate' | 'external';
+  /** If true, sends only in-app notification without push */
+  inAppOnly?: boolean;
+  /** If true, sends only push notification without saving to in-app */
+  pushOnly?: boolean;
 }
 
 /**
@@ -29,32 +33,48 @@ export async function createNotification(params: CreateNotificationParams): Prom
     contextType,
     contextId,
     actionUrl,
-    actionType = 'navigate'
+    actionType = 'navigate',
+    inAppOnly = false,
+    pushOnly = false
   } = params;
 
-  const notification: Omit<AppNotification, 'id'> = {
-    userId,
-    title,
-    body,
-    createdAt: Timestamp.now(),
-    isRead: false,
-    ...(contextType && { contextType }),
-    ...(contextId && { contextId }),
-    ...(actionUrl && { actionUrl }),
-    ...(actionUrl && { actionType })
-  };
+  // Create in-app notification if not push-only
+  if (!pushOnly) {
+    const notification: Omit<AppNotification, 'id'> = {
+      userId,
+      title,
+      body,
+      createdAt: Timestamp.now(),
+      isRead: false,
+      ...(contextType && { contextType }),
+      ...(contextId && { contextId }),
+      ...(actionUrl && { actionUrl }),
+      ...(actionUrl && { actionType })
+    };
 
-  const docRef = await addDoc(notificationsCollection, notification);
+    const docRef = await addDoc(notificationsCollection, notification);
 
-  // Enviar notificación push también
-  await sendPushNotification({
-    userId,
-    title,
-    body,
-    url: actionUrl
-  });
+    // Send push notification if not in-app-only
+    if (!inAppOnly) {
+      await sendPushNotification({
+        userId,
+        title,
+        body,
+        url: actionUrl
+      });
+    }
 
-  return docRef.id;
+    return docRef.id;
+  } else {
+    // Push-only notification (no in-app saved)
+    await sendPushNotification({
+      userId,
+      title,
+      body,
+      url: actionUrl
+    });
+    return '';
+  }
 }
 
 /**
@@ -344,4 +364,215 @@ export async function createNotificationsForAll(
   }
 
   return createBulkNotifications(usersWithNotificationsEnabled, notificationParams);
+}
+
+// ============================================================================
+// NEW CONVERT NOTIFICATIONS FROM COUNCIL (In-App Only)
+// ============================================================================
+
+/**
+ * Check if a member is a "new convert" (baptized within the last 2 years)
+ * @param member - The member to check
+ * @returns boolean - True if the member is a new convert
+ */
+export function isNewConvert(member: { baptismDate?: { toDate: () => Date } | null }): boolean {
+  if (!member.baptismDate || !member.baptismDate.toDate) {
+    return false;
+  }
+  
+  const twoYearsAgo = new Date();
+  twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+  
+  const baptismDate = member.baptismDate.toDate();
+  return baptismDate > twoYearsAgo;
+}
+
+/**
+ * Create in-app notification only for new convert updates from council
+ * This is used when the council page modifies a new convert's information
+ * @param userId - User ID to send notification to
+ * @param convertName - Name of the convert
+ * @param convertId - ID of the convert
+ * @param action - The action that was performed (e.g., "actualizado", "completado")
+ * @returns Promise<string> - The ID of the created notification
+ */
+export async function createNewConvertCouncilNotification(
+  userId: string,
+  convertName: string,
+  convertId: string,
+  action: string = 'actualizado'
+): Promise<string> {
+  return createNotification({
+    userId,
+    title: "📋 Actualización de Nuevo Converso",
+    body: `${convertName} ha sido ${action} desde el Consejo`,
+    contextType: 'convert',
+    contextId: convertId,
+    actionUrl: '/consejo',
+    inAppOnly: true // Only in-app, no push for council updates
+  });
+}
+
+/**
+ * Create in-app notifications for all users about new convert updates from council
+ * @param convertName - Name of the convert
+ * @param convertId - ID of the convert
+ * @param action - The action that was performed
+ * @returns Promise<string[]> - Array of created notification IDs
+ */
+export async function createNewConvertCouncilNotificationsForAll(
+  convertName: string,
+  convertId: string,
+  action: string = 'actualizado'
+): Promise<string[]> {
+  const userIds = await getAllUserIds();
+  
+  // Filter users to only include those with in-app notifications enabled
+  const usersWithInAppEnabled: string[] = [];
+
+  for (const userId of userIds) {
+    try {
+      const userDocRef = await import('firebase/firestore').then(m => m.doc(usersCollection, userId));
+      const userDoc = await import('firebase/firestore').then(m => m.getDoc(userDocRef));
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        // Check in-app notifications preference
+        if (userData.inAppNotificationsEnabled !== false) {
+          usersWithInAppEnabled.push(userId);
+        }
+      } else {
+        usersWithInAppEnabled.push(userId);
+      }
+    } catch (error) {
+      console.error(`Error checking notification preference for user ${userId}:`, error);
+      usersWithInAppEnabled.push(userId);
+    }
+  }
+
+  const notificationPromises = usersWithInAppEnabled.map(userId =>
+    createNewConvertCouncilNotification(userId, convertName, convertId, action)
+  );
+
+  return Promise.all(notificationPromises);
+}
+
+// ============================================================================
+// DECEASED MEMBERS ORDINANCES PUSH NOTIFICATIONS (Weekly on Mondays)
+// ============================================================================
+
+// All possible temple ordinances for deceased members
+const ALL_TEMPLE_ORDINANCES = [
+  'baptism',
+  'confirmation',
+  'initiatory',
+  'endowment',
+  'sealed_to_father',
+  'sealed_to_mother',
+  'sealed_to_spouse'
+] as const;
+
+/**
+ * Check if a deceased member has all temple ordinances completed
+ * @param member - The member to check
+ * @returns boolean - True if all ordinances are completed
+ */
+export function hasAllTempleOrdinances(member: { templeOrdinances?: string[] }): boolean {
+  const memberOrdinances = member.templeOrdinances || [];
+  return ALL_TEMPLE_ORDINANCES.every(ord => memberOrdinances.includes(ord));
+}
+
+/**
+ * Get missing temple ordinances for a deceased member
+ * @param member - The member to check
+ * @returns string[] - Array of missing ordinance names
+ */
+export function getMissingTempleOrdinances(member: { templeOrdinances?: string[] }): string[] {
+  const memberOrdinances = member.templeOrdinances || [];
+  return ALL_TEMPLE_ORDINANCES.filter(ord => !memberOrdinances.includes(ord));
+}
+
+/**
+ * Send push-only notification for deceased members with missing ordinances
+ * This should be called on Mondays
+ * @param members - Array of deceased members to check
+ * @returns Promise<{ sent: number; skipped: number }> - Count of sent and skipped notifications
+ */
+export async function sendDeceasedMembersOrdinanceNotifications(
+  members: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    templeOrdinances?: string[];
+    templeWorkCompletedAt?: unknown;
+  }>
+): Promise<{ sent: number; skipped: number; membersNotified: string[] }> {
+  const userIds = await getAllUserIds();
+  
+  // Filter users to only include those with push notifications enabled
+  const usersWithPushEnabled: string[] = [];
+
+  for (const userId of userIds) {
+    try {
+      const userDocRef = await import('firebase/firestore').then(m => m.doc(usersCollection, userId));
+      const userDoc = await import('firebase/firestore').then(m => m.getDoc(userDocRef));
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        // Check push notifications preference
+        if (userData.notificationsEnabled !== false) {
+          usersWithPushEnabled.push(userId);
+        }
+      }
+    } catch (error) {
+      console.error(`Error checking push preference for user ${userId}:`, error);
+    }
+  }
+
+  // Find deceased members with missing ordinances
+  const membersNeedingOrdinances = members.filter(member => {
+    // Skip if all ordinances are completed
+    if (hasAllTempleOrdinances(member)) {
+      return false;
+    }
+    return true;
+  });
+
+  if (membersNeedingOrdinances.length === 0) {
+    return { sent: 0, skipped: 0, membersNotified: [] };
+  }
+
+  const missingCount = membersNeedingOrdinances.length;
+  const memberNames = membersNeedingOrdinances.map(m => `${m.firstName} ${m.lastName}`).join(', ');
+  
+  const title = "⚰️ Miembros Fallecidos Sin Ordenanzas Completas";
+  const body = missingCount === 1
+    ? `Hay ${missingCount} miembro fallecido que necesita ordenanzas del templo: ${memberNames}`
+    : `Hay ${missingCount} miembros fallecidos que necesitan ordenanzas del templo: ${memberNames}`;
+
+  let sentCount = 0;
+  const membersNotified: string[] = [];
+
+  for (const userId of usersWithPushEnabled) {
+    try {
+      await createNotification({
+        userId,
+        title,
+        body,
+        contextType: 'member',
+        actionUrl: '/council',
+        pushOnly: true // Only push, no in-app
+      });
+      sentCount++;
+      membersNotified.push(userId);
+    } catch (error) {
+      console.error(`Error sending deceased member notification to ${userId}:`, error);
+    }
+  }
+
+  return { 
+    sent: sentCount, 
+    skipped: usersWithPushEnabled.length - sentCount,
+    membersNotified
+  };
 }
