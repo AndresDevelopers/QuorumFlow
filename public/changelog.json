@@ -6,6 +6,8 @@
       "date": "2026-02-25",
       "changes": {
         "es": [
+          "feat: add temple work tracking for deceased members\n\n- Add new locale entries for deceased members section in both English and Spanish\n- Extend Member type with templeOrdinances and templeWorkCompletedAt fields\n- Create getDeceasedMembers function to filter members needing temple work\n- Add temple ordinances section to member profile for deceased members\n- Update member form to include temple ordinances when status is deceased\n- Add deceased members section to council page showing missing ordinances\n- Add deceased members section to dashboard with interactive ordinance checkboxes",
+          "chore: auto-update changelog [skip ci]",
           "fix(hooks): prevent dirty changelog by auto-committing after generation [skip ci]",
           "chore: auto-update changelog [skip ci]",
           "chore: auto-update changelog [skip ci]",
@@ -13,6 +15,8 @@
           "feat(notifications): enhance cross-platform push notifications and service worker\n\n- Upgrade Firebase Functions runtime to Node.js 22 and update dependencies\n- Add VAPID key requirement for web push token generation\n- Extend FCM payload with platform-specific configurations (Android, iOS, WebPush)\n- Update service worker to use Firebase v10 compat and improve notification handling\n- Remove manual refresh button from members page in favor of real-time updates\n- Add toast feedback for convert info updates and friend/teacher assignments\n- Update changelog with recent features"
         ],
         "en": [
+          "feat: add temple work tracking for deceased members\n\n- Add new locale entries for deceased members section in both English and Spanish\n- Extend Member type with templeOrdinances and templeWorkCompletedAt fields\n- Create getDeceasedMembers function to filter members needing temple work\n- Add temple ordinances section to member profile for deceased members\n- Update member form to include temple ordinances when status is deceased\n- Add deceased members section to council page showing missing ordinances\n- Add deceased members section to dashboard with interactive ordinance checkboxes",
+          "chore: auto-update changelog [skip ci]",
           "fix(hooks): prevent dirty changelog by auto-committing after generation [skip ci]",
           "chore: auto-update changelog [skip ci]",
           "chore: auto-update changelog [skip ci]",
