@@ -339,6 +339,17 @@
   "changelog.description": "Here you can see the latest app updates.",
   "changelog.loading": "Loading changelog...",
   "changelog.error": "Could not load the changelog.",
-  "changelog.current": "Current"
+  "changelog.current": "Current",
+
+  "deceased.title": "Deceased Members",
+  "deceased.description": "Members who need temple vicarious work.",
+  "deceased.needsTempleWork": "Needs Temple Work",
+  "deceased.templeWorkCompleted": "Temple Work Completed",
+  "deceased.missingOrdinances": "Missing Ordinances",
+  "deceased.allOrdinancesComplete": "All ordinances complete",
+  "deceased.noDeceasedMembers": "No deceased members requiring attention.",
+  "deceased.daysUntilRemoval": "Will be removed in {days} days",
+  "deceased.templeWork": "Do Temple Work",
+  "deceased.completed": "Completed"
 
 }

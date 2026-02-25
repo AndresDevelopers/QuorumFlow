@@ -5,8 +5,9 @@ export const dynamic = 'force-dynamic';
 
 import { getDocs, query, orderBy, where, Timestamp, doc, updateDoc, getDoc, deleteDoc, collection, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { membersCollection, futureMembersCollection, ministeringCollection, annotationsCollection, servicesCollection, activitiesCollection, newConvertFriendsCollection } from '@/lib/collections';
-import type { Member, FutureMember, Companionship, Family, Annotation, Service, Activity, NewConvertFriendship } from '@/lib/types';
-import { getLessActiveMembers, getUrgentMembers, normalizeMemberStatus, updateMember } from '@/lib/members-data';
+import type { Member, FutureMember, Companionship, Family, Annotation, Service, Activity, NewConvertFriendship, Ordinance, TempleOrdinance } from '@/lib/types';
+import { OrdinanceLabels, TempleOrdinanceLabels } from '@/lib/types';
+import { getLessActiveMembers, getUrgentMembers, normalizeMemberStatus, updateMember, getDeceasedMembers } from '@/lib/members-data';
 import { createNotificationsForAll } from '@/lib/notification-helpers';
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
@@ -29,7 +30,7 @@ import {
 } from '@/components/ui/table';
 import { format, subYears, addDays, subHours, isAfter, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { UserCheck, UserMinus, Users, CalendarClock, AlertTriangle, CheckCircle, Wrench, BellRing, Calendar, Info, Loader2 } from 'lucide-react';
+import { UserCheck, UserMinus, Users, CalendarClock, AlertTriangle, CheckCircle, Wrench, BellRing, Calendar, Info, Loader2, BadgeCheck, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -195,6 +196,73 @@ async function getUpcomingActivities(): Promise<Activity[]> {
   }
 }
 
+// All possible ordinances
+const ALL_ORDINANCES: Ordinance[] = [
+  'baptism',
+  'confirmation',
+  'elder_ordination',
+  'endowment',
+  'sealed_spouse',
+  'high_priest_ordination',
+  'aronico_ordination'
+];
+
+// All possible temple ordinances for deceased members
+const ALL_TEMPLE_ORDINANCES: TempleOrdinance[] = [
+  'baptism',
+  'confirmation',
+  'initiatory',
+  'endowment',
+  'sealed_to_father',
+  'sealed_to_mother',
+  'sealed_to_spouse'
+];
+
+// Get all ordinances from member (combines ordinances and templeOrdinances for backwards compatibility)
+function getAllOrdinances(member: Member): TempleOrdinance[] {
+  const ordinances = member.ordinances || [];
+  const templeOrdinances = (member as any).templeOrdinances || [];
+  // Combine both arrays and remove duplicates
+  const combined = [...ordinances, ...templeOrdinances];
+  return [...new Set(combined)];
+}
+
+// Check if member has all ordinances completed
+function hasAllOrdinances(member: Member): boolean {
+  const memberOrdinances = member.ordinances || [];
+  return ALL_ORDINANCES.every(ord => memberOrdinances.includes(ord));
+}
+
+// Check if member has all temple ordinances completed
+function hasAllTempleOrdinances(member: Member): boolean {
+  const memberOrdinances = getAllOrdinances(member);
+  return ALL_TEMPLE_ORDINANCES.every(ord => memberOrdinances.includes(ord));
+}
+
+// Get missing ordinances for a member
+function getMissingOrdinances(member: Member): Ordinance[] {
+  const memberOrdinances = member.ordinances || [];
+  return ALL_ORDINANCES.filter(ord => !memberOrdinances.includes(ord));
+}
+
+// Get missing temple ordinances for a member
+function getMissingTempleOrdinances(member: Member): TempleOrdinance[] {
+  const memberOrdinances = getAllOrdinances(member);
+  return ALL_TEMPLE_ORDINANCES.filter(ord => !memberOrdinances.includes(ord));
+}
+
+// Get days until removal for completed members
+function getDaysUntilRemoval(member: Member): number | null {
+  if (!hasAllTempleOrdinances(member)) return null;
+  const completedAt = member.templeWorkCompletedAt?.toDate();
+  if (!completedAt) return null;
+  
+  const now = new Date();
+  const sevenDaysLater = new Date(completedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const daysRemaining = Math.ceil((sevenDaysLater.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+  return daysRemaining > 0 ? daysRemaining : 0;
+}
+
 
 // Helper to convert a Member (convert) into the ConvertWithInfo shape the sheet expects
 const convertInfoCollection = (convertId: string) => doc(membersCollection.firestore, 'c_conversos_info', convertId);
@@ -230,6 +298,7 @@ export default function CouncilPage() {
   const [lessActiveMembers, setLessActiveMembers] = useState<Member[]>([]);
   const [urgentMembers, setUrgentMembers] = useState<Member[]>([]);
   const [upcomingActivities, setUpcomingActivities] = useState<Activity[]>([]);
+  const [deceasedMembers, setDeceasedMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -243,7 +312,7 @@ export default function CouncilPage() {
   const fetchAllData = useCallback(async () => {
     setLoading(true);
     try {
-      const [converts, baptisms, needs, notes, upcomingServices, lessActive, urgent, activities, membersSnap] = await Promise.all([
+      const [converts, baptisms, needs, notes, upcomingServices, lessActive, urgent, activities, membersSnap, deceased] = await Promise.all([
         getCouncilMembers(),
         getUpcomingBaptisms(),
         getUrgentNeeds(),
@@ -253,6 +322,7 @@ export default function CouncilPage() {
         getUrgentMembers(),
         getUpcomingActivities(),
         getDocs(query(membersCollection, orderBy('firstName', 'asc'))),
+        getDeceasedMembers(),
       ]);
       setCouncilConverts(converts);
       setUpcomingBaptisms(baptisms);
@@ -263,6 +333,7 @@ export default function CouncilPage() {
       setUrgentMembers(urgent);
       setUpcomingActivities(activities);
       setAvailableMembers(membersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Member)));
+      setDeceasedMembers(deceased);
 
       // Send daily notifications for urgent members (fire-and-forget)
       sendDailyUrgentNotifications(urgent).catch(() => { });
@@ -1085,6 +1156,108 @@ export default function CouncilPage() {
                 ))}
               </div>
             </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Deceased Members Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-start gap-3">
+            <Users className="h-8 w-8 text-gray-600" />
+            <div>
+              <CardTitle>Miembros Fallecidos</CardTitle>
+              <CardDescription>
+                Miembros que requieren obra vicaria del templo.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? <Skeleton className="h-24 w-full" /> : deceasedMembers.length === 0 ? (
+            <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
+              No hay miembros fallecidos que requieran atención.
+            </p>
+          ) : (
+            <Accordion type="single" collapsible className="w-full">
+              {deceasedMembers.map((member, index) => {
+                const allComplete = hasAllTempleOrdinances(member);
+                const missingOrdinances = getMissingTempleOrdinances(member);
+                const daysUntilRemoval = getDaysUntilRemoval(member);
+
+                return (
+                  <AccordionItem value={`deceased-${index}`} key={member.id}>
+                    <AccordionTrigger>
+                      <div className="flex items-center justify-between w-full pr-4">
+                        <div className="flex items-center gap-3">
+                          {member.photoURL ? (
+                            <Image
+                              src={member.photoURL}
+                              alt={`${member.firstName} ${member.lastName}`}
+                              width={36}
+                              height={36}
+                              className="w-9 h-9 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center">
+                              <Users className="w-5 h-5 text-gray-500" />
+                            </div>
+                          )}
+                          <span className="font-semibold">{member.firstName} {member.lastName}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {allComplete ? (
+                            <Badge variant="default" className="bg-green-500">
+                              Completado
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-amber-600 border-amber-600">
+                              Necesita Obra Vicaria
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="p-4 bg-muted/50 rounded-md space-y-4">
+                        {allComplete ? (
+                          <>
+                            <div className="flex items-center gap-2 text-green-600">
+                              <BadgeCheck className="w-5 h-5" />
+                              <span className="font-semibold">Todas las ordenanzas completadas</span>
+                            </div>
+                            {daysUntilRemoval !== null && daysUntilRemoval > 0 && (
+                              <p className="text-sm text-muted-foreground">
+                                Desaparecerá de esta lista en {daysUntilRemoval} días.
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2 text-amber-600">
+                              <AlertCircle className="w-5 h-5" />
+                              <span className="font-semibold">Ordenanzas faltantes:</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {missingOrdinances.map((ordinance) => (
+                                <Badge key={ordinance} variant="outline" className="text-amber-600 border-amber-600">
+                                  {TempleOrdinanceLabels[ordinance]}
+                                </Badge>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                        {member.deathDate && (
+                          <p className="text-sm text-muted-foreground">
+                            Fecha de fallecimiento: {format(member.deathDate.toDate(), 'd LLLL yyyy', { locale: es })}
+                          </p>
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
           )}
         </CardContent>
       </Card>

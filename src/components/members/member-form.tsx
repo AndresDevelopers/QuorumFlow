@@ -49,8 +49,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
-import type { Member, MemberStatus, Ordinance } from '@/lib/types';
-import { OrdinanceLabels } from '@/lib/types';
+import type { Member, MemberStatus, Ordinance, TempleOrdinance } from '@/lib/types';
+import { OrdinanceLabels, TempleOrdinanceLabels } from '@/lib/types';
 import { createMember, updateMember, uploadMemberPhoto, uploadBaptismPhotos, getMembersForSelector, searchMembersByName, getMemberById } from '@/lib/members-data';
 import { syncMinisteringAssignments, getPreviousMinisteringTeachers } from '@/lib/ministering-sync';
 import { createNotificationsForAll } from '@/lib/notification-helpers';
@@ -72,6 +72,7 @@ const memberFormSchema = z.object({
   photoURL: z.string().nullable().optional(),
   baptismPhotos: z.array(z.string()).optional(),
   ordinances: z.array(z.enum(['baptism', 'confirmation', 'elder_ordination', 'endowment', 'sealed_spouse', 'high_priest_ordination', 'aronico_ordination'] as const)).optional(),
+  templeOrdinances: z.array(z.enum(['baptism', 'confirmation', 'initiatory', 'endowment', 'sealed_to_father', 'sealed_to_mother', 'sealed_to_spouse'] as const)).optional(),
   ministeringTeachers: z.array(z.string()).optional(),
   isUrgent: z.boolean().optional(),
   isInCouncil: z.boolean().optional(),
@@ -144,6 +145,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
       baptismDate: undefined,
       deathDate: undefined,
       ordinances: [],
+      templeOrdinances: [],
       ministeringTeachers: [],
     },
   });
@@ -207,6 +209,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         photoURL: (currentMember.photoURL && currentMember.photoURL.trim()) ?? undefined,
         baptismPhotos: currentMember.baptismPhotos || [],
         ordinances: currentMember.ordinances || [],
+        templeOrdinances: (currentMember as any).templeOrdinances || [],
         ministeringTeachers: currentMember.ministeringTeachers || [],
         isUrgent: currentMember.isUrgent || false,
         isInCouncil: currentMember.isInCouncil || false,
@@ -242,6 +245,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
         deathDate: undefined,
         baptismPhotos: [],
         ordinances: [],
+        templeOrdinances: [],
         ministeringTeachers: [],
         isUrgent: false,
         isInCouncil: false,
@@ -729,6 +733,7 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           photoURL: photoURL as any,
           baptismPhotos: baptismPhotoURLs,
           ordinances: values.ordinances || [],
+          templeOrdinances: (values as any).templeOrdinances || [],
           ministeringTeachers: values.ministeringTeachers || [],
           isUrgent: values.isUrgent || false,
           isInCouncil: values.isInCouncil || false,
@@ -1218,39 +1223,85 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
             </div>
           </div>
 
-          {/* Ordenanzas */}
+          {/* Ordenanzas - Combined with temple ordinances for deceased members */}
           <FormField
             control={form.control}
             name="ordinances"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Ordenanzas Recibidas</FormLabel>
-                <FormDescription>
-                  Selecciona las ordenanzas que ha recibido el miembro.
-                </FormDescription>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                  {(Object.entries(OrdinanceLabels) as [Ordinance, string][]).map(([ordinance, label]) => (
-                    <div key={ordinance} className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={field.value?.includes(ordinance) || false}
-                        onCheckedChange={(checked) => {
-                          const currentOrdinances = field.value || [];
-                          if (checked) {
-                            field.onChange([...currentOrdinances, ordinance]);
-                          } else {
-                            field.onChange(currentOrdinances.filter(o => o !== ordinance));
-                          }
-                        }}
-                      />
-                      <Label className="text-sm font-normal cursor-pointer" htmlFor={ordinance}>
-                        {label}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
+            render={({ field }) => {
+              // When status is deceased, include temple-specific ordinances in the same section
+              const isDeceased = watchedStatus === 'deceased';
+              
+              // Base ordinances that all members must have - always show these
+              const baseOrdinances: Ordinance[] = ['baptism', 'confirmation'];
+              
+              // Regular ordinances excluding baptism and confirmation
+              const regularOrdinances = (Object.keys(OrdinanceLabels) as Ordinance[]).filter(
+                o => o !== 'baptism' && o !== 'confirmation'
+              );
+              
+              // Temple-specific ordinances for deceased members
+              const templeOrdinances: Ordinance[] = isDeceased
+                ? ['initiatory', 'endowment', 'sealed_to_father', 'sealed_to_mother', 'sealed_to_spouse'] as Ordinance[]
+                : [];
+              
+              const allOrdinances = isDeceased
+                ? [...baseOrdinances, ...templeOrdinances]
+                : [...baseOrdinances, ...regularOrdinances];
+              
+              // Get labels for combined list
+              const getOrdinanceLabel = (ordinance: string): string => {
+                if (OrdinanceLabels[ordinance as Ordinance]) {
+                  return OrdinanceLabels[ordinance as Ordinance];
+                }
+                if (ordinance === 'initiatory') return 'Iniciatoria';
+                if (ordinance === 'endowment') return 'Endowment';
+                if (ordinance === 'sealed_to_father') return 'Sellado al Padre';
+                if (ordinance === 'sealed_to_mother') return 'Sellado a la Madre';
+                if (ordinance === 'sealed_to_spouse') return 'Sellado al Cónyuge';
+                return ordinance;
+              };
+
+              // Check if ordinance is already completed
+              const isOrdinanceCompleted = (ordinance: string): boolean => {
+                return field.value?.includes(ordinance as Ordinance) || false;
+              };
+
+              return (
+                <FormItem>
+                  <FormLabel>
+                    {isDeceased ? 'Ordenanzas del Templo' : 'Ordenanzas Recibidas'}
+                  </FormLabel>
+                  <FormDescription>
+                    {isDeceased
+                      ? 'Selecciona las ordenanzas del templo completadas. Bautismo y Confirmación son obligatorios para todos los miembros.'
+                      : 'Selecciona las ordenanzas que ha recibido el miembro. Bautismo y Confirmación son obligatorios.'}
+                  </FormDescription>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                    {allOrdinances.map((ordinance) => {
+                      return (
+                        <div key={ordinance} className="flex items-center space-x-2">
+                          <Checkbox
+                            checked={field.value?.includes(ordinance) || false}
+                            onCheckedChange={(checked) => {
+                              const currentOrdinances = field.value || [];
+                              if (checked) {
+                                field.onChange([...currentOrdinances, ordinance as Ordinance]);
+                              } else {
+                                field.onChange(currentOrdinances.filter(o => o !== ordinance));
+                              }
+                            }}
+                          />
+                          <Label className="text-sm font-normal cursor-pointer" htmlFor={ordinance}>
+                            {getOrdinanceLabel(ordinance)}
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              );
+            }}
           />
 
           {/* Maestros Ministrantes */}

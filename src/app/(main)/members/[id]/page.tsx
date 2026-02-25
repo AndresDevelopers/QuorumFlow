@@ -18,8 +18,8 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
-import type { Member, MemberStatus } from '@/lib/types';
-import { OrdinanceLabels } from '@/lib/types';
+import type { Member, MemberStatus, TempleOrdinance } from '@/lib/types';
+import { OrdinanceLabels, TempleOrdinanceLabels } from '@/lib/types';
 import { getMemberById } from '@/lib/members-data';
 import { buildMemberEditUrl } from '@/lib/navigation';
 import { format } from 'date-fns';
@@ -395,6 +395,46 @@ export default function MemberProfilePage() {
                   </Badge>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Temple Ordinances - Only for deceased members */}
+        {isDeceased && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Ordenanzas del Templo
+              </CardTitle>
+              <CardDescription>
+                Ordenanzas vicarias completadas para este miembro fallecido
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {member.templeOrdinances && member.templeOrdinances.length > 0 ? (
+                  member.templeOrdinances.map((ordinance) => (
+                    <Badge key={ordinance} variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      {TempleOrdinanceLabels[ordinance]}
+                    </Badge>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No hay ordenanzas del templo registradas
+                  </p>
+                )}
+              </div>
+              {(member.templeWorkCompletedAt) && (
+                <div className="mt-4 pt-4 border-t">
+                  <p className="text-sm text-green-600 font-medium">
+                    ✓ Todas las ordenanzas del templo completadas
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Fecha de completado: {format(member.templeWorkCompletedAt.toDate(), 'd MMMM yyyy', { locale: es })}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

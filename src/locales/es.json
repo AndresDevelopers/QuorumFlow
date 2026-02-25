@@ -413,6 +413,17 @@
   "changelog.description": "Aquí puedes ver las últimas actualizaciones de la aplicación.",
   "changelog.loading": "Cargando historial...",
   "changelog.error": "No se pudo cargar el historial de cambios.",
-  "changelog.current": "Actual"
+  "changelog.current": "Actual",
+
+  "deceased.title": "Miembros Fallecidos",
+  "deceased.description": "Miembros que requieren obra vicaria del templo.",
+  "deceased.needsTempleWork": "Necesita Obra Vicaria",
+  "deceased.templeWorkCompleted": "Obra Completada",
+  "deceased.missingOrdinances": "Ordenanzas Faltantes",
+  "deceased.allOrdinancesComplete": "Todas las ordenanzas completadas",
+  "deceased.noDeceasedMembers": "No hay miembros fallecidos que requieran atención.",
+  "deceased.daysUntilRemoval": "Desaparecerá en {days} días",
+  "deceased.templeWork": "Hacer Obra Vicaria",
+  "deceased.completed": "Completado"
 
 }

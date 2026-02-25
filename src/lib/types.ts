@@ -224,6 +224,26 @@ export const OrdinanceLabels: Record<Ordinance, string> = {
     aronico_ordination: 'Ordenado Aarónico'
 };
 
+// Ordenanzas para obra vicaria (miembros deceased)
+export type TempleOrdinance = 
+    | 'baptism' 
+    | 'confirmation' 
+    | 'initiatory' 
+    | 'endowment' 
+    | 'sealed_to_father'
+    | 'sealed_to_mother'
+    | 'sealed_to_spouse';
+
+export const TempleOrdinanceLabels: Record<TempleOrdinance, string> = {
+    baptism: 'Bautismo',
+    confirmation: 'Confirmación',
+    initiatory: 'Iniciatoria',
+    endowment: 'Investidura',
+    sealed_to_father: 'Sellamiento al padre',
+    sealed_to_mother: 'Sellamiento a la madre',
+    sealed_to_spouse: 'Sellamiento al cónyuge'
+};
+
 export type Member = {
     id: string;
     firstName: string;
@@ -257,4 +277,8 @@ export type Member = {
     urgentReason?: string;
     urgentNotifiedAt?: Timestamp;
     isInCouncil?: boolean;
+    // Temple work completion tracking for deceased members
+    templeWorkCompletedAt?: Timestamp | null;
+    // Ordenanzas de obra vicaria para miembros deceased
+    templeOrdinances?: TempleOrdinance[];
 }

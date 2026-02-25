@@ -18,7 +18,7 @@ import {
 import { initializeApp, getApps } from 'firebase/app';
 import { ref, uploadBytes, getDownloadURL, deleteObject, getStorage } from 'firebase/storage';
 import { firebaseConfig } from '@/firebaseConfig';
-import type { Member, MemberStatus } from './types';
+import type { Member, MemberStatus, Ordinance, TempleOrdinance } from './types';
 
 // Function to get Firestore instance, initializing if necessary
 function getFirestoreInstance() {
@@ -208,6 +208,8 @@ export async function updateMember(
       deathDate: memberData.deathDate,
       baptismPhotos: memberData.baptismPhotos,
       ordinances: memberData.ordinances,
+      templeOrdinances: (memberData as any).templeOrdinances,
+      templeWorkCompletedAt: (memberData as any).templeWorkCompletedAt,
       ministeringTeachers: memberData.ministeringTeachers,
       isUrgent: memberData.isUrgent,
       urgentReason: memberData.urgentReason,
@@ -344,6 +346,70 @@ export async function getUrgentMembers(): Promise<Member[]> {
       .sort((a, b) => a.lastName.localeCompare(b.lastName));
   } catch (error) {
     console.error('Error getting urgent members:', error);
+    return [];
+  }
+}
+
+// Get deceased members for dashboard and council pages
+// Returns members with status 'deceased' who either:
+// 1. Have incomplete ordinances (need temple work)
+// 2. Have all ordinances complete but within 7 days of completion
+export async function getDeceasedMembers(): Promise<Member[]> {
+  try {
+    const db = getFirestoreInstance();
+    const membersCollection = collection(db, 'c_miembros');
+
+    const q = query(
+      membersCollection,
+      where('status', '==', 'deceased')
+    );
+
+    const querySnapshot = await getDocs(q);
+    const members: Member[] = [];
+
+    querySnapshot.forEach((docSnap) => {
+      const memberData = docSnap.data();
+      members.push({
+        id: docSnap.id,
+        ...memberData,
+        status: normalizeMemberStatus(memberData.status)
+      } as Member);
+    });
+
+    // Filter based on temple ordinances and 7-day rule
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // All possible temple ordinances for deceased members
+    const allTempleOrdinances: TempleOrdinance[] = [
+      'baptism',
+      'confirmation',
+      'initiatory',
+      'endowment',
+      'sealed_to_father',
+      'sealed_to_mother',
+      'sealed_to_spouse'
+    ];
+
+    return members.filter(member => {
+      const memberOrdinances = member.templeOrdinances || [];
+      const allComplete = allTempleOrdinances.every(ord => memberOrdinances.includes(ord));
+
+      if (allComplete) {
+        // If all ordinances are complete, check if within 7 days of completion
+        const completedAt = member.templeWorkCompletedAt?.toDate();
+        if (completedAt) {
+          // Only show if within 7 days of completion
+          return completedAt > sevenDaysAgo;
+        }
+        // If no completion date, show anyway (for backwards compatibility)
+        return true;
+      }
+      // Show members who need temple work
+      return true;
+    }).sort((a, b) => a.lastName.localeCompare(b.lastName));
+  } catch (error) {
+    console.error('Error getting deceased members:', error);
     return [];
   }
 }
