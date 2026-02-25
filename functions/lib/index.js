@@ -1436,6 +1436,51 @@ exports.weeklyNotifications = functions.pubsub
             }, obsEligible.pushUserIds);
         }
     }
+    // ── Miembros Fallecidos sin Ordenanzas Completas (Solo Push, solo Lunes) ─
+    const deceasedMembersQuery = await firestore.collection("c_miembros")
+        .where("status", "==", "deceased")
+        .get();
+    const ALL_TEMPLE_ORDINANCES = [
+        'baptism', 'confirmation', 'initiatory', 'endowment',
+        'sealed_to_father', 'sealed_to_mother', 'sealed_to_spouse'
+    ];
+    const membersNeedingOrdinances = [];
+    deceasedMembersQuery.forEach((doc) => {
+        const m = doc.data();
+        const templeOrdinances = m.templeOrdinances || [];
+        const hasAll = ALL_TEMPLE_ORDINANCES.every(ord => templeOrdinances.includes(ord));
+        if (!hasAll) {
+            membersNeedingOrdinances.push({
+                id: doc.id,
+                firstName: m.firstName || '',
+                lastName: m.lastName || '',
+                templeOrdinances
+            });
+        }
+    });
+    if (membersNeedingOrdinances.length > 0) {
+        const pushUsers = allUsers.filter(u => u.pushEnabled);
+        if (pushUsers.length > 0) {
+            const memberNames = membersNeedingOrdinances
+                .map(m => `${m.firstName} ${m.lastName}`)
+                .join(', ');
+            const count = membersNeedingOrdinances.length;
+            const title = "⚰️ Miembros Fallecidos Sin Ordenanzas Completas";
+            const body = count === 1
+                ? `Hay ${count} miembro fallecido que necesita ordenanzas del templo: ${memberNames}`
+                : `Hay ${count} miembros fallecidos que necesitan ordenanzas del templo: ${memberNames}`;
+            const pushUserIds = pushUsers.map(u => u.userId);
+            await notificationDispatcher.broadcastToUsers([], // No in-app
+            {
+                title,
+                body,
+                url: "/council",
+                tag: "weekly-deceased-ordinances",
+                context: { contextType: "member", actionUrl: "/council", actionType: "navigate" },
+            }, pushUserIds);
+            functions.logger.log("weeklyNotifications: Sent deceased members ordinance notification to " + pushUserIds.length + " users");
+        }
+    }
     // ── Conversos ────────────────────────────────────────────────────────
     const convEligible = getEligibleUsers(allUsers, "converts");
     if (convEligible.inAppUserIds.length > 0 || convEligible.pushUserIds.length > 0) {
