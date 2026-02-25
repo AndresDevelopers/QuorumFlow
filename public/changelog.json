@@ -6,10 +6,12 @@
       "date": "2026-02-25",
       "changes": {
         "es": [
+          "chore: auto-update changelog [skip ci]",
           "chore: bump version to 1.1.9 and update changelog\n\nUpdate package.json and version metadata files for release 1.1.9.\nAdd changelog entry detailing recent notification system enhancements,\nFirebase upgrades, and UI improvements.",
           "feat(notifications): enhance cross-platform push notifications and service worker\n\n- Upgrade Firebase Functions runtime to Node.js 22 and update dependencies\n- Add VAPID key requirement for web push token generation\n- Extend FCM payload with platform-specific configurations (Android, iOS, WebPush)\n- Update service worker to use Firebase v10 compat and improve notification handling\n- Remove manual refresh button from members page in favor of real-time updates\n- Add toast feedback for convert info updates and friend/teacher assignments\n- Update changelog with recent features"
         ],
         "en": [
+          "chore: auto-update changelog [skip ci]",
           "chore: bump version to 1.1.9 and update changelog\n\nUpdate package.json and version metadata files for release 1.1.9.\nAdd changelog entry detailing recent notification system enhancements,\nFirebase upgrades, and UI improvements.",
           "feat(notifications): enhance cross-platform push notifications and service worker\n\n- Upgrade Firebase Functions runtime to Node.js 22 and update dependencies\n- Add VAPID key requirement for web push token generation\n- Extend FCM payload with platform-specific configurations (Android, iOS, WebPush)\n- Update service worker to use Firebase v10 compat and improve notification handling\n- Remove manual refresh button from members page in favor of real-time updates\n- Add toast feedback for convert info updates and friend/teacher assignments\n- Update changelog with recent features"
         ]
