@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { getDocs, query, orderBy, where, Timestamp, addDoc, deleteDoc, doc, serverTimestamp, updateDoc, getDoc, Firestore, onSnapshot, setDoc } from 'firebase/firestore';
 import { convertsCollection, membersCollection, annotationsCollection } from '@/lib/collections';
 import { Convert, Annotation } from '@/lib/types';
@@ -11,7 +12,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Save, Edit2, X, Check } from 'lucide-react';
+import { Save, Edit2, X, Check, Eye } from 'lucide-react';
 import { createNewConvertCouncilNotificationsForAll } from '@/lib/notification-helpers';
 
 // Extended convert type with notes
@@ -57,7 +58,7 @@ const ConsejoPage: React.FC = () => {
   const [newConverts, setNewConverts] = useState<ConvertWithNotes[]>([]);
   const [loading, setLoading] = useState(true);
   const [annotationsLoading, setAnnotationsLoading] = useState(true);
-  
+
   // State for editing notes
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [editingNotesValue, setEditingNotesValue] = useState('');
@@ -98,9 +99,9 @@ const ConsejoPage: React.FC = () => {
         let convertsFromCollection = snapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() } as Convert))
           .filter(convert =>
-              convert.baptismDate &&
-              convert.baptismDate.toDate &&
-              convert.baptismDate.toDate() > twentyFourMonthsAgo
+            convert.baptismDate &&
+            convert.baptismDate.toDate &&
+            convert.baptismDate.toDate() > twentyFourMonthsAgo
           );
 
         // Get member data for converts with memberId
@@ -242,7 +243,7 @@ const ConsejoPage: React.FC = () => {
       }
 
       await deleteDoc(annotationRef);
-      
+
       toast({ title: 'Anotación Resuelta', description: 'La anotación ha sido marcada como resuelta y eliminada.' });
     } catch (error) {
       console.error('Error resolving annotation:', error);
@@ -263,27 +264,27 @@ const ConsejoPage: React.FC = () => {
 
   const saveNotes = async (convertId: string) => {
     if (!user) return;
-    
+
     // Get current notes before saving to detect changes
     const currentConvert = newConverts.find(c => c.id === convertId);
     const previousNotes = currentConvert?.notes || '';
     const notesChanged = previousNotes !== editingNotesValue;
-    
+
     setSavingNotes(true);
     try {
       const firestore = convertsCollection.firestore;
       await saveConvertNotes(firestore, convertId, editingNotesValue);
-      
+
       // Update local state
-      setNewConverts(prev => prev.map(c => 
+      setNewConverts(prev => prev.map(c =>
         c.id === convertId ? { ...c, notes: editingNotesValue } : c
       ));
-      
+
       setEditingNotesId(null);
       setEditingNotesValue('');
-      
+
       toast({ title: 'Observaciones guardadas', description: 'Las observaciones se han sincronizado correctamente.' });
-      
+
       // Send in-app notification only if notes changed (not first time)
       if (notesChanged && currentConvert) {
         try {
@@ -348,13 +349,26 @@ const ConsejoPage: React.FC = () => {
                   />
                 )}
                 <div className="flex flex-col flex-1">
-                  <span className="font-bold text-base mb-0.5">
-                    {convert.name}
-                  </span>
-                  <span className="text-sm text-gray-600">
-                    Bautismo: {convert.baptismDate?.toDate().toLocaleDateString('es-ES')}
-                  </span>
-                  
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="font-bold text-base mb-0.5 block">
+                        {convert.name}
+                      </span>
+                      <span className="text-sm text-gray-600 block">
+                        Bautismo: {convert.baptismDate?.toDate().toLocaleDateString('es-ES')}
+                      </span>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-gray-700 hover:bg-gray-100" asChild>
+                      <Link href={convert.id.startsWith('member_')
+                        ? `/members/${convert.id.substring(7)}`
+                        : convert.memberId
+                          ? `/members/${convert.memberId}`
+                          : `/members?search=${encodeURIComponent(convert.name || '')}`}>
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </div>
+
                   {/* Notes section - editable */}
                   <div className="mt-2">
                     {editingNotesId === convert.id ? (

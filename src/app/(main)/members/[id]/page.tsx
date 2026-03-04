@@ -22,7 +22,7 @@ import type { Member, MemberStatus, TempleOrdinance } from '@/lib/types';
 import { OrdinanceLabels, TempleOrdinanceLabels } from '@/lib/types';
 import { getMemberById } from '@/lib/members-data';
 import { buildMemberEditUrl } from '@/lib/navigation';
-import { format } from 'date-fns';
+import { format, differenceInYears } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const statusConfig = {
@@ -105,9 +105,7 @@ export default function MemberProfilePage() {
     fetchMember();
   }, [memberId, user, t, toast]);
 
-  const handleBackToMembers = () => {
-    router.push('/members');
-  };
+
 
   const handleEditMember = () => {
     router.push(buildMemberEditUrl(memberId, `/members/${memberId}`));
@@ -153,12 +151,7 @@ export default function MemberProfilePage() {
   if (error || !member) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={handleBackToMembers}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            {t('memberProfile.backToMembers')}
-          </Button>
-        </div>
+
 
         <Card>
           <CardContent className="pt-6">
@@ -178,22 +171,11 @@ export default function MemberProfilePage() {
   return (
     <section className="page-section">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleBackToMembers}
-          className="w-full sm:w-auto sm:self-start"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          {t('memberProfile.backToMembers')}
-        </Button>
-        <div className="flex flex-col gap-1 text-left">
-          <h1 className="text-balance text-fluid-title font-semibold tracking-tight">{t('memberProfile.title')}</h1>
-          <p className="text-sm text-muted-foreground sm:text-base">
-            {member.firstName} {member.lastName}
-          </p>
-        </div>
+      <div className="flex flex-col gap-1 text-left">
+        <h1 className="text-balance text-fluid-title font-semibold tracking-tight">{t('memberProfile.title')}</h1>
+        <p className="text-sm text-muted-foreground sm:text-base">
+          {member.firstName} {member.lastName}
+        </p>
       </div>
 
       {/* Profile Photo and Basic Info */}
@@ -235,7 +217,7 @@ export default function MemberProfilePage() {
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="h-4 w-4" />
                   <span>
-                    {format(member.birthDate.toDate(), 'd MMMM yyyy', { locale: es })}
+                    {format(member.birthDate.toDate(), 'd MMMM yyyy', { locale: es })} ({differenceInYears(new Date(), member.birthDate.toDate())})
                   </span>
                 </div>
               )}
@@ -275,7 +257,7 @@ export default function MemberProfilePage() {
                   {t('memberProfile.birthDate')}
                 </label>
                 <p className="text-sm">
-                  {format(member.birthDate.toDate(), 'd MMMM yyyy', { locale: es })}
+                  {format(member.birthDate.toDate(), 'd MMMM yyyy', { locale: es })} ({differenceInYears(new Date(), member.birthDate.toDate())})
                 </p>
               </div>
             )}
@@ -358,7 +340,7 @@ export default function MemberProfilePage() {
               {member.baptismPhotos && member.baptismPhotos.length > 0 && (
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">
-                    {t('memberProfile.bathismPhotos')}
+                    {t('memberProfile.baptismPhotos')}
                   </label>
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     {member.baptismPhotos.map((photo, index) => (

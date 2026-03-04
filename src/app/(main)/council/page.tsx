@@ -4,14 +4,18 @@
 export const dynamic = 'force-dynamic';
 
 import { getDocs, query, orderBy, where, Timestamp, doc, updateDoc, getDoc, deleteDoc, collection, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
-import { membersCollection, futureMembersCollection, ministeringCollection, annotationsCollection, servicesCollection, activitiesCollection, newConvertFriendsCollection } from '@/lib/collections';
+
+
 import type { Member, FutureMember, Companionship, Family, Annotation, Service, Activity, NewConvertFriendship, Ordinance, TempleOrdinance } from '@/lib/types';
 import { OrdinanceLabels, TempleOrdinanceLabels } from '@/lib/types';
 import { getLessActiveMembers, getUrgentMembers, normalizeMemberStatus, updateMember, getDeceasedMembers } from '@/lib/members-data';
 import { createNotificationsForAll } from '@/lib/notification-helpers';
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { firestore } from '@/lib/firebase';
+
+import { membersCollection, futureMembersCollection, ministeringCollection, annotationsCollection, servicesCollection, activitiesCollection, newConvertFriendsCollection } from '@/lib/collections';
 
 import {
   Card,
@@ -30,7 +34,7 @@ import {
 } from '@/components/ui/table';
 import { format, subYears, addDays, subHours, isAfter, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { UserCheck, UserMinus, Users, CalendarClock, AlertTriangle, CheckCircle, Wrench, BellRing, Calendar, Info, Loader2, BadgeCheck, AlertCircle } from 'lucide-react';
+import { UserCheck, UserMinus, Users, CalendarClock, AlertTriangle, CheckCircle, Wrench, BellRing, Calendar, Info, Loader2, BadgeCheck, AlertCircle, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -256,7 +260,7 @@ function getDaysUntilRemoval(member: Member): number | null {
   if (!hasAllTempleOrdinances(member)) return null;
   const completedAt = member.templeWorkCompletedAt?.toDate();
   if (!completedAt) return null;
-  
+
   const now = new Date();
   const sevenDaysLater = new Date(completedAt.getTime() + 7 * 24 * 60 * 60 * 1000);
   const daysRemaining = Math.ceil((sevenDaysLater.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
@@ -265,7 +269,7 @@ function getDaysUntilRemoval(member: Member): number | null {
 
 
 // Helper to convert a Member (convert) into the ConvertWithInfo shape the sheet expects
-const convertInfoCollection = (convertId: string) => doc(membersCollection.firestore, 'c_conversos_info', convertId);
+const convertInfoCollection = (convertId: string) => doc(firestore, 'c_conversos_info', convertId);
 
 function memberToConvertWithInfo(member: Member): ConvertWithInfo {
   return {
@@ -827,6 +831,11 @@ export default function CouncilPage() {
 
                         <TableCell className="text-right">
                           <div className="flex justify-end items-center gap-2">
+                            <Button variant="ghost" size="icon" asChild>
+                              <Link href={`/members/${item.id}`}>
+                                <Eye className="h-4 w-4" />
+                              </Link>
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"
@@ -881,6 +890,11 @@ export default function CouncilPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="icon" asChild>
+                            <Link href={`/members/${item.id}`}>
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -1262,6 +1276,6 @@ export default function CouncilPage() {
         </CardContent>
       </Card>
 
-    </div>
+    </div >
   );
 }

@@ -2,11 +2,11 @@
 'use client';
 
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Image from 'next/image';
@@ -18,7 +18,7 @@ import { useSearchParams } from 'next/navigation';
 import { doc, getDoc, Timestamp, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { usersCollection, storage } from '@/lib/collections';
-import { format } from 'date-fns';
+import { format, differenceInYears } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -91,7 +91,7 @@ export default function ProfilePage() {
 
         fetchUserData();
     }, [targetUid]);
-    
+
     const loading = authLoading || loadingProfile;
     const displayName = isViewingOtherUser
         ? profileData?.name ?? 'Usuario'
@@ -209,171 +209,171 @@ export default function ProfilePage() {
         }
     };
 
-  return (
-    <section className="page-section">
-       <div className="flex flex-col gap-2">
-        <h1 className="text-balance text-fluid-title font-semibold">{t('Profile')}</h1>
-        <p className="text-balance text-fluid-subtitle text-muted-foreground">
-          {t('View and manage your profile information.')}
-        </p>
-      </div>
-      <Card className="mx-auto w-full max-w-md">
-        <CardHeader className="items-center text-center">
-            {canEditProfile && (
-                <div className="flex w-full justify-end">
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Editar perfil"
-                        onClick={() => setIsEditing(true)}
-                        disabled={loading || isEditing}
-                    >
-                        <Pencil className="h-4 w-4" />
-                    </Button>
-                </div>
-            )}
-            {loading ? (
-                <Skeleton className="h-24 w-24 rounded-full mb-4" />
-            ) : (
-                <div className="relative">
-                    <Avatar className="h-24 w-24 mb-4">
-                    {displayPhoto ? (
-                        <Image
-                            src={displayPhoto}
-                            alt={displayName}
-                            width={100}
-                            height={100}
-                            className="rounded-full"
-                            data-ai-hint="profile picture"
-                        />
-                    ) : (
-                        <AvatarFallback>{displayInitials}</AvatarFallback>
-                    )}
-                    </Avatar>
-                    {isEditing && canEditProfile && (
-                        <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
+    return (
+        <section className="page-section">
+            <div className="flex flex-col gap-2">
+                <h1 className="text-balance text-fluid-title font-semibold">{t('Profile')}</h1>
+                <p className="text-balance text-fluid-subtitle text-muted-foreground">
+                    {t('View and manage your profile information.')}
+                </p>
+            </div>
+            <Card className="mx-auto w-full max-w-md">
+                <CardHeader className="items-center text-center">
+                    {canEditProfile && (
+                        <div className="flex w-full justify-end">
                             <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-12 w-12 text-white"
-                                onClick={() => fileInputRef?.click()}
+                                aria-label="Editar perfil"
+                                onClick={() => setIsEditing(true)}
+                                disabled={loading || isEditing}
                             >
-                                <Camera className="h-6 w-6" />
+                                <Pencil className="h-4 w-4" />
                             </Button>
                         </div>
                     )}
-                    {isEditing && canEditProfile && previewUrl && (
-                        <Button
-                            type="button"
-                            variant="destructive"
-                            size="icon"
-                            className="absolute -top-1 -right-1 h-6 w-6 rounded-full"
-                            onClick={handleRemoveImage}
-                        >
-                            <X className="h-3.5 w-3.5" />
-                        </Button>
+                    {loading ? (
+                        <Skeleton className="h-24 w-24 rounded-full mb-4" />
+                    ) : (
+                        <div className="relative">
+                            <Avatar className="h-24 w-24 mb-4">
+                                {displayPhoto ? (
+                                    <Image
+                                        src={displayPhoto}
+                                        alt={displayName}
+                                        width={100}
+                                        height={100}
+                                        className="rounded-full"
+                                        data-ai-hint="profile picture"
+                                    />
+                                ) : (
+                                    <AvatarFallback>{displayInitials}</AvatarFallback>
+                                )}
+                            </Avatar>
+                            {isEditing && canEditProfile && (
+                                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-12 w-12 text-white"
+                                        onClick={() => fileInputRef?.click()}
+                                    >
+                                        <Camera className="h-6 w-6" />
+                                    </Button>
+                                </div>
+                            )}
+                            {isEditing && canEditProfile && previewUrl && (
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    className="absolute -top-1 -right-1 h-6 w-6 rounded-full"
+                                    onClick={handleRemoveImage}
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </Button>
+                            )}
+                        </div>
                     )}
-                </div>
-            )}
-            
-            {loading ? (
-                <div className="flex flex-col items-center gap-2">
-                    <Skeleton className="h-7 w-32" />
-                    <Skeleton className="h-4 w-48" />
-                    <Skeleton className="h-4 w-40" />
-                </div>
-            ) : (
-                <>
-                    <CardTitle className="text-2xl">{displayName}</CardTitle>
-                    {displayEmail && <CardDescription>{displayEmail}</CardDescription>}
-                    {profileData?.birthDate && (
-                        <CardDescription>
-                            Nacimiento: {format(profileData.birthDate.toDate(), 'd LLLL yyyy', { locale: es })}
-                        </CardDescription>
-                    )}
-                    {profileData?.memberId && (
-                        <CardDescription>
-                            Cédula de miembro: {profileData.memberId}
-                        </CardDescription>
-                    )}
-                </>
-            )}
 
-        </CardHeader>
-        <CardContent>
-            {isEditing && canEditProfile ? (
-                <div className="space-y-4">
-                    <Input
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        ref={setFileInputRef}
-                        onChange={handleImageChange}
-                    />
-                    <div className="space-y-2 text-left">
-                        <Label htmlFor="profile-name">Nombre</Label>
-                        <Input
-                            id="profile-name"
-                            value={editValues.name}
-                            onChange={(event) =>
-                                setEditValues((prev) => ({
-                                    ...prev,
-                                    name: event.target.value,
-                                }))
-                            }
-                        />
-                    </div>
-                    <div className="space-y-2 text-left">
-                        <Label htmlFor="profile-birthdate">Fecha de nacimiento</Label>
-                        <Input
-                            id="profile-birthdate"
-                            type="date"
-                            value={editValues.birthDate}
-                            onChange={(event) =>
-                                setEditValues((prev) => ({
-                                    ...prev,
-                                    birthDate: event.target.value,
-                                }))
-                            }
-                        />
-                    </div>
-                    <div className="space-y-2 text-left">
-                        <Label htmlFor="profile-member-id">Cédula de miembro</Label>
-                        <Input
-                            id="profile-member-id"
-                            value={editValues.memberId}
-                            onChange={(event) =>
-                                setEditValues((prev) => ({
-                                    ...prev,
-                                    memberId: event.target.value,
-                                }))
-                            }
-                            placeholder="Ej: 123456"
-                        />
-                    </div>
-                    <div className="flex flex-wrap justify-end gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handleCancelEdit}
-                            disabled={isSaving}
-                        >
-                            <X className="mr-2 h-4 w-4" />
-                            Cancelar
-                        </Button>
-                        <Button type="button" onClick={handleSaveEdit} disabled={isSaving}>
-                            <Save className="mr-2 h-4 w-4" />
-                            {isSaving ? 'Guardando...' : 'Guardar'}
-                        </Button>
-                    </div>
-                </div>
-            ) : (
-                <></>
-            )}
-        </CardContent>
-      </Card>
-    </section>
-  );
+                    {loading ? (
+                        <div className="flex flex-col items-center gap-2">
+                            <Skeleton className="h-7 w-32" />
+                            <Skeleton className="h-4 w-48" />
+                            <Skeleton className="h-4 w-40" />
+                        </div>
+                    ) : (
+                        <>
+                            <CardTitle className="text-2xl">{displayName}</CardTitle>
+                            {displayEmail && <CardDescription>{displayEmail}</CardDescription>}
+                            {profileData?.birthDate && (
+                                <CardDescription>
+                                    Nacimiento: {format(profileData.birthDate.toDate(), 'd LLLL yyyy', { locale: es })} ({differenceInYears(new Date(), profileData.birthDate.toDate())})
+                                </CardDescription>
+                            )}
+                            {profileData?.memberId && (
+                                <CardDescription>
+                                    Cédula de miembro: {profileData.memberId}
+                                </CardDescription>
+                            )}
+                        </>
+                    )}
+
+                </CardHeader>
+                <CardContent>
+                    {isEditing && canEditProfile ? (
+                        <div className="space-y-4">
+                            <Input
+                                type="file"
+                                className="hidden"
+                                accept="image/*"
+                                ref={setFileInputRef}
+                                onChange={handleImageChange}
+                            />
+                            <div className="space-y-2 text-left">
+                                <Label htmlFor="profile-name">Nombre</Label>
+                                <Input
+                                    id="profile-name"
+                                    value={editValues.name}
+                                    onChange={(event) =>
+                                        setEditValues((prev) => ({
+                                            ...prev,
+                                            name: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2 text-left">
+                                <Label htmlFor="profile-birthdate">Fecha de nacimiento</Label>
+                                <Input
+                                    id="profile-birthdate"
+                                    type="date"
+                                    value={editValues.birthDate}
+                                    onChange={(event) =>
+                                        setEditValues((prev) => ({
+                                            ...prev,
+                                            birthDate: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2 text-left">
+                                <Label htmlFor="profile-member-id">Cédula de miembro</Label>
+                                <Input
+                                    id="profile-member-id"
+                                    value={editValues.memberId}
+                                    onChange={(event) =>
+                                        setEditValues((prev) => ({
+                                            ...prev,
+                                            memberId: event.target.value,
+                                        }))
+                                    }
+                                    placeholder="Ej: 123456"
+                                />
+                            </div>
+                            <div className="flex flex-wrap justify-end gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={handleCancelEdit}
+                                    disabled={isSaving}
+                                >
+                                    <X className="mr-2 h-4 w-4" />
+                                    Cancelar
+                                </Button>
+                                <Button type="button" onClick={handleSaveEdit} disabled={isSaving}>
+                                    <Save className="mr-2 h-4 w-4" />
+                                    {isSaving ? 'Guardando...' : 'Guardar'}
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <></>
+                    )}
+                </CardContent>
+            </Card>
+        </section>
+    );
 }

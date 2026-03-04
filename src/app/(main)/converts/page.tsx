@@ -3,8 +3,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
-import { newConvertFriendsCollection, membersCollection, ministeringCollection, convertsCollection } from '@/lib/collections';
+import { getDocs, query, orderBy, Timestamp, collection } from 'firebase/firestore';
+import { membersCollection, futureMembersCollection, ministeringCollection, convertsCollection, newConvertFriendsCollection } from '@/lib/collections';
 import type { Convert, Member, NewConvertFriendship, Companionship } from '@/lib/types';
 import { normalizeMemberStatus } from '@/lib/members-data';
 import {
@@ -23,7 +23,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Info, Pencil } from 'lucide-react';
+import { Info, Pencil, Eye } from 'lucide-react';
 import { format, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -36,8 +36,9 @@ import { syncMinisteringAssignments } from '@/lib/ministering-sync';
 import { useToast } from '@/hooks/use-toast';
 import { buildMemberEditUrl } from '@/lib/navigation';
 
+import { firestore } from '@/lib/firebase';
 // Convert info collection for additional data
-const convertInfoCollection = (convertId: string) => doc(membersCollection.firestore, 'c_conversos_info', convertId);
+const convertInfoCollection = (convertId: string) => doc(firestore, 'c_conversos_info', convertId);
 
 async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
   const twentyFourMonthsAgo = subMonths(new Date(), 24);
@@ -368,6 +369,15 @@ export default function ConvertsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" asChild>
+                        <Link href={item.id.startsWith('member_')
+                          ? `/members/${item.id.substring(7)}`
+                          : item.memberId
+                            ? `/members/${item.memberId}`
+                            : `/members?search=${encodeURIComponent(item.name)}`}>
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => openConvertInfo(item)}>
                         <Info className="h-4 w-4" />
                       </Button>
