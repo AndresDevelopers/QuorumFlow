@@ -1,6 +1,18 @@
 {
-  "current": "1.1.10",
+  "current": "1.1.11",
   "entries": [
+    {
+      "version": "1.1.11",
+      "date": "2026-03-04",
+      "changes": {
+        "es": [
+          "Actualización: Improve FCM delivery and add changelog utilities."
+        ],
+        "en": [
+          "Update: Improve FCM delivery and add changelog utilities."
+        ]
+      }
+    },
     {
       "version": "1.1.10",
       "date": "2026-03-03",
