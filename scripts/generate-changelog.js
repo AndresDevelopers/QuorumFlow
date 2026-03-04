@@ -65,6 +65,62 @@ function bumpPatch(version) {
   return parts.join('.');
 }
 
+function normalizeText(value) {
+  return value.toLowerCase().replace(/[\s\W_]+/g, '');
+}
+
+function extractSubject(message) {
+  return message.split('\n')[0].trim();
+}
+
+function stripConventionalPrefix(subject) {
+  return subject.replace(/^\s*[a-z]+(\([^)]+\))?(!)?\s*:\s*/i, '');
+}
+
+function ensureSentence(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+  const capitalized = trimmed[0].toUpperCase() + trimmed.slice(1);
+  return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
+}
+
+function buildNormalizedCommitSet(commits) {
+  const subjects = commits.map(extractSubject);
+  const cleaned = subjects.map(stripConventionalPrefix);
+  const combined = [...commits, ...subjects, ...cleaned].filter(Boolean);
+  return new Set(combined.map(normalizeText));
+}
+
+function hasConventionalPrefix(text) {
+  return /^\s*(feat|fix|chore|docs|refactor|perf|test|build|ci|style|revert)(\([^)]+\))?(!)?\s*:\s*/i.test(text);
+}
+
+function isLikelyRaw(items, normalizedCommits) {
+  if (!Array.isArray(items) || items.length === 0) return true;
+  return items.every((item) => {
+    const normalized = normalizeText(item);
+    return normalizedCommits.has(normalized) || hasConventionalPrefix(item);
+  });
+}
+
+function createFriendlyChanges(commits) {
+  const subjects = commits.map(extractSubject).filter(Boolean);
+  const cleaned = subjects.map(stripConventionalPrefix);
+  const limited = cleaned.slice(0, 6);
+
+  const es = limited.map((item) => {
+    const base = item || 'Cambios internos';
+    return `Actualización: ${ensureSentence(base)}`;
+  });
+
+  const en = limited.map((item) => {
+    const base = item || 'Internal updates';
+    return `Update: ${ensureSentence(base)}`;
+  });
+
+  return { es, en };
+}
+
 function readJSON(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
@@ -81,10 +137,11 @@ function writeJSON(filePath, data) {
  */
 async function callDeepSeek(commits) {
   const apiKey = process.env.DEEPSEEK_API_KEY;
+  const friendlyFallback = createFriendlyChanges(commits);
 
   if (!apiKey || apiKey === 'your-deepseek-api-key') {
     console.warn('[changelog] DEEPSEEK_API_KEY not set – using raw commit messages.');
-    return { es: commits, en: commits };
+    return friendlyFallback;
   }
 
   const numbered = commits.map((m, i) => `${i + 1}. ${m}`).join('\n');
@@ -138,27 +195,32 @@ async function callDeepSeek(commits) {
           if (match) {
             const result = JSON.parse(match[0]);
             if (Array.isArray(result.es) && Array.isArray(result.en)) {
+              const normalizedCommits = buildNormalizedCommitSet(commits);
+              if (isLikelyRaw(result.es, normalizedCommits) || isLikelyRaw(result.en, normalizedCommits)) {
+                console.warn('[changelog] DeepSeek returned raw commits, using friendly fallback.');
+                return resolve(friendlyFallback);
+              }
               return resolve(result);
             }
           }
           console.warn('[changelog] Unexpected DeepSeek response, using raw commits.');
-          resolve({ es: commits, en: commits });
+          resolve(friendlyFallback);
         } catch (e) {
           console.error('[changelog] DeepSeek parse error:', e.message);
-          resolve({ es: commits, en: commits });
+          resolve(friendlyFallback);
         }
       });
     });
 
     req.on('error', (e) => {
       console.error('[changelog] DeepSeek request error:', e.message);
-      resolve({ es: commits, en: commits });
+      resolve(friendlyFallback);
     });
 
     req.setTimeout(20000, () => {
       console.warn('[changelog] DeepSeek request timed out, using raw commits.');
       req.destroy();
-      resolve({ es: commits, en: commits });
+      resolve(friendlyFallback);
     });
 
     req.write(body);
@@ -236,7 +298,19 @@ async function main() {
   console.log(`\n✨ Done! App version is now v${newVersion}\n`);
 }
 
-main().catch((err) => {
-  console.error('[changelog] Fatal error:', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('[changelog] Fatal error:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  normalizeText,
+  extractSubject,
+  stripConventionalPrefix,
+  ensureSentence,
+  buildNormalizedCommitSet,
+  isLikelyRaw,
+  createFriendlyChanges,
+};

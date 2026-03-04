@@ -103,14 +103,12 @@ const sentryBuildOptions = {
   // Conditionally hide source maps only in production
   hideSourceMaps: process.env.NODE_ENV === 'production',
 
-  // Automatically tree-shake Sentry logger statements to reduce bundle size
-  disableLogger: true,
-
-  // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
-  // See the following for more information:
-  // https://docs.sentry.io/product/crons/
-  // https://vercel.com/docs/cron-jobs
-  automaticVercelMonitors: true,
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+    },
+    automaticVercelMonitors: true,
+  },
 
   // transpileClientSDK was removed in Sentry 8.x - the SDK now handles compatibility automatically
   // Reference: https://docs.sentry.io/platforms/javascript/guides/nextjs/migration/

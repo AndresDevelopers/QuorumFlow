@@ -2,59 +2,59 @@
 import { Timestamp } from 'firebase/firestore';
 
 export type Family = {
-  name: string;
-  isUrgent: boolean;
-  observation: string;
-  memberId?: string;
+    name: string;
+    isUrgent: boolean;
+    observation: string;
+    memberId?: string;
 };
 
 export type Companionship = {
-  id: string;
-  companions: string[];
-  families: Family[];
+    id: string;
+    companions: string[];
+    families: Family[];
 };
 
 export type MinisteringDistrict = {
-  id: string;
-  name: string;
-  companionshipIds: string[];
-  leaderId?: string | null;
-  leaderName?: string | null;
-  updatedAt?: Timestamp;
+    id: string;
+    name: string;
+    companionshipIds: string[];
+    leaderId?: string | null;
+    leaderName?: string | null;
+    updatedAt?: Timestamp;
 };
 
 export type Convert = {
-  id: string;
-  name: string;
-  baptismDate: Timestamp;
-  photoURL?: string;
-  councilCompleted?: boolean;
-  councilCompletedAt?: Timestamp | null;
-  observation?: string;
-  missionaryReference?: string;
-  memberId?: string;
+    id: string;
+    name: string;
+    baptismDate: Timestamp;
+    photoURL?: string;
+    councilCompleted?: boolean;
+    councilCompletedAt?: Timestamp | null;
+    observation?: string;
+    missionaryReference?: string;
+    memberId?: string;
 };
 
 export type FutureMember = {
-  id: string;
-  name: string;
-  baptismDate: Timestamp;
-  photoURL?: string;
-  baptismPhotos?: string[];
-  isBaptized?: boolean;
+    id: string;
+    name: string;
+    baptismDate: Timestamp;
+    photoURL?: string;
+    baptismPhotos?: string[];
+    isBaptized?: boolean;
 };
 
 export type Activity = {
-  id: string;
-  title: string;
-  date: Timestamp;
-  description: string;
-  time?: string;
-  imageUrls?: string[];
-  location?: string;
-  context?: string;
-  learning?: string;
-  additionalText?: string;
+    id: string;
+    title: string;
+    date: Timestamp;
+    description: string;
+    time?: string;
+    imageUrls?: string[];
+    location?: string;
+    context?: string;
+    learning?: string;
+    additionalText?: string;
 }
 
 export type Annotation = {
@@ -68,12 +68,12 @@ export type Annotation = {
 }
 
 export type Birthday = {
-  id: string;
-  name: string;
-  birthDate: Timestamp;
-  photoURL?: string;
-  isMember?: boolean;
-  memberId?: string;
+    id: string;
+    name: string;
+    birthDate: Timestamp;
+    photoURL?: string;
+    isMember?: boolean;
+    memberId?: string;
 };
 
 export type Baptism = {
@@ -84,6 +84,7 @@ export type Baptism = {
     photoURL?: string;
     baptismPhotos?: string[];
     observation?: string;
+    memberId?: string;
 }
 
 export type FamilySearchTraining = {
@@ -188,16 +189,16 @@ export type AppNotification = {
     actionType?: 'navigate' | 'external';
     // Context data to determine navigation route
     contextType?:
-        | 'convert'
-        | 'activity'
-        | 'service'
-        | 'member'
-        | 'council'
-        | 'baptism'
-        | 'birthday'
-        | 'investigator'
-        | 'urgent_family'
-        | 'missionary_assignment';
+    | 'convert'
+    | 'activity'
+    | 'service'
+    | 'member'
+    | 'council'
+    | 'baptism'
+    | 'birthday'
+    | 'investigator'
+    | 'urgent_family'
+    | 'missionary_assignment';
     contextId?: string;
 }
 
@@ -205,12 +206,12 @@ export type AppNotification = {
 export type MemberStatus = 'active' | 'less_active' | 'inactive' | 'deceased';
 
 // Ordenanzas disponibles
-export type Ordinance = 
-    | 'baptism' 
-    | 'confirmation' 
-    | 'elder_ordination' 
-    | 'endowment' 
-    | 'sealed_spouse' 
+export type Ordinance =
+    | 'baptism'
+    | 'confirmation'
+    | 'elder_ordination'
+    | 'endowment'
+    | 'sealed_spouse'
     | 'high_priest_ordination'
     | 'aronico_ordination';
 
@@ -225,11 +226,11 @@ export const OrdinanceLabels: Record<Ordinance, string> = {
 };
 
 // Ordenanzas para obra vicaria (miembros deceased)
-export type TempleOrdinance = 
-    | 'baptism' 
-    | 'confirmation' 
-    | 'initiatory' 
-    | 'endowment' 
+export type TempleOrdinance =
+    | 'baptism'
+    | 'confirmation'
+    | 'initiatory'
+    | 'endowment'
     | 'sealed_to_father'
     | 'sealed_to_mother'
     | 'sealed_to_spouse';

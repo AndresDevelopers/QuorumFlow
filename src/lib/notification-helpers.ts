@@ -88,12 +88,6 @@ async function sendPushNotification(params: {
   url?: string;
 }): Promise<void> {
   try {
-    // Solo enviar en producción o si está explícitamente habilitado
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Push notification skipped in development:', params);
-      return;
-    }
-
     const response = await fetch('/api/send-fcm-notification', {
       method: 'POST',
       headers: {
@@ -379,10 +373,10 @@ export function isNewConvert(member: { baptismDate?: { toDate: () => Date } | nu
   if (!member.baptismDate || !member.baptismDate.toDate) {
     return false;
   }
-  
+
   const twoYearsAgo = new Date();
   twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-  
+
   const baptismDate = member.baptismDate.toDate();
   return baptismDate > twoYearsAgo;
 }
@@ -426,7 +420,7 @@ export async function createNewConvertCouncilNotificationsForAll(
   action: string = 'actualizado'
 ): Promise<string[]> {
   const userIds = await getAllUserIds();
-  
+
   // Filter users to only include those with in-app notifications enabled
   const usersWithInAppEnabled: string[] = [];
 
@@ -508,7 +502,7 @@ export async function sendDeceasedMembersOrdinanceNotifications(
   }>
 ): Promise<{ sent: number; skipped: number; membersNotified: string[] }> {
   const userIds = await getAllUserIds();
-  
+
   // Filter users to only include those with push notifications enabled
   const usersWithPushEnabled: string[] = [];
 
@@ -544,7 +538,7 @@ export async function sendDeceasedMembersOrdinanceNotifications(
 
   const missingCount = membersNeedingOrdinances.length;
   const memberNames = membersNeedingOrdinances.map(m => `${m.firstName} ${m.lastName}`).join(', ');
-  
+
   const title = "⚰️ Miembros Fallecidos Sin Ordenanzas Completas";
   const body = missingCount === 1
     ? `Hay ${missingCount} miembro fallecido que necesita ordenanzas del templo: ${memberNames}`
@@ -570,8 +564,8 @@ export async function sendDeceasedMembersOrdinanceNotifications(
     }
   }
 
-  return { 
-    sent: sentCount, 
+  return {
+    sent: sentCount,
     skipped: usersWithPushEnabled.length - sentCount,
     membersNotified
   };

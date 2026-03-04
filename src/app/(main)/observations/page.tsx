@@ -79,7 +79,7 @@ import { getMembersByStatus } from '@/lib/members-data';
 
 import { fetchHealthConcerns, createHealthConcern, deleteHealthConcern, updateHealthConcern } from '@/lib/health-concerns';
 
-import { format, subMonths } from 'date-fns';
+import { format, subMonths, differenceInYears } from 'date-fns';
 
 import { es } from 'date-fns/locale';
 
@@ -164,6 +164,14 @@ const DEFAULT_HEALTH_FORM_VALUES: HealthConcernFormValues = {
 
 const getInitials = (first: string, last: string) => `${(first?.[0] ?? '').toUpperCase()}${(last?.[0] ?? '').toUpperCase()}`.trim() || 'PS';
 
+const renderPhoneWithAge = (member: Member, fallback: string = 'Sin teléfono') => {
+  let text = member.phoneNumber || fallback;
+  if (member.birthDate) {
+    const age = differenceInYears(new Date(), member.birthDate.toDate());
+    text += ` - ${age} Edad`;
+  }
+  return text;
+};
 
 
 
@@ -1080,83 +1088,83 @@ export default function ObservationsPage() {
 
         <Card className="cursor-pointer" onClick={() => withoutEndowmentRef.current?.scrollIntoView({ behavior: 'smooth' })}>
 
-           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 
-             <CardTitle className="text-sm font-medium">Sin Investidura</CardTitle>
+            <CardTitle className="text-sm font-medium">Sin Investidura</CardTitle>
 
-             <AlertTriangle className="h-4 w-4 text-orange-600" />
+            <AlertTriangle className="h-4 w-4 text-orange-600" />
 
-           </CardHeader>
+          </CardHeader>
 
-           <CardContent>
+          <CardContent>
 
-             <div className="text-2xl font-bold text-orange-600">{observationCounts.withoutEndowment}</div>
+            <div className="text-2xl font-bold text-orange-600">{observationCounts.withoutEndowment}</div>
 
-             <p className="text-xs text-muted-foreground">miembros sin ordenanza de investidura</p>
+            <p className="text-xs text-muted-foreground">miembros sin ordenanza de investidura</p>
 
-           </CardContent>
+          </CardContent>
 
-         </Card>
+        </Card>
 
         <Card className="cursor-pointer" onClick={() => withoutElderOrdinationRef.current?.scrollIntoView({ behavior: 'smooth' })}>
 
-           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 
-             <CardTitle className="text-sm font-medium">Sin Ordenanza de Elderes</CardTitle>
+            <CardTitle className="text-sm font-medium">Sin Ordenanza de Elderes</CardTitle>
 
-             <UserCheck className="h-4 w-4 text-purple-600" />
+            <UserCheck className="h-4 w-4 text-purple-600" />
 
-           </CardHeader>
+          </CardHeader>
 
-           <CardContent>
+          <CardContent>
 
-             <div className="text-2xl font-bold text-purple-600">{observationCounts.withoutElderOrdination}</div>
+            <div className="text-2xl font-bold text-purple-600">{observationCounts.withoutElderOrdination}</div>
 
-             <p className="text-xs text-muted-foreground">miembros sin ordenanza de élder</p>
+            <p className="text-xs text-muted-foreground">miembros sin ordenanza de élder</p>
 
-           </CardContent>
+          </CardContent>
 
-         </Card>
+        </Card>
 
         <Card className="cursor-pointer" onClick={() => withoutHigherPriesthoodRef.current?.scrollIntoView({ behavior: 'smooth' })}>
 
-           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 
-             <CardTitle className="text-sm font-medium">Sin Sacerdocio Mayor</CardTitle>
+            <CardTitle className="text-sm font-medium">Sin Sacerdocio Mayor</CardTitle>
 
-             <UserCheck className="h-4 w-4 text-indigo-600" />
+            <UserCheck className="h-4 w-4 text-indigo-600" />
 
-           </CardHeader>
+          </CardHeader>
 
-           <CardContent>
+          <CardContent>
 
-             <div className="text-2xl font-bold text-indigo-600">{observationCounts.withoutHigherPriesthood}</div>
+            <div className="text-2xl font-bold text-indigo-600">{observationCounts.withoutHigherPriesthood}</div>
 
-             <p className="text-xs text-muted-foreground">miembros sin sacerdocio mayor</p>
+            <p className="text-xs text-muted-foreground">miembros sin sacerdocio mayor</p>
 
-           </CardContent>
+          </CardContent>
 
-         </Card>
+        </Card>
 
         <Card className="cursor-pointer" onClick={() => withoutMinisteringRef.current?.scrollIntoView({ behavior: 'smooth' })}>
 
-           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 
-             <CardTitle className="text-sm font-medium">Sin Ministrantes</CardTitle>
+            <CardTitle className="text-sm font-medium">Sin Ministrantes</CardTitle>
 
-             <UserX className="h-4 w-4 text-blue-600" />
+            <UserX className="h-4 w-4 text-blue-600" />
 
-           </CardHeader>
+          </CardHeader>
 
-           <CardContent>
+          <CardContent>
 
-             <div className="text-2xl font-bold text-blue-600">{observationCounts.withoutMinistering}</div>
+            <div className="text-2xl font-bold text-blue-600">{observationCounts.withoutMinistering}</div>
 
-             <p className="text-xs text-muted-foreground">miembros sin maestros ministrantes</p>
+            <p className="text-xs text-muted-foreground">miembros sin maestros ministrantes</p>
 
-           </CardContent>
+          </CardContent>
 
-         </Card>
+        </Card>
 
         <Card className="cursor-pointer" onClick={() => inactiveNewConvertsRef.current?.scrollIntoView({ behavior: 'smooth' })}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1204,41 +1212,41 @@ export default function ObservationsPage() {
 
         <Card className="cursor-pointer" onClick={() => problematicCompanionshipsRef.current?.scrollIntoView({ behavior: 'smooth' })}>
 
-           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 
-             <CardTitle className="text-sm font-medium">Compañerías Problemáticas</CardTitle>
+            <CardTitle className="text-sm font-medium">Compañerías Problemáticas</CardTitle>
 
-             <Users className="h-4 w-4 text-orange-600" />
+            <Users className="h-4 w-4 text-orange-600" />
 
-           </CardHeader>
+          </CardHeader>
 
-           <CardContent>
+          <CardContent>
 
-             <div className="text-2xl font-bold text-orange-600">{observationCounts.problematicCompanionships}</div>
+            <div className="text-2xl font-bold text-orange-600">{observationCounts.problematicCompanionships}</div>
 
-             <p className="text-xs text-muted-foreground">compañerías con compañeros inactivos</p>
+            <p className="text-xs text-muted-foreground">compañerías con compañeros inactivos</p>
 
-           </CardContent>
+          </CardContent>
 
-         </Card>
+        </Card>
 
         <Card className="cursor-pointer" onClick={() => healthConcernsRef.current?.scrollIntoView({ behavior: 'smooth' })}>
 
-           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 
-             <CardTitle className="text-sm font-medium">Apoyo de Salud</CardTitle>
+            <CardTitle className="text-sm font-medium">Apoyo de Salud</CardTitle>
 
-             <HeartPulse className="h-4 w-4 text-rose-600" />
+            <HeartPulse className="h-4 w-4 text-rose-600" />
 
-           </CardHeader>
+          </CardHeader>
 
-           <CardContent>
+          <CardContent>
 
-             <div className="text-2xl font-bold text-rose-600">{observationCounts.healthConcerns}</div>
+            <div className="text-2xl font-bold text-rose-600">{observationCounts.healthConcerns}</div>
 
-             <p className="text-xs text-muted-foreground">personas con seguimiento de salud</p>
+            <p className="text-xs text-muted-foreground">personas con seguimiento de salud</p>
 
-           </CardContent>
+          </CardContent>
 
         </Card>
 
@@ -1300,16 +1308,16 @@ export default function ObservationsPage() {
                     const helperIds = Array.isArray(concern.helperIds) ? concern.helperIds : [];
                     const helpers = helperIds.length > 0
                       ? helperIds.map((helperId, index) => {
-                          const helper = membersById.get(helperId);
-                          const helperName = helper
-                            ? `${helper.firstName} ${helper.lastName}`
-                            : (concern.helperNames?.[index] ?? 'Miembro sin registro');
-                          return (
-                            <Badge key={`${concern.id}-${helperId}-${index}`} variant="outline" className="text-xs font-normal">
-                              {helperName}
-                            </Badge>
-                          );
-                        })
+                        const helper = membersById.get(helperId);
+                        const helperName = helper
+                          ? `${helper.firstName} ${helper.lastName}`
+                          : (concern.helperNames?.[index] ?? 'Miembro sin registro');
+                        return (
+                          <Badge key={`${concern.id}-${helperId}-${index}`} variant="outline" className="text-xs font-normal">
+                            {helperName}
+                          </Badge>
+                        );
+                      })
                       : [];
 
                     const createdAtLabel = concern.createdAt
@@ -1394,16 +1402,16 @@ export default function ObservationsPage() {
                 const helperIds = Array.isArray(concern.helperIds) ? concern.helperIds : [];
                 const helpers = helperIds.length > 0
                   ? helperIds.map((helperId, index) => {
-                      const helper = membersById.get(helperId);
-                      const helperName = helper
-                        ? `${helper.firstName} ${helper.lastName}`
-                        : (concern.helperNames?.[index] ?? 'Miembro sin registro');
-                      return (
-                        <Badge key={`${concern.id}-${helperId}-${index}`} variant="outline" className="text-xs font-normal">
-                          {helperName}
-                        </Badge>
-                      );
-                    })
+                    const helper = membersById.get(helperId);
+                    const helperName = helper
+                      ? `${helper.firstName} ${helper.lastName}`
+                      : (concern.helperNames?.[index] ?? 'Miembro sin registro');
+                    return (
+                      <Badge key={`${concern.id}-${helperId}-${index}`} variant="outline" className="text-xs font-normal">
+                        {helperName}
+                      </Badge>
+                    );
+                  })
                   : [];
 
                 const createdAtLabel = concern.createdAt
@@ -1594,7 +1602,7 @@ export default function ObservationsPage() {
 
                         </TableCell>
 
-                        <TableCell>{member.phoneNumber || 'No especificado'}</TableCell>
+                        <TableCell>{renderPhoneWithAge(member, 'No especificado')}</TableCell>
 
                         <TableCell>
 
@@ -1740,7 +1748,7 @@ export default function ObservationsPage() {
 
                             <p className="text-sm text-muted-foreground">
 
-                              {member.phoneNumber || 'Sin teléfono'}
+                              {renderPhoneWithAge(member, 'Sin teléfono')}
 
                             </p>
 
@@ -1950,7 +1958,7 @@ export default function ObservationsPage() {
 
                         </TableCell>
 
-                        <TableCell>{member.phoneNumber || 'No especificado'}</TableCell>
+                        <TableCell>{renderPhoneWithAge(member, 'No especificado')}</TableCell>
 
                         <TableCell>
 
@@ -2096,7 +2104,7 @@ export default function ObservationsPage() {
 
                             <p className="text-sm text-muted-foreground">
 
-                              {member.phoneNumber || 'Sin teléfono'}
+                              {renderPhoneWithAge(member, 'Sin teléfono')}
 
                             </p>
 
@@ -2306,7 +2314,7 @@ export default function ObservationsPage() {
 
                         </TableCell>
 
-                        <TableCell>{member.phoneNumber || 'No especificado'}</TableCell>
+                        <TableCell>{renderPhoneWithAge(member, 'No especificado')}</TableCell>
 
                         <TableCell>
 
@@ -2452,7 +2460,7 @@ export default function ObservationsPage() {
 
                             <p className="text-sm text-muted-foreground">
 
-                              {member.phoneNumber || 'Sin teléfono'}
+                              {renderPhoneWithAge(member, 'Sin teléfono')}
 
                             </p>
 
@@ -2658,7 +2666,7 @@ export default function ObservationsPage() {
 
                         </TableCell>
 
-                        <TableCell>{member.phoneNumber || 'No especificado'}</TableCell>
+                        <TableCell>{renderPhoneWithAge(member, 'No especificado')}</TableCell>
 
                         <TableCell>
 
@@ -2778,7 +2786,7 @@ export default function ObservationsPage() {
 
                             <p className="text-sm text-muted-foreground">
 
-                              {member.phoneNumber || 'Sin teléfono'}
+                              {renderPhoneWithAge(member, 'Sin teléfono')}
 
                             </p>
 
@@ -3104,7 +3112,7 @@ export default function ObservationsPage() {
 
                       </TableCell>
 
-                      <TableCell>{member.phoneNumber || 'No especificado'}</TableCell>
+                      <TableCell>{renderPhoneWithAge(member, 'No especificado')}</TableCell>
 
                       <TableCell>
 
@@ -3224,7 +3232,7 @@ export default function ObservationsPage() {
 
                           <p className="text-sm text-muted-foreground">
 
-                            {member.phoneNumber || 'Sin teléfono'}
+                            {renderPhoneWithAge(member, 'Sin teléfono')}
 
                           </p>
 
@@ -3236,15 +3244,6 @@ export default function ObservationsPage() {
 
 
 
-                    {member.birthDate && (
-
-                      <p className="text-sm text-muted-foreground mb-3">
-
-                        Nacimiento: {format(member.birthDate.toDate(), 'd MMM yyyy', { locale: es })}
-
-                      </p>
-
-                    )}
 
 
 
