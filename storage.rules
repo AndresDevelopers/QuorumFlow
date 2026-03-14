@@ -7,10 +7,10 @@ service firebase.storage {
     match /{allPaths=**} {
       
       // PERMISOS DE LECTURA
-      // Permite la lectura a cualquier usuario (público).
-      // Esto es generalmente seguro y necesario para que las imágenes se muestren
-      // en la aplicación sin que cada usuario necesite permisos individuales.
-      allow read;
+      // Solo permite la lectura a usuarios autenticados.
+      // Esto protege los archivos de accesos no autorizados mientras permite
+      // que los usuarios registrados vean las imágenes necesarias.
+      allow read: if request.auth != null;
 
       // PERMISOS DE ESCRITURA (Crear, Actualizar, Eliminar)
       // Solo permite la escritura si se cumplen TODAS las siguientes condiciones:
