@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { birthdaysCollection } from '@/lib/collections';
@@ -26,38 +26,38 @@ export default function EditBirthdayPage() {
 
   const birthdayId = Array.isArray(id) ? id[0] : id;
 
-  useEffect(() => {
+  const fetchBirthday = useCallback(async () => {
     if (!birthdayId || !user) return;
 
-    const fetchBirthday = async () => {
-      setLoading(true);
-      try {
-        const docRef = doc(birthdaysCollection, birthdayId);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setBirthday({ id: docSnap.id, ...docSnap.data() } as Birthday);
-          setIsFormOpen(true); // Open the dialog once data is fetched
-        } else {
-          toast({ title: t('birthdays.error'), description: t('birthdayEdit.notFound'), variant: "destructive"});
-          router.push('/birthdays');
-        }
-      } catch (err) {
-        toast({ title: t('birthdays.error'), description: t('birthdayEdit.loadError'), variant: "destructive"});
+    setLoading(true);
+    try {
+      const docRef = doc(birthdaysCollection, birthdayId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setBirthday({ id: docSnap.id, ...docSnap.data() } as Birthday);
+        setIsFormOpen(true); // Open the dialog once data is fetched
+      } else {
+        toast({ title: t('birthdays.error'), description: t('birthdayEdit.notFound'), variant: "destructive"});
         router.push('/birthdays');
-        console.error(err);
-      } finally {
-        setLoading(false);
       }
-    };
-
-    fetchBirthday();
+    } catch (err) {
+      toast({ title: t('birthdays.error'), description: t('birthdayEdit.loadError'), variant: "destructive"});
+      router.push('/birthdays');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }, [birthdayId, user, router, toast, t]);
 
-  const handleFormClose = () => {
+  useEffect(() => {
+    fetchBirthday();
+  }, [fetchBirthday]);
+
+  const handleFormClose = useCallback(() => {
     setIsFormOpen(false);
     // Use a timeout to allow the dialog to close before navigating
     setTimeout(() => router.push('/birthdays'), 150);
-  }
+  }, [router]);
 
   if (loading || authLoading) {
     return (
