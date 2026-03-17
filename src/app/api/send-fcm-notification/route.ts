@@ -6,43 +6,18 @@ const FIRESTORE_IN_LIMIT = 30;
 
 /**
  * Fetch FCM tokens for a list of user IDs.
- * Strategy:
- *  1. Fetch documents by document ID (userId is the doc ID)
- *  2. Fallback: query by userId field for any docs not found above
+ * Returns every active token registered for the target users.
  */
 async function getFCMTokensForUsers(userIds: string[]): Promise<string[]> {
   const tokens: string[] = [];
-  const foundUserIds = new Set<string>();
 
-  // Strategy 1: Direct document lookup by ID (most reliable)
-  // Process in batches because getAll has no hard limit but batching is good practice
-  const batchSize = 100;
-  for (let i = 0; i < userIds.length; i += batchSize) {
-    const batch = userIds.slice(i, i + batchSize);
-    const docRefs = batch.map((uid) =>
-      firestoreAdmin.collection('c_push_subscriptions').doc(uid)
-    );
-    const docs = await firestoreAdmin.getAll(...docRefs);
-    docs.forEach((d) => {
-      if (d.exists) {
-        const data = d.data();
-        if (data?.fcmToken) {
-          tokens.push(data.fcmToken as string);
-          foundUserIds.add(d.id);
-        }
-      }
-    });
-  }
-
-  // Strategy 2: Query by userId field for any remaining users
-  // (covers documents stored with a different ID than the UID)
-  const remainingIds = userIds.filter((uid) => !foundUserIds.has(uid));
-  for (let i = 0; i < remainingIds.length; i += FIRESTORE_IN_LIMIT) {
-    const chunk = remainingIds.slice(i, i + FIRESTORE_IN_LIMIT);
+  for (let i = 0; i < userIds.length; i += FIRESTORE_IN_LIMIT) {
+    const chunk = userIds.slice(i, i + FIRESTORE_IN_LIMIT);
     const snapshot = await firestoreAdmin
       .collection('c_push_subscriptions')
       .where('userId', 'in', chunk)
       .get();
+
     snapshot.forEach((doc) => {
       const data = doc.data();
       if (data.fcmToken) {
@@ -117,7 +92,26 @@ export async function POST(request: NextRequest) {
       const tokenBatch = tokens.slice(i, i + FCM_BATCH_LIMIT);
       const message = {
         notification: { title, body },
-        data: { url: url ?? '/' },
+        data: {
+          url: url ?? '/',
+          title,
+          body,
+        },
+        webpush: {
+          headers: {
+            Urgency: 'high',
+          },
+          notification: {
+            title,
+            body,
+            icon: '/logo.svg',
+            badge: '/logo.svg',
+            tag: 'quorumflow-notification',
+          },
+          fcmOptions: {
+            link: url ?? '/',
+          },
+        },
         tokens: tokenBatch,
       };
 

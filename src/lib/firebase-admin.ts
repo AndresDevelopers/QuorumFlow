@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { initializeApp, getApps, cert, type App, type ServiceAccount } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getStorage, type Storage } from 'firebase-admin/storage';
@@ -16,6 +17,8 @@ type ServiceAccountWithLegacy = ServiceAccount & { project_id?: string };
 function parseServiceAccountKey(value: string): ServiceAccountWithLegacy | null {
   const trimmed = value.trim();
   const candidates: string[] = [];
+  const maybeJsonPath = trimmed.endsWith('.json') ? trimmed : '';
+  const compact = trimmed.replace(/\s+/g, '');
 
   if (trimmed) {
     candidates.push(trimmed);
@@ -25,12 +28,25 @@ function parseServiceAccountKey(value: string): ServiceAccountWithLegacy | null 
     ) {
       candidates.push(trimmed.slice(1, -1));
     }
-    if (/^[A-Za-z0-9+/=]+$/.test(trimmed) && trimmed.length % 4 === 0) {
+    if (/^[A-Za-z0-9+/=]+$/.test(compact) && compact.length % 4 === 0) {
       try {
-        candidates.push(Buffer.from(trimmed, 'base64').toString('utf8'));
+        candidates.push(Buffer.from(compact, 'base64').toString('utf8'));
       } catch {}
     }
   }
+
+  if (maybeJsonPath && fs.existsSync(maybeJsonPath)) {
+    try {
+      candidates.push(fs.readFileSync(maybeJsonPath, 'utf8'));
+    } catch {}
+  }
+
+  const normalizePrivateKey = (candidate: string) => {
+    const match = candidate.match(/"private_key"\s*:\s*"([\s\S]*?)"/);
+    if (!match) return candidate;
+    const normalizedKey = match[1].replace(/\r?\n/g, '\\n');
+    return candidate.replace(match[0], `"private_key":"${normalizedKey}"`);
+  };
 
   for (const candidate of candidates) {
     try {
@@ -39,7 +55,16 @@ function parseServiceAccountKey(value: string): ServiceAccountWithLegacy | null 
         parsed.projectId = parsed.project_id;
       }
       return parsed;
-    } catch {}
+    } catch {
+      try {
+        const normalized = normalizePrivateKey(candidate);
+        const parsed = JSON.parse(normalized) as ServiceAccountWithLegacy;
+        if (!parsed.projectId && parsed.project_id) {
+          parsed.projectId = parsed.project_id;
+        }
+        return parsed;
+      } catch {}
+    }
   }
 
   return null;

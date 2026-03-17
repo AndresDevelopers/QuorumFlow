@@ -33,7 +33,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { doc, getDoc, updateDoc, Timestamp, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, Timestamp, setDoc, serverTimestamp } from 'firebase/firestore';
 import { usersCollection, pushSubscriptionsCollection, storage } from '@/lib/collections';
 import {
   Form,
@@ -61,6 +61,15 @@ import {
   type UserRole,
 } from '@/lib/roles';
 import { navigationItems } from '@/lib/navigation';
+import {
+  deleteNotificationToken,
+  getExistingNotificationToken,
+  requestNotificationPermission,
+} from '@/lib/firebase-messaging';
+import {
+  getPushDeviceId,
+  getPushSubscriptionDocId,
+} from '@/lib/push-subscription';
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: "El nombre es requerido." }),
@@ -73,6 +82,70 @@ const profileSchema = z.object({
 type FormValues = z.infer<typeof profileSchema>;
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+
+function getCurrentPushSubscriptionTarget(userId: string) {
+  const deviceId = getPushDeviceId();
+  if (!deviceId) {
+    return null;
+  }
+
+  return {
+    deviceId,
+    ref: doc(pushSubscriptionsCollection, getPushSubscriptionDocId(userId, deviceId)),
+  };
+}
+
+async function saveCurrentPushSubscription(userId: string, fcmToken: string) {
+  const target = getCurrentPushSubscriptionTarget(userId);
+  if (!target) {
+    return false;
+  }
+
+  await setDoc(target.ref, {
+    userId,
+    deviceId: target.deviceId,
+    fcmToken,
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    updatedAt: serverTimestamp(),
+    subscribedAt: serverTimestamp(),
+  }, { merge: true });
+
+  return true;
+}
+
+async function clearCurrentPushSubscription(userId: string) {
+  const target = getCurrentPushSubscriptionTarget(userId);
+  if (!target) {
+    return false;
+  }
+
+  await setDoc(target.ref, {
+    userId,
+    deviceId: target.deviceId,
+    fcmToken: null,
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    updatedAt: serverTimestamp(),
+    unsubscribedAt: serverTimestamp(),
+  }, { merge: true });
+
+  return true;
+}
+
+async function getCurrentPushSubscriptionToken(userId: string): Promise<string | null> {
+  const target = getCurrentPushSubscriptionTarget(userId);
+  if (!target) {
+    return null;
+  }
+
+  const subscriptionDoc = await getDoc(target.ref);
+  if (!subscriptionDoc.exists()) {
+    return null;
+  }
+
+  return (subscriptionDoc.data().fcmToken as string | null) ?? null;
+}
 
 
 
@@ -91,7 +164,7 @@ export default function SettingsPage() {
   const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(false); // Notificaciones push desactivadas por defecto
   const [isInAppNotificationLoading, setIsInAppNotificationLoading] = useState(true);
   const [isPushNotificationLoading, setIsPushNotificationLoading] = useState(true);
-  const [fcmToken, setFcmToken] = useState<string | null>(null);
+  const [, setFcmToken] = useState<string | null>(null);
 
   // Per-category notification preferences
   const defaultCategoryPrefs = useMemo<Record<string, boolean>>(
@@ -178,27 +251,26 @@ export default function SettingsPage() {
   useEffect(() => {
     const initializeFCM = async () => {
       if (!pushNotificationsEnabled || !user) {
+        setFcmToken(null);
         return;
       }
 
       try {
-        const { initializeMessaging, requestNotificationPermission } = await import('@/lib/firebase-messaging');
-        const messaging = initializeMessaging();
-        if (messaging) {
-          const token = await requestNotificationPermission();
-          if (token) {
-            setFcmToken(token);
-            // Guardar el token en Firestore
-            await setDoc(doc(pushSubscriptionsCollection, user.uid), {
-              fcmToken: token,
-              userId: user.uid
-            }, { merge: true });
-            console.log('FCM Token saved to Firestore:', token);
-          } else {
-            console.log('No FCM Token received');
-          }
-        } else {
-          console.error('Messaging not initialized');
+        const savedToken = await getCurrentPushSubscriptionToken(user.uid);
+        if (savedToken) {
+          setFcmToken(savedToken);
+          return;
+        }
+
+        const token = await getExistingNotificationToken();
+        if (!token) {
+          setFcmToken(null);
+          return;
+        }
+
+        const saved = await saveCurrentPushSubscription(user.uid, token);
+        if (saved) {
+          setFcmToken(token);
         }
       } catch (error) {
         console.error('Error initializing FCM:', error);
@@ -475,22 +547,20 @@ export default function SettingsPage() {
       setPushNotificationsEnabled(checked);
 
       if (checked) {
-        // Solicitar permiso y obtener token FCM
-        const { initializeMessaging, requestNotificationPermission } = await import('@/lib/firebase-messaging');
-        const messaging = initializeMessaging();
-        if (messaging) {
-          const token = await requestNotificationPermission();
-          if (token) {
-            setFcmToken(token);
-            await setDoc(doc(pushSubscriptionsCollection, user.uid), {
-              fcmToken: token,
-              userId: user.uid
-            }, { merge: true });
-          }
+        const token = await requestNotificationPermission();
+        if (!token) {
+          throw new Error('No se pudo obtener un token FCM para este dispositivo');
         }
+
+        const saved = await saveCurrentPushSubscription(user.uid, token);
+        if (!saved) {
+          throw new Error('No se pudo guardar la suscripcion push del dispositivo');
+        }
+
+        setFcmToken(token);
       } else {
-        // Eliminar token FCM si existe
-        await deleteDoc(doc(pushSubscriptionsCollection, user.uid));
+        await deleteNotificationToken();
+        await clearCurrentPushSubscription(user.uid);
         setFcmToken(null);
       }
 

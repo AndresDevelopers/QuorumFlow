@@ -151,7 +151,7 @@ class FcmRepository {
       return;
     }
 
-    const rawTokens = tokens.map((t) => t.fcmToken);
+    const rawTokens = [...new Set(tokens.map((t) => t.fcmToken))];
 
     // FCM sendEachForMulticast supports up to 500 tokens per request
     const chunkSize = 500;
@@ -171,9 +171,6 @@ class FcmRepository {
               title: payload.title,
               body: payload.body,
               tag: payload.tag,
-              // Icon must be a drawable resource name registered in the app
-              // icon: "ic_notification",
-              clickAction: "FLUTTER_NOTIFICATION_CLICK",
               defaultVibrateTimings: true,
               defaultSound: true,
             },
@@ -200,6 +197,9 @@ class FcmRepository {
           },
           // ── Web (PWA) ─────────────────────────────────────────────────────
           webpush: {
+            headers: {
+              Urgency: "high",
+            },
             notification: {
               title: payload.title,
               body: payload.body,

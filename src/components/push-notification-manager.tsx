@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/auth-context';
-import { doc, setDoc } from 'firebase/firestore';
 import { pushSubscriptionsCollection } from '@/lib/collections';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -17,8 +17,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  deleteNotificationToken,
+  getExistingNotificationToken,
+  requestNotificationPermission,
+} from '@/lib/firebase-messaging';
+import {
+  getPushDeviceId,
+  getPushSubscriptionDocId,
+} from '@/lib/push-subscription';
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+function getCurrentSubscriptionTarget(userId: string) {
+  const deviceId = getPushDeviceId();
+  if (!deviceId) {
+    return null;
+  }
+
+  return {
+    deviceId,
+    ref: doc(pushSubscriptionsCollection, getPushSubscriptionDocId(userId, deviceId)),
+  };
+}
 
 export function PushNotificationManager() {
   const { user } = useAuth();
@@ -29,25 +48,40 @@ export function PushNotificationManager() {
   const [isLoading, setIsLoading] = useState(false);
 
   const checkSubscription = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setIsSubscribed(false);
+      return;
+    }
+
+    const target = getCurrentSubscriptionTarget(user.uid);
+    if (!target) {
+      setIsSubscribed(false);
+      return;
+    }
 
     try {
-      const { getDoc } = await import('firebase/firestore');
-      const subscriptionDoc = await getDoc(doc(pushSubscriptionsCollection, user.uid));
-
+      const subscriptionDoc = await getDoc(target.ref);
       if (subscriptionDoc.exists()) {
         const data = subscriptionDoc.data();
-        setIsSubscribed(!!data.fcmToken);
-      } else {
-        setIsSubscribed(false);
+        setIsSubscribed(Boolean(data.fcmToken));
+        return;
       }
+
+      const existingToken = await getExistingNotificationToken();
+      setIsSubscribed(Boolean(existingToken));
     } catch (error) {
       console.error('Error checking push subscription:', error);
+      setIsSubscribed(false);
     }
   }, [user]);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
+    if (
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      'serviceWorker' in navigator &&
+      'PushManager' in window
+    ) {
       setIsSupported(true);
       void checkSubscription();
     }
@@ -63,57 +97,47 @@ export function PushNotificationManager() {
       return;
     }
 
+    const target = getCurrentSubscriptionTarget(user.uid);
+    if (!target) {
+      toast({
+        title: "Error",
+        description: "No se pudo identificar este dispositivo.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Solicitar permiso
-      const permission = await Notification.requestPermission();
-
-      if (permission !== 'granted') {
+      const fcmToken = await requestNotificationPermission();
+      if (!fcmToken) {
         toast({
           title: "Permiso Denegado",
-          description: "No se otorgó permiso para enviar notificaciones.",
+          description: "No se otorgo permiso para enviar notificaciones.",
           variant: "destructive"
         });
-        setIsLoading(false);
         return;
       }
 
-      // Importar dinámicamente Firebase Messaging
-      const { initializeMessaging } = await import('@/lib/firebase-messaging');
-      const { getToken } = await import('firebase/messaging');
-
-      const messaging = initializeMessaging();
-      if (!messaging) {
-        throw new Error('No se pudo inicializar Firebase Messaging');
-      }
-
-      // Obtener el token FCM
-      const fcmToken = await getToken(messaging, {
-        vapidKey: VAPID_PUBLIC_KEY
-      });
-
-      if (!fcmToken) {
-        throw new Error('No se pudo obtener el token FCM');
-      }
-
-      // Guardar el token FCM en Firestore
-      await setDoc(doc(pushSubscriptionsCollection, user.uid), {
+      await setDoc(target.ref, {
         userId: user.uid,
+        deviceId: target.deviceId,
         fcmToken,
-        createdAt: new Date(),
-        userAgent: navigator.userAgent
-      });
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        updatedAt: serverTimestamp(),
+        subscribedAt: serverTimestamp(),
+      }, { merge: true });
 
       setIsSubscribed(true);
       toast({
         title: "Notificaciones Activadas",
-        description: "Recibirás notificaciones push en este dispositivo.",
+        description: "Recibiras notificaciones push en este dispositivo.",
       });
 
-      // Enviar notificación de prueba
       if (Notification.permission === 'granted') {
-        new Notification('¡Notificaciones Activadas!', {
-          body: 'Ahora recibirás recordatorios importantes de la aplicación.',
+        new Notification('Notificaciones activadas', {
+          body: 'Ahora recibiras recordatorios importantes de la aplicacion.',
           icon: '/logo.svg',
           badge: '/logo.svg'
         });
@@ -132,31 +156,33 @@ export function PushNotificationManager() {
   };
 
   const unsubscribeFromPush = async () => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
+
+    const target = getCurrentSubscriptionTarget(user.uid);
+    if (!target) {
+      return;
+    }
 
     setIsLoading(true);
     try {
-      // Importar dinámicamente Firebase Messaging
-      const { initializeMessaging } = await import('@/lib/firebase-messaging');
-      const { deleteToken } = await import('firebase/messaging');
+      await deleteNotificationToken();
 
-      const messaging = initializeMessaging();
-      if (messaging) {
-        // Eliminar el token FCM
-        await deleteToken(messaging);
-      }
-
-      // Eliminar de Firestore
-      await setDoc(doc(pushSubscriptionsCollection, user.uid), {
+      await setDoc(target.ref, {
         userId: user.uid,
+        deviceId: target.deviceId,
         fcmToken: null,
-        unsubscribedAt: new Date()
-      });
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        updatedAt: serverTimestamp(),
+        unsubscribedAt: serverTimestamp(),
+      }, { merge: true });
 
       setIsSubscribed(false);
       toast({
         title: "Notificaciones Desactivadas",
-        description: "Ya no recibirás notificaciones push en este dispositivo.",
+        description: "Ya no recibiras notificaciones push en este dispositivo.",
       });
     } catch (error) {
       console.error('Error unsubscribing from push:', error);
@@ -181,7 +207,7 @@ export function PushNotificationManager() {
         size="sm"
         onClick={() => {
           if (isSubscribed) {
-            unsubscribeFromPush();
+            void unsubscribeFromPush();
           } else {
             setShowPermissionDialog(true);
           }
@@ -206,12 +232,12 @@ export function PushNotificationManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>Activar Notificaciones Push</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Deseas recibir notificaciones push en este dispositivo? Te enviaremos recordatorios importantes sobre:
+              Deseas recibir notificaciones push en este dispositivo? Te enviaremos recordatorios importantes sobre:
               <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>Cumpleaños de miembros</li>
-                <li>Servicios próximos</li>
-                <li>Necesidades urgentes de ministración</li>
-                <li>Actividades del quórum</li>
+                <li>Cumpleanos de miembros</li>
+                <li>Servicios proximos</li>
+                <li>Necesidades urgentes de ministracion</li>
+                <li>Actividades del quorum</li>
                 <li>Asignaciones de la obra misional</li>
               </ul>
             </AlertDialogDescription>
