@@ -123,22 +123,26 @@ export function UrgentNeedsClient() {
 
       // Send push notification to all subscribed users using FCM
       try {
-        await fetch('/api/send-fcm-notification', {
+        const pushResponse = await fetch('/api/send-fcm-notification', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            registrationTokens: ['YOUR_REGISTRATION_TOKEN'], // Replace with actual registration tokens
-            notification: {
-              title: 'Necesidad Urgente de Familia',
-              body: `La familia ${familyName} requiere atención inmediata: ${observation}`,
-            },
-            data: {
-              url: '/ministering/urgent'
-            }
+            title: 'Necesidad Urgente de Familia',
+            body: `La familia ${familyName} requiere atención inmediata: ${observation}`,
+            url: '/ministering/urgent'
           }),
         });
+
+        if (!pushResponse.ok) {
+          const pushErrorResponse = await pushResponse.text();
+          logger.warn({
+            message: 'Push notification request failed',
+            status: pushResponse.status,
+            response: pushErrorResponse,
+          });
+        }
       } catch (pushError) {
         logger.warn({ error: pushError, message: 'Failed to send push notifications, but in-app notifications were sent' });
       }
