@@ -94,7 +94,7 @@ export function isPastDate(timestamp: any): boolean {
  * @param birthTimestamp - The birth date timestamp
  * @returns Age in years or null if invalid
  */
-export function getAge(birthTimestamp: any): number | null {
+export function getAge(birthTimestamp: unknown): number | null {
     const birthDate = safeGetDate(birthTimestamp);
     if (!birthDate) return null;
 
