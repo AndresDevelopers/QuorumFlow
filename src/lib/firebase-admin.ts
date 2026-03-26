@@ -1,4 +1,5 @@
 import fs from 'fs';
+import logger from './logger';
 import { initializeApp, getApps, cert, type App, type ServiceAccount } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getStorage, type Storage } from 'firebase-admin/storage';
@@ -14,7 +15,7 @@ let warnedMissingServiceAccount = false;
 
 type ServiceAccountWithLegacy = ServiceAccount & { project_id?: string };
 
-function parseServiceAccountKey(value: string): ServiceAccountWithLegacy | null {
+export function parseServiceAccountKey(value: string): ServiceAccountWithLegacy | null {
   const trimmed = value.trim();
   const candidates: string[] = [];
   const maybeJsonPath = trimmed.endsWith('.json') ? trimmed : '';
@@ -31,14 +32,18 @@ function parseServiceAccountKey(value: string): ServiceAccountWithLegacy | null 
     if (/^[A-Za-z0-9+/=]+$/.test(compact) && compact.length % 4 === 0) {
       try {
         candidates.push(Buffer.from(compact, 'base64').toString('utf8'));
-      } catch {}
+      } catch (error) {
+        logger.debug({ message: 'Failed to decode base64 service account candidate', error });
+      }
     }
   }
 
   if (maybeJsonPath && fs.existsSync(maybeJsonPath)) {
     try {
       candidates.push(fs.readFileSync(maybeJsonPath, 'utf8'));
-    } catch {}
+    } catch (error) {
+      logger.debug({ message: 'Failed to read service account from path', error });
+    }
   }
 
   const normalizePrivateKey = (candidate: string) => {
@@ -63,7 +68,9 @@ function parseServiceAccountKey(value: string): ServiceAccountWithLegacy | null 
           parsed.projectId = parsed.project_id;
         }
         return parsed;
-      } catch {}
+      } catch (error) {
+        logger.debug({ message: 'Failed to parse service account JSON even after key normalization', error });
+      }
     }
   }
 
