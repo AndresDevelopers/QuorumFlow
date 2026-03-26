@@ -208,12 +208,12 @@ export async function updateMember(
       deathDate: memberData.deathDate,
       baptismPhotos: memberData.baptismPhotos,
       ordinances: memberData.ordinances,
-      templeOrdinances: (memberData as any).templeOrdinances,
-      templeWorkCompletedAt: (memberData as any).templeWorkCompletedAt,
+      templeOrdinances: memberData.templeOrdinances,
+      templeWorkCompletedAt: memberData.templeWorkCompletedAt,
       ministeringTeachers: memberData.ministeringTeachers,
       isUrgent: memberData.isUrgent,
       urgentReason: memberData.urgentReason,
-      urgentNotifiedAt: (memberData as any).urgentNotifiedAt,
+      urgentNotifiedAt: memberData.urgentNotifiedAt,
       isInCouncil: memberData.isInCouncil,
     };
 
