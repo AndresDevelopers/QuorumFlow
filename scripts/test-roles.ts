@@ -5,8 +5,8 @@ import {
   canManageSettings,
   hasLeadershipPrivileges,
   canViewSettings,
-} from '../src/lib/roles.ts';
-import type { UserRole } from '../src/lib/roles.ts';
+} from '../src/lib/roles';
+import type { UserRole } from '../src/lib/roles';
 
 test('normalizeRole', async (t) => {
   await t.test('normalizes roles correctly', () => {
