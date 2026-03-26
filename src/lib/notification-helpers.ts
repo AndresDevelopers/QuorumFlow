@@ -335,25 +335,37 @@ export async function createNotificationsForAll(
   // Filter users to only include those with notifications enabled
   const usersWithNotificationsEnabled: string[] = [];
 
-  for (const userId of userIds) {
-    try {
-      const userDocRef = await import('firebase/firestore').then(m => m.doc(usersCollection, userId));
-      const userDoc = await import('firebase/firestore').then(m => m.getDoc(userDocRef));
+  // Batch query in chunks of 30 (Firestore 'in' limit)
+  const chunkSize = 30;
+  for (let i = 0; i < userIds.length; i += chunkSize) {
+    const chunk = userIds.slice(i, i + chunkSize);
 
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        // Por defecto las notificaciones in-app están activas (inAppNotificationsEnabled !== false)
-        if (userData.inAppNotificationsEnabled !== false) {
+    try {
+      const firestore = await import('firebase/firestore');
+      const q = firestore.query(usersCollection, firestore.where(firestore.documentId(), 'in', chunk));
+      const snapshot = await firestore.getDocs(q);
+
+      const userDocsMap = new Map();
+      snapshot.forEach(doc => {
+        userDocsMap.set(doc.id, doc.data());
+      });
+
+      for (const userId of chunk) {
+        const userData = userDocsMap.get(userId);
+        if (userData) {
+          // Por defecto las notificaciones in-app están activas (inAppNotificationsEnabled !== false)
+          if (userData.inAppNotificationsEnabled !== false) {
+            usersWithNotificationsEnabled.push(userId);
+          }
+        } else {
+          // Usuario nuevo sin preferencias, incluir por defecto
           usersWithNotificationsEnabled.push(userId);
         }
-      } else {
-        // Usuario nuevo sin preferencias, incluir por defecto
-        usersWithNotificationsEnabled.push(userId);
       }
     } catch (error) {
-      console.error(`Error checking notification preference for user ${userId}:`, error);
-      // En caso de error, incluir al usuario por defecto
-      usersWithNotificationsEnabled.push(userId);
+      console.error(`Error checking notification preference for user chunk starting at index ${i}:`, error);
+      // En caso de error, incluir a los usuarios por defecto
+      usersWithNotificationsEnabled.push(...chunk);
     }
   }
 
@@ -424,23 +436,35 @@ export async function createNewConvertCouncilNotificationsForAll(
   // Filter users to only include those with in-app notifications enabled
   const usersWithInAppEnabled: string[] = [];
 
-  for (const userId of userIds) {
-    try {
-      const userDocRef = await import('firebase/firestore').then(m => m.doc(usersCollection, userId));
-      const userDoc = await import('firebase/firestore').then(m => m.getDoc(userDocRef));
+  // Batch query in chunks of 30
+  const chunkSize = 30;
+  for (let i = 0; i < userIds.length; i += chunkSize) {
+    const chunk = userIds.slice(i, i + chunkSize);
 
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        // Check in-app notifications preference
-        if (userData.inAppNotificationsEnabled !== false) {
+    try {
+      const firestore = await import('firebase/firestore');
+      const q = firestore.query(usersCollection, firestore.where(firestore.documentId(), 'in', chunk));
+      const snapshot = await firestore.getDocs(q);
+
+      const userDocsMap = new Map();
+      snapshot.forEach(doc => {
+        userDocsMap.set(doc.id, doc.data());
+      });
+
+      for (const userId of chunk) {
+        const userData = userDocsMap.get(userId);
+        if (userData) {
+          // Check in-app notifications preference
+          if (userData.inAppNotificationsEnabled !== false) {
+            usersWithInAppEnabled.push(userId);
+          }
+        } else {
           usersWithInAppEnabled.push(userId);
         }
-      } else {
-        usersWithInAppEnabled.push(userId);
       }
     } catch (error) {
-      console.error(`Error checking notification preference for user ${userId}:`, error);
-      usersWithInAppEnabled.push(userId);
+      console.error(`Error checking notification preference for convert council notification chunk:`, error);
+      usersWithInAppEnabled.push(...chunk);
     }
   }
 
@@ -506,20 +530,34 @@ export async function sendDeceasedMembersOrdinanceNotifications(
   // Filter users to only include those with push notifications enabled
   const usersWithPushEnabled: string[] = [];
 
-  for (const userId of userIds) {
-    try {
-      const userDocRef = await import('firebase/firestore').then(m => m.doc(usersCollection, userId));
-      const userDoc = await import('firebase/firestore').then(m => m.getDoc(userDocRef));
+  // Batch query in chunks of 30
+  const chunkSize = 30;
+  for (let i = 0; i < userIds.length; i += chunkSize) {
+    const chunk = userIds.slice(i, i + chunkSize);
 
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        // Check push notifications preference
-        if (userData.notificationsEnabled !== false) {
-          usersWithPushEnabled.push(userId);
+    try {
+      const firestore = await import('firebase/firestore');
+      const q = firestore.query(usersCollection, firestore.where(firestore.documentId(), 'in', chunk));
+      const snapshot = await firestore.getDocs(q);
+
+      const userDocsMap = new Map();
+      snapshot.forEach(doc => {
+        userDocsMap.set(doc.id, doc.data());
+      });
+
+      for (const userId of chunk) {
+        const userData = userDocsMap.get(userId);
+        if (userData) {
+          // Check push notifications preference
+          if (userData.notificationsEnabled !== false) {
+            usersWithPushEnabled.push(userId);
+          }
         }
+        // Nota: El código original NO incluía a los usuarios por defecto en caso de no existir o de error
+        // para las notificaciones push.
       }
     } catch (error) {
-      console.error(`Error checking push preference for user ${userId}:`, error);
+      console.error(`Error checking push preference for user chunk:`, error);
     }
   }
 
