@@ -168,14 +168,16 @@ export function ActivityForm({ activity }: ActivityFormProps) {
     let finalImageUrls: string[] = previewUrls.filter(url => !url.startsWith('blob:'));
     
     try {
+      let uploadPromise: Promise<string[]> = Promise.resolve([]);
+      let deletePromise: Promise<void[]> = Promise.resolve([]);
+
       if (selectedFiles.length > 0) {
         const uploadPromises = selectedFiles.map(async (file) => {
           const storageRef = ref(storage, `activity_images/${user.uid}/${Date.now()}_${file.name}`);
           await uploadBytes(storageRef, file);
           return getDownloadURL(storageRef);
         });
-        const newUrls = await Promise.all(uploadPromises);
-        finalImageUrls = [...finalImageUrls, ...newUrls];
+        uploadPromise = Promise.all(uploadPromises);
       }
 
       if (isEditMode && activity?.imageUrls) {
@@ -186,8 +188,11 @@ export function ActivityForm({ activity }: ActivityFormProps) {
                   await deleteObject(imageRef).catch(err => logger.warn({err, message: 'Old image could not be deleted'}));
               }
           });
-          await Promise.all(deletePromises);
+          deletePromise = Promise.all(deletePromises);
       }
+
+      const [newUrls] = await Promise.all([uploadPromise, deletePromise]);
+      finalImageUrls = [...finalImageUrls, ...newUrls];
 
       const dataToSave = {
         ...values,
