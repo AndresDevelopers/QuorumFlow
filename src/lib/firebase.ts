@@ -5,8 +5,6 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 import { firebaseConfig } from "@/firebaseConfig"; // Import config from the new file
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
 // Initialize Firebase app on both server and client
 let app: ReturnType<typeof getApp> | undefined;
