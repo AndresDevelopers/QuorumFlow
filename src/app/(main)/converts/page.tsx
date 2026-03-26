@@ -43,8 +43,20 @@ const convertInfoCollection = (convertId: string) => doc(firestore, 'c_conversos
 async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
   const twentyFourMonthsAgo = subMonths(new Date(), 24);
 
+  // Fetch all required data concurrently
+  const [
+    convertsSnapshot,
+    membersSnapshot,
+    friendshipsSnapshot,
+    companionshipsSnapshot
+  ] = await Promise.all([
+    getDocs(query(convertsCollection, orderBy('baptismDate', 'desc'))),
+    getDocs(query(membersCollection, orderBy('baptismDate', 'desc'))),
+    getDocs(query(newConvertFriendsCollection)),
+    getDocs(query(ministeringCollection))
+  ]);
+
   // Obtener conversos de la colección c_conversos
-  const convertsSnapshot = await getDocs(query(convertsCollection, orderBy('baptismDate', 'desc')));
   const convertsFromCollection = convertsSnapshot.docs
     .map(doc => ({ id: doc.id, ...doc.data() } as Convert))
     .filter(convert =>
@@ -54,7 +66,6 @@ async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
     );
 
   // Obtener miembros bautizados hace 2 años
-  const membersSnapshot = await getDocs(query(membersCollection, orderBy('baptismDate', 'desc')));
   const membersAsConverts = membersSnapshot.docs
     .map(doc => {
       const memberData = doc.data();
@@ -93,16 +104,9 @@ async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
     )
   );
 
-  // Fetch additional data
-  const [friendshipsSnapshot, companionshipsSnapshot, membersSnapshot2] = await Promise.all([
-    getDocs(query(newConvertFriendsCollection)),
-    getDocs(query(ministeringCollection)),
-    getDocs(query(membersCollection))
-  ]);
-
   const friendships = friendshipsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as NewConvertFriendship));
   const companionships = companionshipsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Companionship));
-  const members = membersSnapshot2.docs
+  const members = membersSnapshot.docs
     .map(d => {
       const memberData = d.data();
       return {
