@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import logger from "@/lib/logger";
 import { baptismsCollection, storage } from '@/lib/collections';
 import { Baptism } from '@/lib/types';
 import { format } from 'date-fns';
@@ -258,7 +259,11 @@ export default function EditBaptismPage() {
 
       // After saving, delete old profile photo if replaced
       if (oldProfileToDelete) {
-        try { await deleteObject(ref(storage, oldProfileToDelete)); } catch {}
+        try {
+          await deleteObject(ref(storage, oldProfileToDelete));
+        } catch (error) {
+          logger.warn({ error, message: 'Could not delete old profile photo' });
+        }
       }
 
       // Clear transient selections
