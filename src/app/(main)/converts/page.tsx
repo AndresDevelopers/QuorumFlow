@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getDocs, query, orderBy, Timestamp, collection } from 'firebase/firestore';
+import { getDocs, query, orderBy, Timestamp, collection, where, documentId } from 'firebase/firestore';
 import { membersCollection, futureMembersCollection, ministeringCollection, convertsCollection, newConvertFriendsCollection } from '@/lib/collections';
 import type { Convert, Member, NewConvertFriendship, Companionship } from '@/lib/types';
 import { normalizeMemberStatus } from '@/lib/members-data';
@@ -118,31 +118,45 @@ async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
     .filter(member => member.status !== 'deceased');
 
   // Fetch additional convert info (callings, notes)
-  const convertInfoPromises = uniqueConverts.map(async (convert) => {
-    try {
-      const infoDoc = await getDoc(convertInfoCollection(convert.id));
-      if (infoDoc.exists()) {
-        const data = infoDoc.data();
-        return {
-          convertId: convert.id,
-          calling: data.calling as string || '',
-          notes: data.notes as string || '',
-          recommendationActive: data.recommendationActive === true,
-          selfRelianceCourse: data.selfRelianceCourse === true
-        };
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  });
-  const convertInfos = (await Promise.all(convertInfoPromises)).filter(Boolean) as {
+  const convertInfos: {
     convertId: string;
     calling: string;
     notes: string;
     recommendationActive: boolean;
     selfRelianceCourse: boolean;
-  }[];
+  }[] = [];
+
+  if (uniqueConverts.length > 0) {
+    const chunks: string[][] = [];
+    const chunkSize = 30; // Firestore 'in' query limit is 30
+    for (let i = 0; i < uniqueConverts.length; i += chunkSize) {
+      chunks.push(uniqueConverts.slice(i, i + chunkSize).map(c => c.id));
+    }
+
+    const chunkPromises = chunks.map(async (chunk) => {
+      try {
+        const snapshot = await getDocs(
+          query(collection(firestore, 'c_conversos_info'), where(documentId(), 'in', chunk))
+        );
+        return snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            convertId: doc.id,
+            calling: data.calling as string || '',
+            notes: data.notes as string || '',
+            recommendationActive: data.recommendationActive === true,
+            selfRelianceCourse: data.selfRelianceCourse === true
+          };
+        });
+      } catch (error) {
+        console.error("Error fetching convert info chunk:", error);
+        return [];
+      }
+    });
+
+    const chunkResults = await Promise.all(chunkPromises);
+    convertInfos.push(...chunkResults.flat());
+  }
 
   // Enrich converts with info
   return uniqueConverts.map(convert => {
