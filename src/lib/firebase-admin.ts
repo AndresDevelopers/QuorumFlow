@@ -60,7 +60,8 @@ export function parseServiceAccountKey(value: string): ServiceAccountWithLegacy 
         parsed.projectId = parsed.project_id;
       }
       return parsed;
-    } catch {
+    } catch (error) {
+      logger.debug({ message: 'Failed to parse candidate directly, attempting normalization', error });
       try {
         const normalized = normalizePrivateKey(candidate);
         const parsed = JSON.parse(normalized) as ServiceAccountWithLegacy;
