@@ -32,8 +32,7 @@ service cloud.firestore {
     
     // Allow read/write access for members collection
     match /c_miembros/{document} {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if signedIn();
     }
     
     match /c_anotaciones/{document} {
