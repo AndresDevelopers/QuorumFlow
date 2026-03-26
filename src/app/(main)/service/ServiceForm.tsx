@@ -165,26 +165,29 @@ export function ServiceForm({ service }: ServiceFormProps) {
     let finalImageUrls: string[] = previewUrls.filter(url => !url.startsWith('blob:'));
     
     try {
-      if (selectedFiles.length > 0) {
-        const uploadPromises = selectedFiles.map(async (file) => {
-          const storageRef = ref(storage, `service_images/${user.uid}/${Date.now()}_${file.name}`);
-          await uploadBytes(storageRef, file);
-          return getDownloadURL(storageRef);
-        });
-        const newUrls = await Promise.all(uploadPromises);
-        finalImageUrls = [...finalImageUrls, ...newUrls];
-      }
+      const uploadPromises = selectedFiles.map(async (file) => {
+        const storageRef = ref(storage, `service_images/${user.uid}/${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, file);
+        return getDownloadURL(storageRef);
+      });
 
-      if (isEditMode && service?.imageUrls) {
-          const removedUrls = service.imageUrls.filter(url => !previewUrls.includes(url));
-          const deletePromises = removedUrls.map(async url => {
-              if (url.startsWith('https://firebasestorage.googleapis.com')) {
-                  const imageRef = ref(storage, url);
-                  await deleteObject(imageRef).catch(err => logger.warn({err, message: 'Old image could not be deleted'}));
-              }
-          });
-          await Promise.all(deletePromises);
-      }
+      const deletePromises = (isEditMode && service?.imageUrls)
+        ? service.imageUrls
+          .filter(url => !previewUrls.includes(url))
+          .map(async url => {
+            if (url.startsWith('https://firebasestorage.googleapis.com')) {
+              const imageRef = ref(storage, url);
+              await deleteObject(imageRef).catch(err => logger.warn({ err, message: 'Old image could not be deleted' }));
+            }
+          })
+        : [];
+
+      const [newUrls] = await Promise.all([
+        Promise.all(uploadPromises),
+        Promise.all(deletePromises)
+      ]);
+
+      finalImageUrls = [...finalImageUrls, ...newUrls];
 
       const dataToSave = {
         ...values,
@@ -194,10 +197,12 @@ export function ServiceForm({ service }: ServiceFormProps) {
 
       if (isEditMode && service) {
         const serviceRef = doc(servicesCollection, service.id);
-        await updateDoc(serviceRef, dataToSave);
         
-        // Notificar a todos los usuarios sobre la actualización
-        await NotificationCreators.updatedService(user.uid, values.title, service.id);
+        // Ejecutar la actualización del documento y la notificación de forma concurrente
+        await Promise.all([
+          updateDoc(serviceRef, dataToSave),
+          NotificationCreators.updatedService(user.uid, values.title, service.id)
+        ]);
         
         toast({
           title: 'Servicio Actualizado',
