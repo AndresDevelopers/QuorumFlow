@@ -1464,11 +1464,32 @@ export const onMissionaryAssignmentCreated = functions.firestore
 
 /** Return "today" date object in Ecuador local time (midnight UTC-5). */
 function getEcuadorToday(): Date {
-    const utcNow = new Date();
-    // Ecuador = UTC-5
-    const ecMs = utcNow.getTime() - 5 * 60 * 60 * 1000;
-    const ec = new Date(ecMs);
-    return new Date(ec.getFullYear(), ec.getMonth(), ec.getDate());
+    const today = getDatePartsInTimeZone(new Date(), ECUADOR_TZ);
+    return new Date(today.year, today.month - 1, today.day);
+}
+
+function getDatePartsInTimeZone(date: Date, timeZone: string): { year: number; month: number; day: number } {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    });
+    const parts = formatter.formatToParts(date);
+
+    const year = Number(parts.find((part) => part.type === "year")?.value);
+    const month = Number(parts.find((part) => part.type === "month")?.value);
+    const day = Number(parts.find((part) => part.type === "day")?.value);
+
+    return { year, month, day };
+}
+
+function getBirthdayDateInEcuador(
+    birthDate: admin.firestore.Timestamp,
+    year: number
+): Date {
+    const parts = getDatePartsInTimeZone(birthDate.toDate(), ECUADOR_TZ);
+    return new Date(year, parts.month - 1, parts.day);
 }
 
 interface UserNotificationData {
@@ -1597,8 +1618,7 @@ export const dailyNotifications = functions.pubsub
             // Process birthdays from c_cumpleanos collection
             for (const doc of birthdaysSnap.docs) {
                 const b = doc.data() as Birthday;
-                const bd = b.birthDate.toDate();
-                const nextBirthday = new Date(today.getFullYear(), bd.getMonth(), bd.getDate());
+                const nextBirthday = getBirthdayDateInEcuador(b.birthDate, today.getFullYear());
 
                 // Resolve member status if birthday is linked to a member
                 const memberStatus = b.memberId ? memberStatusMap.get(b.memberId) : undefined;
@@ -1646,8 +1666,7 @@ export const dailyNotifications = functions.pubsub
                 // Skip if already covered by c_cumpleanos record (deduplication by name)
                 if (sentBirthdays14.has(memberName) && sentBirthdaysToday.has(memberName)) continue;
 
-                const bd = m.birthDate.toDate();
-                const nextBirthday = new Date(today.getFullYear(), bd.getMonth(), bd.getDate());
+                const nextBirthday = getBirthdayDateInEcuador(m.birthDate, today.getFullYear());
                 const statusLabel = getBirthdayStatusLabel(m.status);
                 const nameWithStatus = statusLabel ? `${memberName} (${statusLabel})` : memberName;
 

@@ -29,6 +29,7 @@ import { deleteUser, updateProfile } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import logger from '@/lib/logger';
+import { normalizeDateForEcuadorStorage } from '@/lib/date-utils';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -425,7 +426,7 @@ export default function SettingsPage() {
       const userDocRef = doc(usersCollection, firebaseUser.uid);
       await setDoc(userDocRef, {
         name: values.name,
-        birthDate: Timestamp.fromDate(values.birthDate),
+        birthDate: Timestamp.fromDate(normalizeDateForEcuadorStorage(values.birthDate)),
         photoURL: finalPhotoURL,
         mainPage: mainPage,
         memberId: values.memberId?.trim() || null,

@@ -48,6 +48,7 @@ import { cn } from '@/lib/utils';
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Birthday } from '@/lib/types';
+import { normalizeDateForEcuadorStorage } from '@/lib/date-utils';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
 
@@ -308,7 +309,7 @@ export function BirthdayForm({ isOpen, onOpenChange, onFormSubmit, birthday }: B
 
       const dataToSave = {
         name: values.name,
-        birthDate: Timestamp.fromDate(values.birthDate),
+        birthDate: Timestamp.fromDate(normalizeDateForEcuadorStorage(values.birthDate)),
         photoURL: finalPhotoURL,
         // Store metadata about entry mode and source
         entryMode: values.entryMode,

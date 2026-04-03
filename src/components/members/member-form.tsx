@@ -58,6 +58,7 @@ import { Timestamp } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import { safeGetDate } from '@/lib/date-utils';
+import { normalizeDateForEcuadorStorage } from '@/lib/date-utils';
 
 const memberFormSchema = z.object({
   firstName: z.string().min(1, 'El nombre es requerido'),
@@ -723,7 +724,9 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           status: values.status,
           phoneNumber: values.phoneNumber?.trim() ? values.phoneNumber.trim() : undefined,
           memberId: values.memberId?.trim() ? values.memberId.trim() : undefined,
-          birthDate: values.birthDate ? Timestamp.fromDate(values.birthDate) : undefined,
+          birthDate: values.birthDate
+            ? Timestamp.fromDate(normalizeDateForEcuadorStorage(values.birthDate))
+            : undefined,
           baptismDate: values.baptismDate ? Timestamp.fromDate(values.baptismDate) : undefined,
           deathDate: values.status === 'deceased'
             ? values.deathDate
@@ -781,7 +784,9 @@ export function MemberForm({ member, onClose }: MemberFormProps) {
           status: values.status,
           phoneNumber: values.phoneNumber?.trim() ? values.phoneNumber.trim() : undefined,
           memberId: values.memberId?.trim() ? values.memberId.trim() : undefined,
-          birthDate: values.birthDate ? Timestamp.fromDate(values.birthDate) : undefined,
+          birthDate: values.birthDate
+            ? Timestamp.fromDate(normalizeDateForEcuadorStorage(values.birthDate))
+            : undefined,
           baptismDate: values.baptismDate ? Timestamp.fromDate(values.baptismDate) : undefined,
           deathDate: values.status === 'deceased' && values.deathDate
             ? Timestamp.fromDate(values.deathDate)

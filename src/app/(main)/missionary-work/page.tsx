@@ -1424,7 +1424,7 @@ export default function MissionaryWorkPage() {
 
       <VoiceAnnotations
         title="Anotaciones de Obra Misional"
-        description="Notas y recordatorios sobre los esfuerzos misionales del quórum con reconocimiento de voz."
+        description="Notas y recordatorios sobre los esfuerzos misionales del quórum."
         source="missionary-work"
         annotations={annotations}
         isLoading={loadingAnnotations}

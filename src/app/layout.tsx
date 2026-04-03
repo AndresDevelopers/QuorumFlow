@@ -7,6 +7,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { I18nProvider } from "@/contexts/i18n-context";
 
+const isDevelopment = process.env.NODE_ENV === "development";
+
 const ptSans = PT_Sans({
   subsets: ["latin"],
   weight: ["400", "700"],
@@ -39,8 +41,8 @@ export default function RootLayout({
           <I18nProvider>
             {children}
             <Toaster />
-            <Analytics />
-            <SpeedInsights />
+            {!isDevelopment && <Analytics />}
+            {!isDevelopment && <SpeedInsights />}
           </I18nProvider>
         </ThemeProvider>
       </body>

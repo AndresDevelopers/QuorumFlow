@@ -11,6 +11,7 @@ import {
 } from '@/lib/collections';
 import type { Convert, Companionship, Activity, Service, Member } from '@/lib/types';
 import { normalizeMemberStatus } from '@/lib/members-data';
+import { buildActivityOverview } from '@/lib/activity-overview';
 import { subMonths, addDays, format, isAfter, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -195,6 +196,20 @@ export async function getMembersByStatus() {
     inactive: inactiveMembers,
     total: members.length
   };
+}
+
+export async function getActivityOverviewData() {
+  const activitiesSnapshot = await getDocs(query(activitiesCollection, orderBy('date', 'asc')));
+  const activities = activitiesSnapshot.docs.map((doc) => {
+    const activity = doc.data() as Activity;
+
+    return {
+      title: activity.title,
+      date: activity.date.toDate(),
+    };
+  });
+
+  return buildActivityOverview(activities);
 }
 
 

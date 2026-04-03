@@ -2,6 +2,34 @@
  * Utility functions for handling dates and Firebase Timestamps safely
  */
 
+const ECUADOR_TIME_ZONE = 'America/Guayaquil';
+const ECUADOR_NOON_UTC_HOUR = 17;
+
+interface DateParts {
+    year: number;
+    month: number;
+    day: number;
+}
+
+function parseDateParts(
+    date: Date,
+    timeZone: string = ECUADOR_TIME_ZONE
+): DateParts {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    });
+    const parts = formatter.formatToParts(date);
+
+    const year = Number(parts.find((part) => part.type === 'year')?.value);
+    const month = Number(parts.find((part) => part.type === 'month')?.value);
+    const day = Number(parts.find((part) => part.type === 'day')?.value);
+
+    return { year, month, day };
+}
+
 /**
  * Safely converts a Firebase Timestamp, Date, string, or number to a Date object
  * @param timestamp - The timestamp to convert
@@ -107,4 +135,39 @@ export function getAge(birthTimestamp: unknown): number | null {
     }
 
     return age;
+}
+
+/**
+ * Stores date-only values at noon in Ecuador so month/day stay stable.
+ */
+export function normalizeDateForEcuadorStorage(date: Date): Date {
+    return new Date(
+        Date.UTC(
+            date.getFullYear(),
+            date.getMonth(),
+            date.getDate(),
+            ECUADOR_NOON_UTC_HOUR,
+            0,
+            0,
+            0
+        )
+    );
+}
+
+/**
+ * Reads a date using Ecuador's civil calendar day.
+ */
+export function getEcuadorDateParts(timestamp: unknown): DateParts | null {
+    const date = safeGetDate(timestamp);
+    if (!date) return null;
+
+    return parseDateParts(date, ECUADOR_TIME_ZONE);
+}
+
+/**
+ * Returns today's date using Ecuador local time.
+ */
+export function getTodayInEcuador(): Date {
+    const today = parseDateParts(new Date(), ECUADOR_TIME_ZONE);
+    return new Date(today.year, today.month - 1, today.day);
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { Annotation } from '@/lib/types';
 import {
   addDoc,
@@ -37,23 +37,16 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '../ui/skeleton';
-import { CheckCircle, NotebookPen, PlusCircle, Trash2, Pencil, Mic, MicOff } from 'lucide-react';
+import { CheckCircle, NotebookPen, Pencil, PlusCircle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { EditAnnotationDialog } from '../dashboard/edit-annotation-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
-
-declare global {
-  interface Window {
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
-  }
-}
 
 interface VoiceAnnotationsProps {
   title: string;
@@ -92,110 +85,6 @@ export function VoiceAnnotations({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [annotationToEdit, setAnnotationToEdit] = useState<Annotation | null>(null);
   const [userNames, setUserNames] = useState<Record<string, string>>({});
-  
-  // Voice recognition states
-  const [isRecording, setIsRecording] = useState(false);
-  const recognitionRef = useRef<any>(null);
-
-  const startRecording = () => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      toast({ 
-        title: 'Error', 
-        description: 'Reconocimiento de voz no soportado en este navegador.', 
-        variant: 'destructive' 
-      });
-      return;
-    }
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'es-ES';
-    
-    recognition.onstart = () => {
-      setIsRecording(true);
-    };
-    
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setNewAnnotation(prev => prev + (prev ? ' ' : '') + transcript);
-    };
-    
-    recognition.onend = () => {
-      setIsRecording(false);
-    };
-    
-    recognition.onerror = (event: any) => {
-      console.error('Error en reconocimiento de voz', event.error);
-      setIsRecording(false);
-
-      // Don't show error toast for "aborted" errors as they are normal behavior
-      if (event.error !== 'aborted') {
-        toast({
-          title: 'Error',
-          description: 'Error en el reconocimiento de voz.',
-          variant: 'destructive'
-        });
-      }
-    };
-    
-    recognitionRef.current = recognition;
-    recognition.start();
-  };
-
-  const stopRecording = () => {
-    if (recognitionRef.current && isRecording) {
-      try {
-        recognitionRef.current.stop();
-      } catch (error) {
-        // Ignore errors when stopping recognition that may already be stopped
-        console.warn('Error stopping recognition:', error);
-      }
-    }
-  };
-
-  const toggleRecording = () => {
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  };
-
-  // Auto-start recording when dialog opens
-  const handleDialogOpenChange = (isOpen: boolean) => {
-    setOpen(isOpen);
-    if (isOpen) {
-      // Small delay to ensure dialog is fully rendered
-      setTimeout(() => {
-        startRecording();
-      }, 300);
-    } else {
-      if (isRecording) {
-        stopRecording();
-      }
-      // Clear annotation when closing without saving
-      if (newAnnotation.trim() === '') {
-        setNewAnnotation('');
-      }
-    }
-  };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (recognitionRef.current && isRecording) {
-        try {
-          recognitionRef.current.stop();
-        } catch (error) {
-          // Ignore cleanup errors
-          console.warn('Error stopping recognition on cleanup:', error);
-        }
-      }
-    };
-  }, [isRecording]);
 
   useEffect(() => {
     let isMounted = true;
@@ -249,21 +138,21 @@ export function VoiceAnnotations({
         createdAt: serverTimestamp(),
         userId: currentUserId,
       });
-      
+
       setNewAnnotation('');
       setOpen(false);
       onAnnotationAdded();
-      
-      toast({ 
-        title: 'Éxito', 
-        description: 'Anotación guardada correctamente.' 
+
+      toast({
+        title: 'Exito',
+        description: 'Anotacion guardada correctamente.',
       });
     } catch (error) {
-      console.error("Failed to add annotation: ", error);
-      toast({ 
-        title: 'Error', 
-        description: 'No se pudo guardar la anotación.', 
-        variant: 'destructive' 
+      console.error('Failed to add annotation: ', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo guardar la anotacion.',
+        variant: 'destructive',
       });
     }
   };
@@ -277,11 +166,11 @@ export function VoiceAnnotations({
       await updateDoc(annotationRef, { isCouncilAction: !currentStatus });
       onAnnotationToggled();
     } catch (error) {
-      console.error("Failed to toggle annotation: ", error);
-      toast({ 
-        title: 'Error', 
-        description: 'No se pudo actualizar la anotación.', 
-        variant: 'destructive' 
+      console.error('Failed to toggle annotation: ', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar la anotacion.',
+        variant: 'destructive',
       });
     }
   };
@@ -290,7 +179,7 @@ export function VoiceAnnotations({
     setSelectedAnnotation(annotation);
     setIsAlertOpen(true);
   };
-  
+
   const handleDeleteConfirm = () => {
     if (selectedAnnotation && onDeleteAnnotation) {
       onDeleteAnnotation(selectedAnnotation.id);
@@ -322,55 +211,32 @@ export function VoiceAnnotations({
                 <CardDescription>{description}</CardDescription>
               </div>
             </div>
-            <Dialog open={open} onOpenChange={handleDialogOpenChange}>
+            <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <PlusCircle className="mr-2 h-4 w-4" />
-                  Anotación
+                  Anotacion
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Nueva Anotación</DialogTitle>
+                  <DialogTitle>Nueva Anotacion</DialogTitle>
                   <DialogDescription>
-                    Habla o escribe la nota que quieres registrar. El reconocimiento de voz se inicia automáticamente.
+                    Escribe la nota que quieres registrar.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Textarea
-                      value={newAnnotation}
-                      onChange={(e) => setNewAnnotation(e.target.value)}
-                      placeholder="Ej: Contactar a la familia Pérez para ofrecer ayuda con la mudanza..."
-                      rows={4}
-                    />
-                    <Button
-                      type="button"
-                      variant={isRecording ? "destructive" : "outline"}
-                      size="icon"
-                      onClick={toggleRecording}
-                      title={isRecording ? "Detener grabación" : "Iniciar grabación"}
-                    >
-                      {isRecording ? (
-                        <MicOff className="h-4 w-4" />
-                      ) : (
-                        <Mic className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                  {isRecording && (
-                    <div className="flex items-center gap-2 text-sm text-red-600">
-                      <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></div>
-                      Escuchando...
-                    </div>
-                  )}
-                </div>
+                <Textarea
+                  value={newAnnotation}
+                  onChange={(e) => setNewAnnotation(e.target.value)}
+                  placeholder="Ej: Contactar a la familia Perez para ofrecer ayuda con la mudanza..."
+                  rows={4}
+                />
                 <DialogFooter>
                   <Button
                     onClick={handleAddAnnotation}
                     disabled={!newAnnotation.trim()}
                   >
-                    Guardar Anotación
+                    Guardar Anotacion
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -409,10 +275,14 @@ export function VoiceAnnotations({
                       <p className="text-sm font-medium">{item.text}</p>
                       <p className="text-xs text-muted-foreground">
                         {format(item.createdAt.toDate(), 'd LLL yyyy, h:mm a', { locale: es })}
-                        {item.userId && ` · Por: ${userNames[item.userId] ?? 'Usuario'}`}
-                        {showCouncilView && ` - Creado en: ${item.source === 'dashboard' ? 'Dashboard' : 
-                          item.source === 'council' ? 'Consejo' : 
-                          item.source === 'family-search' ? 'FamilySearch' : 'Obra Misional'}`}
+                        {item.userId && ` - Por: ${userNames[item.userId] ?? 'Usuario'}`}
+                        {showCouncilView && ` - Creado en: ${item.source === 'dashboard'
+                          ? 'Dashboard'
+                          : item.source === 'council'
+                            ? 'Consejo'
+                            : item.source === 'family-search'
+                              ? 'FamilySearch'
+                              : 'Obra Misional'}`}
                       </p>
                     </div>
                   </div>
@@ -432,7 +302,7 @@ export function VoiceAnnotations({
                         variant="ghost"
                         size="icon"
                         onClick={() => handleEditAnnotation(item)}
-                        title="Editar anotación"
+                        title="Editar anotacion"
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -442,7 +312,7 @@ export function VoiceAnnotations({
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDeleteTrigger(item)}
-                        title="Eliminar anotación"
+                        title="Eliminar anotacion"
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -458,9 +328,9 @@ export function VoiceAnnotations({
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogTitle>Estas seguro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Esto eliminará permanentemente la anotación:{" "}
+              Esta accion no se puede deshacer. Esto eliminara permanentemente la anotacion:{' '}
               <strong>&quot;{selectedAnnotation?.text}&quot;</strong>.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -477,7 +347,7 @@ export function VoiceAnnotations({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      
+
       <EditAnnotationDialog
         annotation={annotationToEdit}
         open={editDialogOpen}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,17 +24,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Trash2, Mic, MicOff, CheckCircle } from 'lucide-react';
+import { CheckCircle, PlusCircle, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { doc, getDoc } from 'firebase/firestore';
 import { usersCollection } from '@/lib/collections';
-
-declare global {
-    interface Window {
-        SpeechRecognition: any;
-        webkitSpeechRecognition: any;
-    }
-}
 
 interface AnnotationItem {
     id: string;
@@ -90,99 +83,13 @@ export function AnnotationManager({
     const [deleteItem, setDeleteItem] = useState<AnnotationItem | null>(null);
     const [userNames, setUserNames] = useState<Record<string, string>>({});
 
-    // Voice recognition states
-    const [isRecording, setIsRecording] = useState(false);
-    const recognitionRef = useRef<any>(null);
-
-    const startRecording = () => {
-        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-            toast({
-                title: 'Error',
-                description: 'Reconocimiento de voz no soportado en este navegador.',
-                variant: 'destructive',
-            });
-            return;
-        }
-
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.lang = 'es-ES';
-
-        recognition.onstart = () => setIsRecording(true);
-        recognition.onresult = (event: any) => {
-            const transcript = event.results[0][0].transcript;
-            setInputValue(prev => prev + (prev ? ' ' : '') + transcript);
-        };
-        recognition.onend = () => setIsRecording(false);
-        recognition.onerror = (event: any) => {
-            console.error('Error en reconocimiento de voz', event.error);
-            setIsRecording(false);
-
-            // Don't show error toast for "aborted" errors as they are normal behavior
-            if (event.error !== 'aborted') {
-                toast({
-                    title: 'Error',
-                    description: 'Error en el reconocimiento de voz.',
-                    variant: 'destructive',
-                });
-            }
-        };
-
-        recognitionRef.current = recognition;
-        recognition.start();
-    };
-
-    const stopRecording = () => {
-        if (recognitionRef.current && isRecording) {
-            try {
-                recognitionRef.current.stop();
-            } catch (error) {
-                // Ignore errors when stopping recognition that may already be stopped
-                console.warn('Error stopping recognition:', error);
-            }
-        }
-    };
-
-    const toggleRecording = () => {
-        if (isRecording) {
-            stopRecording();
-        } else {
-            startRecording();
-        }
-    };
-
     const handleDialogOpenChange = (open: boolean) => {
         setDialogOpen(open);
-        if (open) {
-            // Auto-start recording when dialog opens
-            setTimeout(() => {
-                startRecording();
-            }, 300);
-        } else {
-            if (isRecording) {
-                stopRecording();
-            }
-            // Reset form when closing
+        if (!open) {
             setInputValue('');
             setErrors({});
         }
     };
-
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            if (recognitionRef.current && isRecording) {
-                try {
-                    recognitionRef.current.stop();
-                } catch (error) {
-                    // Ignore cleanup errors
-                    console.warn('Error stopping recognition on cleanup:', error);
-                }
-            }
-        };
-    }, [isRecording]);
 
     useEffect(() => {
         let isMounted = true;
@@ -232,17 +139,17 @@ export function AnnotationManager({
         setErrors({});
 
         if (!inputValue.trim() || inputValue.trim().length < 5) {
-            setErrors({ description: ['La descripción es requerida (mínimo 5 caracteres).'] });
+            setErrors({ description: ['La descripcion es requerida (minimo 5 caracteres).'] });
             return;
         }
 
         setIsPending(true);
         try {
             await onAdd(inputValue.trim());
-            toast({ title: 'Éxito', description: `${buttonText} agregado.` });
+            toast({ title: 'Exito', description: `${buttonText} agregado.` });
             setDialogOpen(false);
             setInputValue('');
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error adding item:', error);
             toast({
                 title: 'Error',
@@ -278,7 +185,7 @@ export function AnnotationManager({
         setIsPending(true);
         try {
             await onDelete(deleteItem.id);
-            toast({ title: 'Éxito', description: 'Elemento eliminado.' });
+            toast({ title: 'Exito', description: 'Elemento eliminado.' });
             setDeleteItem(null);
         } catch (error) {
             console.error('Error deleting item:', error);
@@ -313,36 +220,16 @@ export function AnnotationManager({
                                     <DialogTitle>{dialogTitle}</DialogTitle>
                                 </DialogHeader>
                                 <div className="py-4">
-                                    <Label htmlFor="description">Descripción</Label>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <Input
-                                            id="description"
-                                            name="description"
-                                            value={inputValue}
-                                            onChange={(e) => setInputValue(e.target.value)}
-                                            placeholder={placeholder}
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant={isRecording ? "destructive" : "outline"}
-                                            size="icon"
-                                            onClick={toggleRecording}
-                                            title={isRecording ? "Detener grabación" : "Iniciar grabación"}
-                                        >
-                                            {isRecording ? (
-                                                <MicOff className="h-4 w-4" />
-                                            ) : (
-                                                <Mic className="h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </div>
-                                    {isRecording && (
-                                        <div className="flex items-center gap-2 text-sm text-red-600 mt-2">
-                                            <div className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></div>
-                                            Escuchando...
-                                        </div>
-                                    )}
-                                    {errors?.description && (
+                                    <Label htmlFor="description">Descripcion</Label>
+                                    <Input
+                                        id="description"
+                                        name="description"
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        placeholder={placeholder}
+                                        className="mt-1"
+                                    />
+                                    {errors.description && (
                                         <p className="text-sm text-destructive mt-1">
                                             {errors.description[0]}
                                         </p>
@@ -387,10 +274,7 @@ export function AnnotationManager({
                                     <div className="flex-1">
                                         <Label
                                             htmlFor={item.id}
-                                            className={`${item.isCompleted
-                                                ? 'line-through text-muted-foreground'
-                                                : ''
-                                                }`}
+                                            className={item.isCompleted ? 'line-through text-muted-foreground' : ''}
                                         >
                                             {item.description}
                                         </Label>
@@ -434,9 +318,9 @@ export function AnnotationManager({
             <AlertDialog open={!!deleteItem} onOpenChange={() => setDeleteItem(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                        <AlertDialogTitle>Estas seguro?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Esta acción eliminará permanentemente: &quot;{deleteItem?.description}&quot;.
+                            Esta accion eliminara permanentemente: &quot;{deleteItem?.description}&quot;.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

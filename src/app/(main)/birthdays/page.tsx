@@ -47,6 +47,7 @@ import logger from '@/lib/logger';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
 import { buildMemberEditUrl } from '@/lib/navigation';
+import { getEcuadorDateParts, getTodayInEcuador } from '@/lib/date-utils';
 
 async function getBirthdays(): Promise<Birthday[]> {
   try {
@@ -100,18 +101,26 @@ async function getBirthdays(): Promise<Birthday[]> {
 type BirthdayWithNext = Birthday & { nextBirthday: Date };
 
 function getUpcomingBirthdays(birthdays: Birthday[]): BirthdayWithNext[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = getTodayInEcuador();
   
   return birthdays
     .map(b => {
-      const birthDate = b.birthDate.toDate();
-      let nextBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+      const birthDateParts = getEcuadorDateParts(b.birthDate);
+      if (!birthDateParts) {
+        return null;
+      }
+
+      let nextBirthday = new Date(
+        today.getFullYear(),
+        birthDateParts.month - 1,
+        birthDateParts.day
+      );
       if (nextBirthday < today) {
         nextBirthday.setFullYear(today.getFullYear() + 1);
       }
       return { ...b, nextBirthday };
     })
+    .filter((birthday): birthday is BirthdayWithNext => birthday !== null)
     .sort((a, b) => a.nextBirthday.getTime() - b.nextBirthday.getTime());
 }
 

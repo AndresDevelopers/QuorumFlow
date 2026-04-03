@@ -31,6 +31,10 @@ let isLoading = false;
  * @returns Promise that resolves to the Replay instance
  */
 export async function loadSentryReplay(options: ReplayOptions = {}): Promise<any> {
+  if (process.env.NODE_ENV === 'development') {
+    return null;
+  }
+
   // Return existing instance if already loaded
   if (replayInstance) {
     return replayInstance;
@@ -58,9 +62,9 @@ export async function loadSentryReplay(options: ReplayOptions = {}): Promise<any
     const { Replay } = await import('@sentry/replay');
     
     const defaultOptions = {
-      sessionSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+      sessionSampleRate: 0.1,
       errorSampleRate: 1.0,
-      maskAllText: process.env.NODE_ENV === 'production',
+      maskAllText: true,
       blockAllMedia: false,
       ...options
     };

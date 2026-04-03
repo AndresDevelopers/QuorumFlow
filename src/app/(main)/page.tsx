@@ -18,22 +18,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { OverviewChart } from "@/components/dashboard/overview-chart";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { useI18n } from "@/contexts/i18n-context";
-import { getDashboardData, getActivityChartData, getMembersByStatus } from "@/lib/dashboard-data";
+import { getDashboardData, getActivityOverviewData, getMembersByStatus } from "@/lib/dashboard-data";
 import { getDeceasedMembers } from "@/lib/members-data";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCallback, useEffect, useState } from "react";
 import { VoiceAnnotations } from "@/components/shared/voice-annotations";
-import type { Annotation, Member, Ordinance, TempleOrdinance } from "@/lib/types";
-import { OrdinanceLabels, TempleOrdinanceLabels } from "@/lib/types";
+import type { Annotation, Member, TempleOrdinance } from "@/lib/types";
+import { TempleOrdinanceLabels } from "@/lib/types";
 import {
-  addDoc,
   doc,
   getDocs,
   query,
-  serverTimestamp,
   updateDoc,
   where,
   orderBy,
@@ -45,8 +42,10 @@ import logger from "@/lib/logger";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import type { ActivityOverviewData } from "@/lib/activity-overview";
+import { format } from "date-fns";
+import { enUS, es } from "date-fns/locale";
 
 
 function StatCardSkeleton() {
@@ -146,15 +145,15 @@ function filterDeceasedMembers(members: Member[]): Member[] {
 
 
 function DashboardPage() {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [loadingAnnotations, setLoadingAnnotations] = useState(true);
-  const [chartData, setChartData] = useState<any[]>([]);
-  const [loadingChart, setLoadingChart] = useState(true);
+  const [activityOverview, setActivityOverview] = useState<ActivityOverviewData | null>(null);
+  const [loadingActivities, setLoadingActivities] = useState(true);
   const [membersData, setMembersData] = useState<any>(null);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [deceasedMembers, setDeceasedMembers] = useState<Member[]>([]);
@@ -175,14 +174,14 @@ function DashboardPage() {
   useEffect(() => {
     if (authLoading || !user) return; // Wait for authentication
 
-    async function loadChartData() {
-        setLoadingChart(true);
-        const data = await getActivityChartData();
-        setChartData(data);
-        setLoadingChart(false);
+    async function loadActivityOverview() {
+        setLoadingActivities(true);
+        const summary = await getActivityOverviewData();
+        setActivityOverview(summary);
+        setLoadingActivities(false);
     }
     queueMicrotask(() => {
-      void loadChartData();
+      void loadActivityOverview();
     });
   }, [authLoading, user])
 
@@ -308,6 +307,8 @@ function DashboardPage() {
     futureMembersCount,
     councilActionsCount,
   } = data || { convertsCount: 0, futureMembersCount: 0, councilActionsCount: 0 };
+  const currentLocale = language === "es" ? es : enUS;
+  const formatActivityDate = (date: Date) => format(date, "d LLL yyyy", { locale: currentLocale });
 
 
   return (
@@ -343,9 +344,61 @@ function DashboardPage() {
           <Card>
             <CardHeader>
               <CardTitle>{t("Activity Overview")}</CardTitle>
+              <CardDescription>{t("Activity Overview Description")}</CardDescription>
             </CardHeader>
-            <CardContent className="pl-2">
-              <OverviewChart data={chartData} loading={loadingChart} />
+            <CardContent className="space-y-4">
+              {loadingActivities ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              ) : activityOverview ? (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border bg-muted/30 p-4">
+                      <p className="text-sm text-muted-foreground">{t("Activities this year")}</p>
+                      <p className="mt-2 text-2xl font-semibold">{activityOverview.totalThisYear}</p>
+                    </div>
+                    <div className="rounded-lg border bg-muted/30 p-4">
+                      <p className="text-sm text-muted-foreground">{t("Upcoming in 14 days")}</p>
+                      <p className="mt-2 text-2xl font-semibold">{activityOverview.upcomingCount}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm text-muted-foreground">{t("Next activity")}</p>
+                        <p className="font-medium">
+                          {activityOverview.nextActivity?.title ?? t("No upcoming activities")}
+                        </p>
+                      </div>
+                      <Badge variant="secondary">
+                        {activityOverview.nextActivity
+                          ? formatActivityDate(activityOverview.nextActivity.date)
+                          : t("No date")}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-3 border-t pt-3">
+                      <div>
+                        <p className="text-sm text-muted-foreground">{t("Last activity")}</p>
+                        <p className="font-medium">
+                          {activityOverview.lastActivity?.title ?? t("No activities registered yet")}
+                        </p>
+                      </div>
+                      <Badge variant="outline">
+                        {activityOverview.lastActivity
+                          ? formatActivityDate(activityOverview.lastActivity.date)
+                          : t("No date")}
+                      </Badge>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t("No activities registered yet")}</p>
+              )}
             </CardContent>
           </Card>
         </Link>

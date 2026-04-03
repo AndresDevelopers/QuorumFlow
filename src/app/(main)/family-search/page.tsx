@@ -316,7 +316,7 @@ export default function FamilySearchPage() {
              {/* Anotaciones */}
             <VoiceAnnotations
                 title="Anotaciones de FamilySearch"
-                description="Notas y recordatorios sobre la obra de historia familiar con reconocimiento de voz."
+                description="Notas y recordatorios sobre la obra de historia familiar."
                 source="family-search"
                 annotations={annotations}
                 isLoading={loadingAnnotations}
