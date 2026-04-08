@@ -1,6 +1,18 @@
 {
-  "current": "1.1.14",
+  "current": "1.1.15",
   "entries": [
+    {
+      "version": "1.1.15",
+      "date": "2026-04-08",
+      "changes": {
+        "es": [
+          "Actualización: Update changelog entries and enhance convert notes functionality."
+        ],
+        "en": [
+          "Update: Update changelog entries and enhance convert notes functionality."
+        ]
+      }
+    },
     {
       "version": "1.1.14",
       "date": "2026-04-03",
