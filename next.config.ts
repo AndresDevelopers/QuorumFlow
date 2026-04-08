@@ -19,7 +19,8 @@ const withPWA = withPWAInit({
   dest: 'public',
   disable: process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test',
   sw: 'sw.js',
-  register: true,
+  register: false,
+  customWorkerSrc: 'worker',
 });
 
 const nextConfig: NextConfig = {

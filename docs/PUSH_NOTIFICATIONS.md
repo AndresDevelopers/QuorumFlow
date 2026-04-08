@@ -157,8 +157,9 @@ Si un usuario NO desea recibir notificaciones:
 - `src/lib/notification-helpers.ts` - Helpers para crear notificaciones (con filtrado)
 - `src/components/notification-bell.tsx` - Componente de notificaciones en el header
 - `src/app/api/send-fcm-notification/route.ts` - API para enviar notificaciones FCM
-- `public/sw.js` - Service worker efectivo de PWA/push en producción
-- `public/firebase-messaging-sw.js` - Artefacto de compatibilidad y diagnóstico legado
+- `public/sw.js` - Service worker efectivo de PWA/push en producción, generado por `next-pwa`
+- `worker/index.js` - Worker personalizado que se inyecta en `sw.js` para acoplar Firebase Messaging al worker real
+- `public/firebase-messaging-sw.js` - Worker autogenerado con la configuración FCM sincronizada desde `.env.local`
 - `src/lib/firebase-messaging.ts` - Inicialización y manejo de FCM
 - `src/app/api/push/diagnostics/route.ts` - Endpoint interno para diagnóstico y `dry-run`
 
@@ -221,7 +222,8 @@ Para verificar que todo está funcionando correctamente:
    - Deberías ver tu suscripción guardada
 
 3. **Prueba manual**:
-   - En desarrollo (`pnpm dev`) el service worker se desactiva, así que no uses ese ambiente para validar push móvil
+  - En desarrollo (`pnpm dev`) el service worker se desactiva, así que no uses ese ambiente para validar push móvil
+  - Antes de desplegar o probar producción, ejecuta `pnpm build` para regenerar `public/sw.js` y `public/firebase-messaging-sw.js`
    - Para validar producción usa el panel **Push en este dispositivo** en Settings
    - Usa la consola del navegador para enviar una notificación de prueba:
    ```javascript

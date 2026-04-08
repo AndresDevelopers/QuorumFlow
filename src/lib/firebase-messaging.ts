@@ -11,6 +11,11 @@ async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration
   }
 
   try {
+    const registration = await navigator.serviceWorker.getRegistration('/');
+    if (registration) {
+      return registration;
+    }
+
     return await navigator.serviceWorker.ready;
   } catch (error) {
     console.error('Error waiting for service worker registration:', error);
