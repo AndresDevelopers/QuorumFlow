@@ -6,9 +6,13 @@
       "date": "2026-04-08",
       "changes": {
         "es": [
+          "Actualización: ⚠️ **You have run out of credits for kevinsotov95@gmail.com. Please [click here](https://app.augmentcode.com/account?utm_source=vscode&utm_medium=in_agent_conversation&utm_campaign=usage_balance_depleted&utm_content=here) to upgrade.** ⚠️.",
+          "Actualización: Auto-update changelog [skip ci].",
           "Actualización: Update changelog entries and enhance convert notes functionality."
         ],
         "en": [
+          "Update: ⚠️ **You have run out of credits for kevinsotov95@gmail.com. Please [click here](https://app.augmentcode.com/account?utm_source=vscode&utm_medium=in_agent_conversation&utm_campaign=usage_balance_depleted&utm_content=here) to upgrade.** ⚠️.",
+          "Update: Auto-update changelog [skip ci].",
           "Update: Update changelog entries and enhance convert notes functionality."
         ]
       }
