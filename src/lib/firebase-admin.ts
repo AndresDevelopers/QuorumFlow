@@ -1,12 +1,14 @@
 import fs from 'fs';
 import logger from './logger';
 import { initializeApp, getApps, cert, type App, type ServiceAccount } from 'firebase-admin/app';
+import { getAuth, type Auth } from 'firebase-admin/auth';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getStorage, type Storage } from 'firebase-admin/storage';
 import { getMessaging, type Messaging } from 'firebase-admin/messaging';
 
 // Initialize Firebase Admin SDK
 let app: App;
+let authAdmin: Auth;
 let firestoreAdmin: Firestore;
 let storageAdmin: Storage;
 let messagingAdmin: Messaging;
@@ -130,8 +132,9 @@ if (!getApps().length) {
   app = getApps()[0];
 }
 
+authAdmin = getAuth(app);
 firestoreAdmin = getFirestore(app);
 storageAdmin = getStorage(app);
 messagingAdmin = getMessaging(app);
 
-export { firestoreAdmin, storageAdmin, messagingAdmin };
+export { authAdmin, firestoreAdmin, storageAdmin, messagingAdmin };

@@ -1,20 +1,21 @@
 # Guía de Notificaciones
 
-## Sistema Simplificado de Notificaciones
+## Sistema de Notificaciones Programadas y Push
 
-El sistema de notificaciones de QuorumFlow utiliza un enfoque simplificado que **no requiere configuración de claves VAPID** ni configuración adicional por parte del desarrollador.
+El sistema de notificaciones de QuorumFlow usa Firebase Cloud Messaging (FCM), PWA y tareas programadas en producción. Las notificaciones automáticas se calculan y ejecutan siempre en horario de Ecuador (`America/Guayaquil`).
 
 ### Características Principales
 
-- **Activo por defecto**: Las notificaciones están activadas automáticamente para todos los usuarios
-- **Sin configuración VAPID**: No necesitas generar ni configurar claves VAPID
+- **Horario fijo de producción**: `dailyNotifications` y `weeklyNotifications` corren a las `09:00` de Ecuador. `councilNotifications` corre martes y miércoles a las `18:00` de Ecuador.
+- **Push por dispositivo**: Cada móvil/PWA guarda un documento en `c_push_subscriptions` con trazabilidad de intentos.
 - **Control del usuario**: Cada usuario puede desactivar las notificaciones desde Settings
 - **Notificaciones in-app**: Todas las notificaciones se muestran en el header de la aplicación
 - **Filtrado inteligente**: Solo se envían notificaciones a usuarios que las tienen activadas
+- **Diagnóstico integrado**: Settings muestra el estado del service worker, permiso, device ID y el último intento del servidor.
 
 ### Variables de Entorno Requeridas
 
-Solo necesitas las variables estándar de Firebase:
+Variables mínimas para FCM y diagnóstico:
 
 ```env
 # Firebase Configuration
@@ -25,13 +26,15 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=tu-proyecto.appspot.com
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=tu-sender-id
 NEXT_PUBLIC_FIREBASE_APP_ID=tu-app-id
 FIREBASE_SERVICE_ACCOUNT_KEY={"key":"tu-service-account-key"}
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=tu-vapid-public-key
 ```
 
 ## Cómo Funcionan las Notificaciones
 
 ### Estado por Defecto
 
-- **Todos los usuarios nuevos** tienen las notificaciones **ACTIVADAS por defecto**
+- **Todos los usuarios nuevos** tienen las notificaciones **in-app activadas por defecto**
+- **Las notificaciones push móviles** requieren activación explícita por usuario/dispositivo
 - No se requiere ninguna acción del usuario para empezar a recibir notificaciones
 - Las notificaciones aparecen automáticamente en el header de la aplicación (campana)
 - **Las notificaciones push se envían automáticamente a dispositivos móviles** mediante Firebase Cloud Messaging (FCM)
@@ -58,7 +61,7 @@ Si un usuario NO desea recibir notificaciones:
 
 1. Inicia sesión en la aplicación
 2. Ve a **Settings** (Configuración)
-3. En la sección **Notifications**, desactiva el switch "Recibir Notificaciones"
+3. En la sección **Notifications**, desactiva el switch de notificaciones push
 4. A partir de ese momento, NO recibirá notificaciones de ningún tipo
 
 ## Cómo Probar las Notificaciones
@@ -118,9 +121,10 @@ Si un usuario NO desea recibir notificaciones:
 **Verificación general:**
 1. Abre la consola del navegador (DevTools)
 2. Ve a Application → Service Workers
-3. Verifica que el service worker esté registrado y activo
+3. Verifica que el service worker activo sea `sw.js`
 4. Revisa que tu token FCM esté guardado en Firestore (colección `c_push_subscriptions`)
-5. Prueba enviar una notificación de prueba desde la consola:
+5. Revisa en Settings el panel **Push en este dispositivo**
+6. Prueba un `dry-run` desde Settings o una notificación de prueba desde la consola:
    ```javascript
    fetch('/api/send-fcm-notification', {
      method: 'POST',
@@ -140,9 +144,9 @@ Si un usuario NO desea recibir notificaciones:
 1. **Usuario marca familia como urgente** → `urgentClient.tsx`
 2. **Sistema verifica preferencias** → `notification-helpers.ts` filtra usuarios con notificaciones activas
 3. **Se crean notificaciones in-app** → Firestore (colección `c_notifications`)
-4. **Se envían notificaciones push automáticamente** → API `/api/send-fcm-notification` envía mediante FCM
+4. **Se envían notificaciones push automáticamente** → Cloud Functions programadas o API `/api/send-fcm-notification`
 5. **Notificaciones aparecen en el header** → `notification-bell.tsx` las muestra
-6. **Notificaciones push llegan a dispositivos** → Service worker `firebase-messaging-sw.js` las recibe
+6. **Notificaciones push llegan a dispositivos** → Service worker `sw.js` las recibe
 7. **Notificaciones aparecen en la barra del sistema** → Android/iOS muestran la notificación
 8. **Usuario hace clic** → Navega a `/ministering/urgent`
 
@@ -153,8 +157,10 @@ Si un usuario NO desea recibir notificaciones:
 - `src/lib/notification-helpers.ts` - Helpers para crear notificaciones (con filtrado)
 - `src/components/notification-bell.tsx` - Componente de notificaciones en el header
 - `src/app/api/send-fcm-notification/route.ts` - API para enviar notificaciones FCM
-- `public/firebase-messaging-sw.js` - Service worker para manejar notificaciones push FCM
+- `public/sw.js` - Service worker efectivo de PWA/push en producción
+- `public/firebase-messaging-sw.js` - Artefacto de compatibilidad y diagnóstico legado
 - `src/lib/firebase-messaging.ts` - Inicialización y manejo de FCM
+- `src/app/api/push/diagnostics/route.ts` - Endpoint interno para diagnóstico y `dry-run`
 
 ### Modelo de Datos
 
@@ -163,7 +169,8 @@ Si un usuario NO desea recibir notificaciones:
 {
   userId: string,
   name: string,
-  notificationsEnabled: boolean, // true por defecto
+  inAppNotificationsEnabled: boolean, // true por defecto
+  pushNotificationsEnabled: boolean, // false por defecto hasta que el usuario active push en un dispositivo
   // ... otros campos
 }
 ```
@@ -186,10 +193,17 @@ Si un usuario NO desea recibir notificaciones:
 ```typescript
 {
   userId: string,
+  deviceId: string,
   fcmToken: string, // Token FCM para notificaciones push
-  createdAt: Date,
+  subscribedAt?: Date,
+  updatedAt?: Date,
   userAgent: string,
-  unsubscribedAt?: Date // Si el usuario se desuscribió
+  unsubscribedAt?: Date,
+  lastPushAttemptAt?: Date,
+  lastPushAttemptMode?: 'live' | 'dry-run',
+  lastPushResult?: 'success' | 'failure' | 'invalid-token',
+  lastPushErrorCode?: string | null,
+  lastNotificationTag?: string | null
 }
 ```
 
@@ -199,7 +213,7 @@ Para verificar que todo está funcionando correctamente:
 
 1. **Verifica el service worker**:
    - Abre DevTools > Application > Service Workers
-   - Deberías ver el service worker registrado y activo
+   - Deberías ver `sw.js` registrado y activo en producción
 
 2. **Verifica la suscripción**:
    - Abre DevTools > Application > Storage > IndexedDB
@@ -207,6 +221,8 @@ Para verificar que todo está funcionando correctamente:
    - Deberías ver tu suscripción guardada
 
 3. **Prueba manual**:
+   - En desarrollo (`pnpm dev`) el service worker se desactiva, así que no uses ese ambiente para validar push móvil
+   - Para validar producción usa el panel **Push en este dispositivo** en Settings
    - Usa la consola del navegador para enviar una notificación de prueba:
    ```javascript
    fetch('/api/send-fcm-notification', {
@@ -230,5 +246,5 @@ Para verificar que todo está funcionando correctamente:
 ## Limitaciones Conocidas
 
 - **iOS Safari**: Las notificaciones push solo funcionan si la app está instalada como PWA
-- **Modo desarrollo**: Las notificaciones push están deshabilitadas en desarrollo
+- **Modo desarrollo**: Las notificaciones push están deshabilitadas en desarrollo porque el service worker se limpia intencionalmente
 - **Permisos**: Si el usuario deniega los permisos, debe habilitarlos manualmente en la configuración del navegador

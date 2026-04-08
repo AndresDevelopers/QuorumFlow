@@ -71,7 +71,9 @@ class FcmRepository {
             const fcmToken = data.fcmToken;
             if (fcmToken) {
                 tokens.push({
+                    docId: doc.id,
                     userId: data.userId,
+                    deviceId: typeof data.deviceId === "string" ? data.deviceId : undefined,
                     fcmToken,
                 });
             }
@@ -93,7 +95,12 @@ class FcmRepository {
                 snap.forEach((doc) => {
                     const data = doc.data();
                     if (data.fcmToken) {
-                        results.push({ userId: data.userId, fcmToken: data.fcmToken });
+                        results.push({
+                            docId: doc.id,
+                            userId: data.userId,
+                            deviceId: typeof data.deviceId === "string" ? data.deviceId : undefined,
+                            fcmToken: data.fcmToken,
+                        });
                     }
                 });
                 return results;
@@ -102,12 +109,32 @@ class FcmRepository {
         const results = await Promise.all(batches);
         return results.flat();
     }
-    async sendToTokens(tokens, payload) {
+    async sendToTokens(tokens, payload, mode = "live") {
         if (tokens.length === 0) {
             this.logger.log("No FCM tokens to notify.");
-            return;
+            return {
+                successCount: 0,
+                failureCount: 0,
+                invalidatedCount: 0,
+                outcomes: [],
+                pushTokensResolved: 0,
+            };
         }
-        const rawTokens = [...new Set(tokens.map((t) => t.fcmToken))];
+        const tokenMap = new Map();
+        for (const tokenRecord of tokens) {
+            const existing = tokenMap.get(tokenRecord.fcmToken);
+            if (existing) {
+                existing.push(tokenRecord);
+            }
+            else {
+                tokenMap.set(tokenRecord.fcmToken, [tokenRecord]);
+            }
+        }
+        const rawTokens = [...tokenMap.keys()];
+        const outcomes = [];
+        let totalSuccess = 0;
+        let totalFailure = 0;
+        let totalInvalidated = 0;
         // FCM sendEachForMulticast supports up to 500 tokens per request
         const chunkSize = 500;
         for (let i = 0; i < rawTokens.length; i += chunkSize) {
@@ -173,42 +200,108 @@ class FcmRepository {
                         title: payload.title,
                         body: payload.body,
                     },
-                });
+                }, mode === "dry-run");
                 const failedTokens = [];
+                const attemptUpdates = [];
+                totalSuccess += response.successCount;
+                totalFailure += response.failureCount;
                 response.responses.forEach((resp, idx) => {
+                    const token = chunk[idx];
+                    const tokenRecords = tokenMap.get(token) ?? [];
+                    const errorCode = resp.error?.code ?? null;
+                    const errorMessage = resp.error?.message ?? null;
+                    outcomes.push({
+                        token,
+                        success: resp.success,
+                        errorCode,
+                        errorMessage,
+                        affectedSubscriptions: tokenRecords.length,
+                    });
                     if (!resp.success) {
-                        const code = resp.error?.code;
-                        if (code === "messaging/registration-token-not-registered" ||
-                            code === "messaging/invalid-registration-token") {
-                            failedTokens.push(chunk[idx]);
-                            this.logger.warn(`Invalid FCM token removed: ${chunk[idx]}`);
+                        if (errorCode === "messaging/registration-token-not-registered" ||
+                            errorCode === "messaging/invalid-registration-token") {
+                            failedTokens.push(token);
+                            this.logger.warn(`Invalid FCM token removed: ${token}`);
                         }
                         else {
-                            this.logger.error(`FCM send error for token ${chunk[idx]}: ${resp.error?.message}`);
+                            this.logger.error(`FCM send error for token ${token}: ${errorMessage}`);
                         }
                     }
+                    attemptUpdates.push(this.updatePushAttemptMetadata(tokenRecords, {
+                        mode,
+                        result: resp.success
+                            ? "success"
+                            : failedTokens.includes(token)
+                                ? "invalid-token"
+                                : "failure",
+                        errorCode,
+                        notificationTag: payload.tag ?? null,
+                        invalidateToken: failedTokens.includes(token),
+                    }));
                 });
-                // Remove invalid tokens from Firestore
-                if (failedTokens.length > 0) {
-                    await this.removeInvalidTokens(failedTokens);
-                }
+                totalInvalidated += failedTokens.length;
+                await Promise.all(attemptUpdates);
             }
             catch (error) {
                 this.logger.error(`Error sending FCM multicast: ${error}`);
+                const batchErrorMessage = error instanceof Error ? error.message : String(error);
+                const batchUpdates = [];
+                for (const token of chunk) {
+                    const tokenRecords = tokenMap.get(token) ?? [];
+                    outcomes.push({
+                        token,
+                        success: false,
+                        errorCode: "messaging/unknown-error",
+                        errorMessage: batchErrorMessage,
+                        affectedSubscriptions: tokenRecords.length,
+                    });
+                    totalFailure += 1;
+                    batchUpdates.push(this.updatePushAttemptMetadata(tokenRecords, {
+                        mode,
+                        result: "failure",
+                        errorCode: "messaging/unknown-error",
+                        notificationTag: payload.tag ?? null,
+                        invalidateToken: false,
+                    }));
+                }
+                await Promise.all(batchUpdates);
             }
         }
+        return {
+            successCount: totalSuccess,
+            failureCount: totalFailure,
+            invalidatedCount: totalInvalidated,
+            outcomes,
+            pushTokensResolved: rawTokens.length,
+        };
     }
-    async removeInvalidTokens(tokens) {
+    async updatePushAttemptMetadata(subscriptions, params) {
+        if (subscriptions.length === 0) {
+            return;
+        }
         try {
             const batch = this.db.batch();
-            for (const token of tokens) {
-                const docs = await this.collection.where("fcmToken", "==", token).get();
-                docs.forEach((doc) => batch.delete(doc.ref));
+            for (const subscription of subscriptions) {
+                const docRef = this.collection.doc(subscription.docId);
+                batch.set(docRef, {
+                    lastPushAttemptAt: admin.firestore.FieldValue.serverTimestamp(),
+                    lastPushAttemptMode: params.mode,
+                    lastPushResult: params.result,
+                    lastPushErrorCode: params.errorCode,
+                    lastNotificationTag: params.notificationTag,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    ...(params.invalidateToken
+                        ? {
+                            fcmToken: null,
+                            unsubscribedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        }
+                        : {}),
+                }, { merge: true });
             }
             await batch.commit();
         }
         catch (error) {
-            this.logger.error(`Error removing invalid FCM tokens: ${error}`);
+            this.logger.error(`Error updating push attempt metadata: ${error}`);
         }
     }
 }
@@ -248,7 +341,7 @@ class NotificationDispatcher {
             this.logger.warn("No users registered in the system to notify.");
         }
         const records = userIds.map((userId) => this.recordFactory.create(userId, request));
-        await Promise.all([
+        const [, pushSummary] = await Promise.all([
             this.notificationRepository.saveMany(records),
             this.fcmRepository.sendToTokens(fcmTokens, {
                 title: request.title,
@@ -257,14 +350,43 @@ class NotificationDispatcher {
                 tag: request.tag,
             }),
         ]);
+        this.logDispatchSummary({
+            label: request.tag ?? request.title,
+            category: request.context?.contextType ?? request.tag ?? request.title,
+            source: "broadcast",
+            inAppRecipients: records.length,
+            pushRecipients: userIds.length,
+            pushTokensResolved: pushSummary.pushTokensResolved,
+            successCount: pushSummary.successCount,
+            failureCount: pushSummary.failureCount,
+            invalidatedCount: pushSummary.invalidatedCount,
+            attemptedAt: new Date().toISOString(),
+            outcomes: pushSummary.outcomes,
+        });
     }
     /**
      * Broadcast to specific users only (filtered by userId list).
      * Used by scheduled functions that already determine eligible users.
      */
-    async broadcastToUsers(userIds, request, pushUserIds) {
+    async broadcastToUsers(userIds, request, pushUserIds, trace) {
         if (userIds.length === 0 && (!pushUserIds || pushUserIds.length === 0)) {
-            return;
+            const emptySummary = {
+                label: request.tag ?? request.title,
+                category: trace?.category ?? request.context?.contextType ?? request.tag ?? request.title,
+                source: trace?.source ?? "broadcastToUsers",
+                inAppRecipients: 0,
+                pushRecipients: 0,
+                pushTokensResolved: 0,
+                successCount: 0,
+                failureCount: 0,
+                invalidatedCount: 0,
+                attemptedAt: new Date().toISOString(),
+                scheduledTimeZone: trace?.scheduledTimeZone,
+                scheduledLocalTime: trace?.scheduledLocalTime,
+                outcomes: [],
+            };
+            this.logDispatchSummary(emptySummary);
+            return emptySummary;
         }
         const inAppUserIds = userIds;
         const fcmTargetUserIds = pushUserIds ?? userIds;
@@ -272,7 +394,7 @@ class NotificationDispatcher {
             Promise.resolve(inAppUserIds.map((uid) => this.recordFactory.create(uid, request))),
             this.fcmRepository.getTokensForUsers(fcmTargetUserIds),
         ]);
-        await Promise.all([
+        const [, pushSummary] = await Promise.all([
             this.notificationRepository.saveMany(records),
             this.fcmRepository.sendToTokens(fcmTokens, {
                 title: request.title,
@@ -281,6 +403,53 @@ class NotificationDispatcher {
                 tag: request.tag,
             }),
         ]);
+        const summary = {
+            label: request.tag ?? request.title,
+            category: trace?.category ?? request.context?.contextType ?? request.tag ?? request.title,
+            source: trace?.source ?? "broadcastToUsers",
+            inAppRecipients: inAppUserIds.length,
+            pushRecipients: fcmTargetUserIds.length,
+            pushTokensResolved: pushSummary.pushTokensResolved,
+            successCount: pushSummary.successCount,
+            failureCount: pushSummary.failureCount,
+            invalidatedCount: pushSummary.invalidatedCount,
+            attemptedAt: new Date().toISOString(),
+            scheduledTimeZone: trace?.scheduledTimeZone,
+            scheduledLocalTime: trace?.scheduledLocalTime,
+            outcomes: pushSummary.outcomes,
+        };
+        this.logDispatchSummary(summary);
+        return summary;
+    }
+    async runDryCheckForUsers(userIds, request, trace) {
+        const fcmTokens = await this.fcmRepository.getTokensForUsers(userIds);
+        const pushSummary = await this.fcmRepository.sendToTokens(fcmTokens, {
+            title: request.title,
+            body: request.body,
+            url: request.url,
+            tag: request.tag,
+        }, "dry-run");
+        const summary = {
+            label: request.tag ?? request.title,
+            category: trace?.category ?? request.tag ?? request.title,
+            source: trace?.source ?? "dry-run",
+            inAppRecipients: 0,
+            pushRecipients: userIds.length,
+            pushTokensResolved: pushSummary.pushTokensResolved,
+            successCount: pushSummary.successCount,
+            failureCount: pushSummary.failureCount,
+            invalidatedCount: pushSummary.invalidatedCount,
+            attemptedAt: new Date().toISOString(),
+            scheduledTimeZone: trace?.scheduledTimeZone,
+            scheduledLocalTime: trace?.scheduledLocalTime,
+            outcomes: pushSummary.outcomes,
+        };
+        this.logDispatchSummary(summary);
+        return summary;
+    }
+    logDispatchSummary(summary) {
+        this.logger.log("push-dispatch-summary");
+        this.logger.log(summary);
     }
 }
 exports.NotificationDispatcher = NotificationDispatcher;

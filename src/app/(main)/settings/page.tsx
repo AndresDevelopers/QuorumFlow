@@ -34,8 +34,8 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { doc, getDoc, updateDoc, Timestamp, setDoc, serverTimestamp } from 'firebase/firestore';
-import { usersCollection, pushSubscriptionsCollection, storage } from '@/lib/collections';
+import { doc, getDoc, updateDoc, Timestamp, setDoc } from 'firebase/firestore';
+import { usersCollection, storage } from '@/lib/collections';
 import {
   Form,
   FormControl,
@@ -55,6 +55,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import RoleManagement from '@/components/role-management';
+import { PushDeviceDiagnostics } from '@/components/push-device-diagnostics';
 import {
   canManageSettings,
   canViewSettings,
@@ -68,8 +69,9 @@ import {
   requestNotificationPermission,
 } from '@/lib/firebase-messaging';
 import {
-  getPushDeviceId,
-  getPushSubscriptionDocId,
+  clearCurrentPushSubscription,
+  getCurrentPushSubscriptionToken,
+  saveCurrentPushSubscription,
 } from '@/lib/push-subscription';
 
 const profileSchema = z.object({
@@ -83,70 +85,6 @@ const profileSchema = z.object({
 type FormValues = z.infer<typeof profileSchema>;
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
-
-function getCurrentPushSubscriptionTarget(userId: string) {
-  const deviceId = getPushDeviceId();
-  if (!deviceId) {
-    return null;
-  }
-
-  return {
-    deviceId,
-    ref: doc(pushSubscriptionsCollection, getPushSubscriptionDocId(userId, deviceId)),
-  };
-}
-
-async function saveCurrentPushSubscription(userId: string, fcmToken: string) {
-  const target = getCurrentPushSubscriptionTarget(userId);
-  if (!target) {
-    return false;
-  }
-
-  await setDoc(target.ref, {
-    userId,
-    deviceId: target.deviceId,
-    fcmToken,
-    userAgent: navigator.userAgent,
-    platform: navigator.platform,
-    updatedAt: serverTimestamp(),
-    subscribedAt: serverTimestamp(),
-  }, { merge: true });
-
-  return true;
-}
-
-async function clearCurrentPushSubscription(userId: string) {
-  const target = getCurrentPushSubscriptionTarget(userId);
-  if (!target) {
-    return false;
-  }
-
-  await setDoc(target.ref, {
-    userId,
-    deviceId: target.deviceId,
-    fcmToken: null,
-    userAgent: navigator.userAgent,
-    platform: navigator.platform,
-    updatedAt: serverTimestamp(),
-    unsubscribedAt: serverTimestamp(),
-  }, { merge: true });
-
-  return true;
-}
-
-async function getCurrentPushSubscriptionToken(userId: string): Promise<string | null> {
-  const target = getCurrentPushSubscriptionTarget(userId);
-  if (!target) {
-    return null;
-  }
-
-  const subscriptionDoc = await getDoc(target.ref);
-  if (!subscriptionDoc.exists()) {
-    return null;
-  }
-
-  return (subscriptionDoc.data().fcmToken as string | null) ?? null;
-}
 
 
 
@@ -1215,6 +1153,8 @@ export default function SettingsPage() {
                   )}
                 </div>
               )}
+
+              <PushDeviceDiagnostics />
             </div>
           </CardContent>
         </Card>

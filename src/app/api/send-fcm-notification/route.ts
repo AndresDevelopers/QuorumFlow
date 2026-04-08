@@ -30,6 +30,24 @@ async function getFCMTokensForUsers(userIds: string[]): Promise<string[]> {
   return [...new Set(tokens)];
 }
 
+async function getSubscriptionDocsByTokens(tokens: string[]) {
+  if (tokens.length === 0) {
+    return new Map<string, string[]>();
+  }
+
+  const matches = new Map<string, string[]>();
+  for (const token of tokens) {
+    const snapshot = await firestoreAdmin
+      .collection('c_push_subscriptions')
+      .where('fcmToken', '==', token)
+      .get();
+
+    matches.set(token, snapshot.docs.map((doc) => doc.id));
+  }
+
+  return matches;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { title, body, url, userId } = await request.json() as {
@@ -86,7 +104,8 @@ export async function POST(request: NextRequest) {
     const FCM_BATCH_LIMIT = 500;
     let totalSuccess = 0;
     let totalFailure = 0;
-    const allFailedTokens: string[] = [];
+
+    const subscriptionDocsByToken = await getSubscriptionDocsByTokens(tokens);
 
     for (let i = 0; i < tokens.length; i += FCM_BATCH_LIMIT) {
       const tokenBatch = tokens.slice(i, i + FCM_BATCH_LIMIT);
@@ -122,25 +141,41 @@ export async function POST(request: NextRequest) {
       if (response.failureCount > 0) {
         response.responses.forEach((resp, idx) => {
           if (!resp.success) {
-            allFailedTokens.push(tokenBatch[idx]);
             console.error('[FCM] Failed token:', tokenBatch[idx], resp.error?.code);
           }
         });
       }
-    }
 
-    // Clean up invalid/expired tokens
-    if (allFailedTokens.length > 0) {
       const batch = firestoreAdmin.batch();
-      for (const token of allFailedTokens) {
-        const tokenDocs = await firestoreAdmin
-          .collection('c_push_subscriptions')
-          .where('fcmToken', '==', token)
-          .get();
-        tokenDocs.forEach((doc) => batch.delete(doc.ref));
-      }
+      response.responses.forEach((resp, idx) => {
+        const token = tokenBatch[idx];
+        const docIds = subscriptionDocsByToken.get(token) ?? [];
+        const isInvalidToken =
+          resp.error?.code === 'messaging/registration-token-not-registered' ||
+          resp.error?.code === 'messaging/invalid-registration-token';
+
+        docIds.forEach((docId) => {
+          batch.set(
+            firestoreAdmin.collection('c_push_subscriptions').doc(docId),
+            {
+              lastPushAttemptAt: new Date(),
+              lastPushAttemptMode: 'live',
+              lastPushResult: resp.success ? 'success' : (isInvalidToken ? 'invalid-token' : 'failure'),
+              lastPushErrorCode: resp.error?.code ?? null,
+              lastNotificationTag: 'api-send-fcm-notification',
+              updatedAt: new Date(),
+              ...(isInvalidToken
+                ? {
+                  fcmToken: null,
+                  unsubscribedAt: new Date(),
+                }
+                : {}),
+            },
+            { merge: true }
+          );
+        });
+      });
       await batch.commit();
-      console.log(`[FCM] Cleaned up ${allFailedTokens.length} invalid token(s)`);
     }
 
     console.log(`[FCM] Sent: ${totalSuccess} ok, ${totalFailure} failed`);

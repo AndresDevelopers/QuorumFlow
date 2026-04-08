@@ -34,6 +34,7 @@ import { useI18n } from "@/contexts/i18n-context";
 import { useAuth } from "@/contexts/auth-context";
 import { auth } from "@/lib/firebase";
 import OfflineIndicator from "@/components/offline-indicator";
+import { PushForegroundListener } from "@/components/push-foreground-listener";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { signOut } from "firebase/auth";
@@ -297,6 +298,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
         <ErrorBoundary>
           <OfflineIndicator />
         </ErrorBoundary>
+        <PushForegroundListener />
         <ServiceWorkerRegistration />
         <InstallPrompt />
       </SidebarInset>

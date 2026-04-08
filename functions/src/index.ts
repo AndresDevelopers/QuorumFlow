@@ -1555,6 +1555,33 @@ interface EligibleUsers {
     pushUserIds: string[];
 }
 
+function getEcuadorNowLabel(): string {
+    return new Intl.DateTimeFormat("es-EC", {
+        timeZone: ECUADOR_TZ,
+        dateStyle: "medium",
+        timeStyle: "medium",
+    }).format(new Date());
+}
+
+function buildNotificationTrace(source: string, category: string) {
+    return {
+        source,
+        category,
+        scheduledTimeZone: ECUADOR_TZ,
+        scheduledLocalTime: getEcuadorNowLabel(),
+    };
+}
+
+function logEligibleUsersSummary(source: string, category: string, eligible: EligibleUsers): void {
+    functions.logger.log(`${source}: eligible users`, {
+        category,
+        inAppRecipients: eligible.inAppUserIds.length,
+        pushRecipients: eligible.pushUserIds.length,
+        scheduledTimeZone: ECUADOR_TZ,
+        scheduledLocalTime: getEcuadorNowLabel(),
+    });
+}
+
 /**
  * Given all users and a category, return those eligible to receive in-app
  * and/or push notifications for that category.
@@ -1590,7 +1617,10 @@ export const dailyNotifications = functions.pubsub
     .schedule("0 9 * * *")
     .timeZone(ECUADOR_TZ)
     .onRun(async () => {
-        functions.logger.log("dailyNotifications: running...");
+        functions.logger.log("dailyNotifications: running...", {
+            scheduledTimeZone: ECUADOR_TZ,
+            scheduledLocalTime: getEcuadorNowLabel(),
+        });
         const today = getEcuadorToday();
         const in14Days = addDays(today, 14);
         const in3Days = addDays(today, 3);
@@ -1599,6 +1629,8 @@ export const dailyNotifications = functions.pubsub
 
         // ── Cumpleaños ──────────────────────────────────────────────────────
         const birthdayEligible = getEligibleUsers(allUsers, "birthdays");
+        const birthdayTrace = buildNotificationTrace("dailyNotifications", "birthdays");
+        logEligibleUsersSummary("dailyNotifications", "birthdays", birthdayEligible);
         if (birthdayEligible.inAppUserIds.length > 0 || birthdayEligible.pushUserIds.length > 0) {
             const [birthdaysSnap, membersForBirthdaySnap] = await Promise.all([
                 firestore.collection("c_cumpleanos").get(),
@@ -1636,7 +1668,8 @@ export const dailyNotifications = functions.pubsub
                             tag: `birthday-14d-${doc.id}`,
                             context: { contextType: "birthday", actionUrl: "/birthdays", actionType: "navigate" },
                         },
-                        birthdayEligible.pushUserIds
+                        birthdayEligible.pushUserIds,
+                        birthdayTrace
                     );
                 }
 
@@ -1651,7 +1684,8 @@ export const dailyNotifications = functions.pubsub
                             tag: `birthday-today-${doc.id}`,
                             context: { contextType: "birthday", actionUrl: "/birthdays", actionType: "navigate" },
                         },
-                        birthdayEligible.pushUserIds
+                        birthdayEligible.pushUserIds,
+                        birthdayTrace
                     );
                 }
             }
@@ -1681,7 +1715,8 @@ export const dailyNotifications = functions.pubsub
                             tag: `birthday-14d-member-${memberDoc.id}`,
                             context: { contextType: "birthday", actionUrl: "/birthdays", actionType: "navigate" },
                         },
-                        birthdayEligible.pushUserIds
+                        birthdayEligible.pushUserIds,
+                        birthdayTrace
                     );
                 }
 
@@ -1696,7 +1731,8 @@ export const dailyNotifications = functions.pubsub
                             tag: `birthday-today-member-${memberDoc.id}`,
                             context: { contextType: "birthday", actionUrl: "/birthdays", actionType: "navigate" },
                         },
-                        birthdayEligible.pushUserIds
+                        birthdayEligible.pushUserIds,
+                        birthdayTrace
                     );
                 }
             }
@@ -1704,6 +1740,8 @@ export const dailyNotifications = functions.pubsub
 
         // ── Futuros Miembros – 3 días antes del bautismo ────────────────────
         const fmEligible = getEligibleUsers(allUsers, "futureMembers");
+        const futureMembersTrace = buildNotificationTrace("dailyNotifications", "futureMembers");
+        logEligibleUsersSummary("dailyNotifications", "futureMembers", fmEligible);
         if (fmEligible.inAppUserIds.length > 0 || fmEligible.pushUserIds.length > 0) {
             const fmSnap = await firestore.collection("c_futuros_miembros").get();
             for (const doc of fmSnap.docs) {
@@ -1723,7 +1761,8 @@ export const dailyNotifications = functions.pubsub
                             tag: `future-member-${doc.id}`,
                             context: { contextType: "future_member", contextId: doc.id, actionUrl: "/future-members", actionType: "navigate" },
                         },
-                        fmEligible.pushUserIds
+                        fmEligible.pushUserIds,
+                        futureMembersTrace
                     );
                 }
             }
@@ -1731,6 +1770,8 @@ export const dailyNotifications = functions.pubsub
 
         // ── Servicios – 14 días antes y el mismo día ─────────────────────────
         const serviceEligible = getEligibleUsers(allUsers, "service");
+        const serviceTrace = buildNotificationTrace("dailyNotifications", "service");
+        logEligibleUsersSummary("dailyNotifications", "service", serviceEligible);
         if (serviceEligible.inAppUserIds.length > 0 || serviceEligible.pushUserIds.length > 0) {
             const servicesSnap = await firestore.collection("c_servicios").get();
             for (const doc of servicesSnap.docs) {
@@ -1749,7 +1790,8 @@ export const dailyNotifications = functions.pubsub
                             tag: `service-14d-${doc.id}`,
                             context: { contextType: "service", contextId: doc.id, actionUrl: "/service", actionType: "navigate" },
                         },
-                        serviceEligible.pushUserIds
+                        serviceEligible.pushUserIds,
+                        serviceTrace
                     );
                 }
 
@@ -1763,7 +1805,8 @@ export const dailyNotifications = functions.pubsub
                             tag: `service-today-${doc.id}`,
                             context: { contextType: "service", contextId: doc.id, actionUrl: "/service", actionType: "navigate" },
                         },
-                        serviceEligible.pushUserIds
+                        serviceEligible.pushUserIds,
+                        serviceTrace
                     );
                 }
             }
@@ -1771,6 +1814,8 @@ export const dailyNotifications = functions.pubsub
 
         // ── Actividades – 14 días antes y el mismo día ───────────────────────
         const actEligible = getEligibleUsers(allUsers, "activities");
+        const activitiesTrace = buildNotificationTrace("dailyNotifications", "activities");
+        logEligibleUsersSummary("dailyNotifications", "activities", actEligible);
         if (actEligible.inAppUserIds.length > 0 || actEligible.pushUserIds.length > 0) {
             const actSnap = await firestore.collection("c_actividades").get();
             for (const doc of actSnap.docs) {
@@ -1789,7 +1834,8 @@ export const dailyNotifications = functions.pubsub
                             tag: `activity-14d-${doc.id}`,
                             context: { contextType: "activity", contextId: doc.id, actionUrl: "/reports/activities", actionType: "navigate" },
                         },
-                        actEligible.pushUserIds
+                        actEligible.pushUserIds,
+                        activitiesTrace
                     );
                 }
 
@@ -1803,7 +1849,8 @@ export const dailyNotifications = functions.pubsub
                             tag: `activity-today-${doc.id}`,
                             context: { contextType: "activity", contextId: doc.id, actionUrl: "/reports/activities", actionType: "navigate" },
                         },
-                        actEligible.pushUserIds
+                        actEligible.pushUserIds,
+                        activitiesTrace
                     );
                 }
             }
@@ -1821,11 +1868,16 @@ export const weeklyNotifications = functions.pubsub
     .schedule("0 9 * * 1")
     .timeZone(ECUADOR_TZ)
     .onRun(async () => {
-        functions.logger.log("weeklyNotifications: running...");
+        functions.logger.log("weeklyNotifications: running...", {
+            scheduledTimeZone: ECUADOR_TZ,
+            scheduledLocalTime: getEcuadorNowLabel(),
+        });
         const allUsers = await getAllUsersNotificationData();
 
         // ── Observaciones ────────────────────────────────────────────────────
         const obsEligible = getEligibleUsers(allUsers, "observations");
+        const observationsTrace = buildNotificationTrace("weeklyNotifications", "observations");
+        logEligibleUsersSummary("weeklyNotifications", "observations", obsEligible);
         if (obsEligible.inAppUserIds.length > 0 || obsEligible.pushUserIds.length > 0) {
             const [membersSnap, healthSnap, ministeringSnap] = await Promise.all([
                 firestore.collection("c_miembros").get(),
@@ -1885,7 +1937,8 @@ export const weeklyNotifications = functions.pubsub
                         tag: "weekly-observations",
                         context: { actionUrl: "/observations", actionType: "navigate" },
                     },
-                    obsEligible.pushUserIds
+                    obsEligible.pushUserIds,
+                    observationsTrace
                 );
             }
         }
@@ -1941,7 +1994,8 @@ export const weeklyNotifications = functions.pubsub
                         tag: "weekly-deceased-ordinances",
                         context: { contextType: "member", actionUrl: "/council", actionType: "navigate" },
                     },
-                    pushUserIds
+                    pushUserIds,
+                    buildNotificationTrace("weeklyNotifications", "deceased-members")
                 );
                 
                 functions.logger.log("weeklyNotifications: Sent deceased members ordinance notification to " + pushUserIds.length + " users");
@@ -1950,6 +2004,8 @@ export const weeklyNotifications = functions.pubsub
 
         // ── Conversos ────────────────────────────────────────────────────────
         const convEligible = getEligibleUsers(allUsers, "converts");
+        const convertsTrace = buildNotificationTrace("weeklyNotifications", "converts");
+        logEligibleUsersSummary("weeklyNotifications", "converts", convEligible);
         if (convEligible.inAppUserIds.length > 0 || convEligible.pushUserIds.length > 0) {
             const [convertsSnap, friendsSnap] = await Promise.all([
                 firestore.collection("c_conversos").get(),
@@ -2008,13 +2064,16 @@ export const weeklyNotifications = functions.pubsub
                         tag: "weekly-converts",
                         context: { contextType: "convert", actionUrl: "/converts", actionType: "navigate" },
                     },
-                    convEligible.pushUserIds
+                    convEligible.pushUserIds,
+                    convertsTrace
                 );
             }
         }
 
         // ── FamilySearch ─────────────────────────────────────────────────────
         const fsEligible = getEligibleUsers(allUsers, "familySearch");
+        const familySearchTrace = buildNotificationTrace("weeklyNotifications", "familySearch");
+        logEligibleUsersSummary("weeklyNotifications", "familySearch", fsEligible);
         if (fsEligible.inAppUserIds.length > 0 || fsEligible.pushUserIds.length > 0) {
             const fsSnap = await firestore.collection("c_fs_capacitaciones").get();
             const fsCount = fsSnap.size;
@@ -2028,13 +2087,16 @@ export const weeklyNotifications = functions.pubsub
                         tag: "weekly-family-search",
                         context: { actionUrl: "/family-search", actionType: "navigate" },
                     },
-                    fsEligible.pushUserIds
+                    fsEligible.pushUserIds,
+                    familySearchTrace
                 );
             }
         }
 
         // ── Obra Misional ─────────────────────────────────────────────────────
         const mwEligible = getEligibleUsers(allUsers, "missionaryWork");
+        const missionaryWorkTrace = buildNotificationTrace("weeklyNotifications", "missionaryWork");
+        logEligibleUsersSummary("weeklyNotifications", "missionaryWork", mwEligible);
         if (mwEligible.inAppUserIds.length > 0 || mwEligible.pushUserIds.length > 0) {
             const [assignmentsSnap, investigatorsSnap, convertsThisWeek] = await Promise.all([
                 firestore.collection("c_obra_misional_asignaciones").where("isCompleted", "==", false).get(),
@@ -2061,7 +2123,8 @@ export const weeklyNotifications = functions.pubsub
                         tag: "weekly-missionary-work",
                         context: { contextType: "missionary_assignment", actionUrl: "/missionary-work", actionType: "navigate" },
                     },
-                    mwEligible.pushUserIds
+                    mwEligible.pushUserIds,
+                    missionaryWorkTrace
                 );
             }
         }
@@ -2078,9 +2141,14 @@ export const councilNotifications = functions.pubsub
     .schedule("0 18 * * 2,3")
     .timeZone(ECUADOR_TZ)
     .onRun(async () => {
-        functions.logger.log("councilNotifications: running...");
+        functions.logger.log("councilNotifications: running...", {
+            scheduledTimeZone: ECUADOR_TZ,
+            scheduledLocalTime: getEcuadorNowLabel(),
+        });
         const allUsers = await getAllUsersNotificationData();
         const councilEligible = getEligibleUsers(allUsers, "council");
+        const councilTrace = buildNotificationTrace("councilNotifications", "council");
+        logEligibleUsersSummary("councilNotifications", "council", councilEligible);
 
         if (councilEligible.inAppUserIds.length === 0 && councilEligible.pushUserIds.length === 0) {
             functions.logger.log("councilNotifications: no eligible users.");
@@ -2125,7 +2193,8 @@ export const councilNotifications = functions.pubsub
                     tag: "council-reminder",
                     context: { contextType: "council", actionUrl: "/council", actionType: "navigate" },
                 },
-                councilEligible.pushUserIds
+                councilEligible.pushUserIds,
+                councilTrace
             );
         }
 

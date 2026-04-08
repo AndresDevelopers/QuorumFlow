@@ -1,3 +1,6 @@
+// Compatibility artifact for legacy FCM setups.
+// QuorumFlow uses /sw.js as the effective PWA and push service worker in production.
+// This file is kept only to avoid stale references during transitions and diagnostics.
 // Firebase Messaging Service Worker — Modular SDK (v10 compat)
 // Must match the Firebase version used by the app
 importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');

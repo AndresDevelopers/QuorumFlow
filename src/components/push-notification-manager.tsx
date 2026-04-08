@@ -1,9 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/contexts/auth-context';
-import { pushSubscriptionsCollection } from '@/lib/collections';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Bell, BellOff } from 'lucide-react';
@@ -23,21 +21,11 @@ import {
   requestNotificationPermission,
 } from '@/lib/firebase-messaging';
 import {
-  getPushDeviceId,
-  getPushSubscriptionDocId,
+  clearCurrentPushSubscription,
+  getCurrentPushSubscription,
+  getCurrentPushSubscriptionTarget,
+  saveCurrentPushSubscription,
 } from '@/lib/push-subscription';
-
-function getCurrentSubscriptionTarget(userId: string) {
-  const deviceId = getPushDeviceId();
-  if (!deviceId) {
-    return null;
-  }
-
-  return {
-    deviceId,
-    ref: doc(pushSubscriptionsCollection, getPushSubscriptionDocId(userId, deviceId)),
-  };
-}
 
 export function PushNotificationManager() {
   const { user } = useAuth();
@@ -53,17 +41,16 @@ export function PushNotificationManager() {
       return;
     }
 
-    const target = getCurrentSubscriptionTarget(user.uid);
+    const target = getCurrentPushSubscriptionTarget(user.uid);
     if (!target) {
       setIsSubscribed(false);
       return;
     }
 
     try {
-      const subscriptionDoc = await getDoc(target.ref);
-      if (subscriptionDoc.exists()) {
-        const data = subscriptionDoc.data();
-        setIsSubscribed(Boolean(data.fcmToken));
+      const subscriptionDoc = await getCurrentPushSubscription(user.uid);
+      if (subscriptionDoc) {
+        setIsSubscribed(Boolean(subscriptionDoc.fcmToken));
         return;
       }
 
@@ -97,7 +84,7 @@ export function PushNotificationManager() {
       return;
     }
 
-    const target = getCurrentSubscriptionTarget(user.uid);
+    const target = getCurrentPushSubscriptionTarget(user.uid);
     if (!target) {
       toast({
         title: "Error",
@@ -119,15 +106,7 @@ export function PushNotificationManager() {
         return;
       }
 
-      await setDoc(target.ref, {
-        userId: user.uid,
-        deviceId: target.deviceId,
-        fcmToken,
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-        updatedAt: serverTimestamp(),
-        subscribedAt: serverTimestamp(),
-      }, { merge: true });
+      await saveCurrentPushSubscription(user.uid, fcmToken);
 
       setIsSubscribed(true);
       toast({
@@ -160,7 +139,7 @@ export function PushNotificationManager() {
       return;
     }
 
-    const target = getCurrentSubscriptionTarget(user.uid);
+    const target = getCurrentPushSubscriptionTarget(user.uid);
     if (!target) {
       return;
     }
@@ -169,15 +148,7 @@ export function PushNotificationManager() {
     try {
       await deleteNotificationToken();
 
-      await setDoc(target.ref, {
-        userId: user.uid,
-        deviceId: target.deviceId,
-        fcmToken: null,
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-        updatedAt: serverTimestamp(),
-        unsubscribedAt: serverTimestamp(),
-      }, { merge: true });
+      await clearCurrentPushSubscription(user.uid);
 
       setIsSubscribed(false);
       toast({
