@@ -4,10 +4,7 @@ import { firestore, storage } from './firebase'; // Import the initialized stora
 export { storage }; // Export storage directly
 
 const coll = (path: string) => {
-  if (!firestore) {
-    throw new Error('Firebase client not initialized');
-  }
-  return collection(firestore, path);
+  return firestore ? collection(firestore, path) : (undefined as unknown as CollectionReference);
 };
 
 export const ministeringCollection = coll('c_ministracion');

@@ -42,6 +42,14 @@ const nextConfig: NextConfig = {
         message: /Critical dependency: the request of a dependency is an expression/,
         module: /[\\/]node_modules[\\/]\.pnpm[\\/]express@.*[\\/]node_modules[\\/]express[\\/]lib[\\/]view\.js/,
       },
+      {
+        message: /Critical dependency: the request of a dependency is an expression/,
+        module: /[\\/]node_modules[\\/].*?[\\/]@opentelemetry[\\/]instrumentation[\\/]build[\\/]esm[\\/]platform[\\/]node[\\/]instrumentation\.js/,
+      },
+      {
+        message: /Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/,
+        module: /[\\/]node_modules[\\/].*?[\\/]require-in-the-middle[\\/]index\.js/,
+      },
     ];
     return config;
   },

@@ -3,10 +3,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { getDocs, Timestamp, deleteDoc, doc, query, orderBy, where } from 'firebase/firestore';
-import { birthdaysCollection, membersCollection, storage } from '@/lib/collections';
-import type { Birthday, Member } from '@/lib/types';
-import { normalizeMemberStatus } from '@/lib/members-data';
+import { deleteDoc, doc } from 'firebase/firestore';
+import { birthdaysCollection, storage } from '@/lib/collections';
+import type { Birthday } from '@/lib/types';
 import { deleteObject, ref } from 'firebase/storage';
 
 import {
@@ -48,55 +47,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
 import { buildMemberEditUrl } from '@/lib/navigation';
 import { getEcuadorDateParts, getTodayInEcuador } from '@/lib/date-utils';
-
-async function getBirthdays(): Promise<Birthday[]> {
-  try {
-    // Obtener cumpleaños de la colección de cumpleaños
-    const birthdaysSnapshot = await getDocs(query(birthdaysCollection, orderBy('name')));
-    const birthdays = birthdaysSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Birthday));
-
-    // Obtener miembros con fecha de nacimiento
-    const membersSnapshot = await getDocs(
-      query(
-        membersCollection,
-        where('birthDate', '!=', null),
-        orderBy('birthDate', 'asc')
-      )
-    );
-
-    // Convertir miembros a formato de cumpleaños
-    const memberBirthdays: Birthday[] = membersSnapshot.docs
-      .filter(doc => {
-        const member = doc.data() as Member;
-        if (normalizeMemberStatus(member.status) === 'deceased') return false;
-        return member.birthDate && member.firstName && member.lastName;
-      })
-      .map(doc => {
-        const member = doc.data() as Member;
-        return {
-          id: `member_${doc.id}`,
-          name: `${member.firstName} ${member.lastName}`,
-          birthDate: member.birthDate as Timestamp,
-          photoURL: member.photoURL,
-          isMember: true,
-          memberId: doc.id
-        } as Birthday;
-      });
-
-    // Combinar y ordenar por próxima fecha de cumpleaños
-    return [...birthdays, ...memberBirthdays];
-  } catch (error) {
-    console.error('Error fetching birthdays:', error);
-    // En caso de error, intentar obtener solo los cumpleaños sin miembros
-    try {
-      const birthdaysSnapshot = await getDocs(query(birthdaysCollection, orderBy('name')));
-      return birthdaysSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Birthday));
-    } catch (fallbackError) {
-      console.error('Error fetching fallback birthdays:', fallbackError);
-      return [];
-    }
-  }
-}
+import { fetchBirthdays as fetchBirthdaysData } from '@/lib/birthdays-data';
 
 type BirthdayWithNext = Birthday & { nextBirthday: Date };
 
@@ -134,7 +85,7 @@ export default function BirthdaysPage() {
 
   const fetchBirthdays = useCallback(() => {
     setLoading(true);
-    getBirthdays()
+    fetchBirthdaysData()
       .then(data => {
         setBirthdays(getUpcomingBirthdays(data));
       })

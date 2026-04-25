@@ -1,8 +1,6 @@
-import { getFirestore } from 'firebase-admin/firestore';
+import { firestoreAdmin } from './firebase-admin';
 
 // This file should only be imported on the server side
-const firestoreAdmin = getFirestore();
-
 const coll = (path: string) => {
   return firestoreAdmin.collection(path);
 };
