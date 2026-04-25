@@ -67,6 +67,11 @@ export function BirthdaysDashboardCard() {
 
   const hasData = Boolean((overview?.today.length ?? 0) > 0 || (overview?.upcoming.length ?? 0) > 0);
 
+  const getMemberStatusLabel = (status: string | undefined) => {
+    if (!status) return null;
+    return t(`member.status.${status}`);
+  };
+
   return (
     <Link href="/birthdays" className="lg:col-start-3">
       <Card>
@@ -98,6 +103,11 @@ export function BirthdaysDashboardCard() {
                               ? t("birthdays.dashboardAgeUnknown")
                               : t("birthdays.dashboardTurnsAge").replace("{age}", String(item.turnsAge))}
                           </p>
+                          {item.isMember ? (
+                            <p className="text-xs text-muted-foreground">
+                              {getMemberStatusLabel(item.memberStatus) ?? t("birthdays.dashboardStatusUnknown")}
+                            </p>
+                          ) : null}
                         </div>
                         <Badge variant="secondary">{t("birthdays.dashboardTodayBadge")}</Badge>
                       </div>
@@ -121,8 +131,15 @@ export function BirthdaysDashboardCard() {
                               ? t("birthdays.dashboardAgeUnknown")
                               : t("birthdays.dashboardTurnsAge").replace("{age}", String(item.turnsAge))}
                           </p>
+                          {item.isMember ? (
+                            <p className="text-xs text-muted-foreground">
+                              {getMemberStatusLabel(item.memberStatus) ?? t("birthdays.dashboardStatusUnknown")}
+                            </p>
+                          ) : null}
                         </div>
-                        <Badge variant="outline">{formatDate(item.nextBirthday)}</Badge>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge variant="outline">{formatDate(item.nextBirthday)}</Badge>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -137,4 +154,3 @@ export function BirthdaysDashboardCard() {
     </Link>
   );
 }
-

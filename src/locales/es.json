@@ -344,6 +344,11 @@
   "birthdays.dashboardTodayBadge": "Hoy",
   "birthdays.dashboardTurnsAge": "Cumple {age} años",
   "birthdays.dashboardAgeUnknown": "Edad no disponible",
+  "birthdays.dashboardStatusUnknown": "Estado no disponible",
+  "member.status.active": "Activo",
+  "member.status.less_active": "Menos activo",
+  "member.status.inactive": "Inactivo",
+  "member.status.deceased": "Fallecido",
 
   "birthdayForm.nameRequired": "El nombre es requerido.",
   "birthdayForm.birthDateRequired": "La fecha de nacimiento es requerida.",

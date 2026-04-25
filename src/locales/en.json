@@ -270,6 +270,11 @@
   "birthdays.dashboardTodayBadge": "Today",
   "birthdays.dashboardTurnsAge": "Turns {age}",
   "birthdays.dashboardAgeUnknown": "Age unavailable",
+  "birthdays.dashboardStatusUnknown": "Status unavailable",
+  "member.status.active": "Active",
+  "member.status.less_active": "Less active",
+  "member.status.inactive": "Inactive",
+  "member.status.deceased": "Deceased",
 
   "birthdayForm.nameRequired": "Name is required.",
   "birthdayForm.birthDateRequired": "Date of birth is required.",

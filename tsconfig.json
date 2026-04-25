@@ -45,6 +45,8 @@
   ],
   "exclude": [
     "node_modules",
+    ".next/types",
+    ".next/dev/types",
     "functions"
   ]
 }

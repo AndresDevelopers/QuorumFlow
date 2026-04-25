@@ -28,6 +28,7 @@ export async function fetchBirthdays(): Promise<Birthday[]> {
           photoURL: member.photoURL,
           isMember: true,
           memberId: docSnap.id,
+          memberStatus: member.status,
         };
       });
 
