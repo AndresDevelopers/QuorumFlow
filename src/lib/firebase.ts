@@ -6,9 +6,12 @@ import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 import { firebaseConfig } from "@/firebaseConfig"; // Import config from the new file
 
-// Initialize Firebase app on both server and client
+const isBrowser = typeof window !== "undefined";
+
 let app: ReturnType<typeof getApp> | undefined;
-app = getApps().length === 0 ? initializeApp(firebaseConfig as any) : getApp();
+if (isBrowser) {
+  app = getApps().length === 0 ? initializeApp(firebaseConfig as never) : getApp();
+}
 
 // Export client SDK instances
 export const auth = app ? getAuth(app) : (undefined as unknown as ReturnType<typeof getAuth>);

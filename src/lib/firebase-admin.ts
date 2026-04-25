@@ -84,6 +84,7 @@ if (!getApps().length) {
   try {
     const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
     const envProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+    const isCi = Boolean(process.env.CI);
 
     if (serviceAccountKey) {
       const serviceAccount = parseServiceAccountKey(serviceAccountKey);
@@ -92,10 +93,12 @@ if (!getApps().length) {
           // Project ID mismatch: override with the correct env project ID
           // The service account credentials (private key, client email) remain valid
           // as long as the SA has the proper IAM permissions on the env project.
-          console.warn(
-            `[firebase-admin] Service account project_id (${serviceAccount.projectId}) overridden ` +
-            `with env project (${envProjectId}). Ensure the SA has FCM/Firestore permissions on ${envProjectId}.`
-          );
+          if (!isCi) {
+            console.warn(
+              `[firebase-admin] Service account project_id (${serviceAccount.projectId}) overridden ` +
+              `with env project (${envProjectId}). Ensure the SA has FCM/Firestore permissions on ${envProjectId}.`
+            );
+          }
           serviceAccount.projectId = envProjectId;
         }
 
@@ -107,7 +110,11 @@ if (!getApps().length) {
         });
       } else {
         if (!warnedInvalidServiceAccount) {
-          console.warn('[firebase-admin] FIREBASE_SERVICE_ACCOUNT_KEY is not valid JSON — using Application Default Credentials.');
+          if (!isCi) {
+            console.warn(
+              '[firebase-admin] FIREBASE_SERVICE_ACCOUNT_KEY is not valid JSON — using Application Default Credentials.'
+            );
+          }
           warnedInvalidServiceAccount = true;
         }
         app = initializeApp({
@@ -117,7 +124,9 @@ if (!getApps().length) {
     } else {
       // Fallback: Application Default Credentials (works in Cloud Run / GCP)
       if (!warnedMissingServiceAccount) {
-        console.warn('[firebase-admin] FIREBASE_SERVICE_ACCOUNT_KEY not set — using Application Default Credentials.');
+        if (!isCi) {
+          console.warn('[firebase-admin] FIREBASE_SERVICE_ACCOUNT_KEY not set — using Application Default Credentials.');
+        }
         warnedMissingServiceAccount = true;
       }
       app = initializeApp({

@@ -11,3 +11,11 @@ Muestra:
 - Ultima actividad registrada.
 
 Esto reduce ruido visual cuando el volumen de datos es bajo y deja en primer plano la informacion que si ayuda a tomar decisiones rapidas.
+
+## Cumpleaños
+
+Se añadió una tarjeta de cumpleaños debajo de "Acciones del Consejo" en la home autenticada.
+
+Muestra:
+- Cumpleaños de hoy (con la edad que cumplen).
+- Cumpleaños dentro de los próximos 14 días (fecha exacta y edad).

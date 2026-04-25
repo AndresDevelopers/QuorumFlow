@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getDocs, query, where, collection, DocumentData } from 'firebase/firestore';
-import { firestore } from '@/lib/firebase';
-import { sendDeceasedMembersOrdinanceNotifications, hasAllTempleOrdinances } from '@/lib/notification-helpers';
+import logger from '@/lib/logger';
+import { membersCollection } from '@/lib/collections-server';
+import { sendServerSidePushNotification } from '@/lib/push-notifications-server';
 
 /**
  * API Endpoint for weekly deceased members ordinances notifications
@@ -21,6 +21,26 @@ interface DeceasedMember {
   templeWorkCompletedAt: unknown | null;
 }
 
+const ALL_TEMPLE_ORDINANCES = [
+  'baptism',
+  'confirmation',
+  'initiatory',
+  'endowment',
+  'sealed_to_father',
+  'sealed_to_mother',
+  'sealed_to_spouse',
+] as const;
+
+function hasAllTempleOrdinances(member: { templeOrdinances?: string[] }) {
+  const memberOrdinances = member.templeOrdinances ?? [];
+  return ALL_TEMPLE_ORDINANCES.every((ord) => memberOrdinances.includes(ord));
+}
+
+function getMissingTempleOrdinances(member: { templeOrdinances?: string[] }) {
+  const memberOrdinances = member.templeOrdinances ?? [];
+  return ALL_TEMPLE_ORDINANCES.filter((ord) => !memberOrdinances.includes(ord));
+}
+
 export async function GET() {
   try {
     // Check if today is Monday (for validation)
@@ -30,19 +50,17 @@ export async function GET() {
     // In production, this should be triggered by a cron job
     // For development, we can still test it manually
     
-    // Get all deceased members
-    const membersRef = collection(firestore, 'c_miembros');
-    const deceasedQuery = query(
-      membersRef,
-      where('status', '==', 'deceased')
-    );
-    
-    const deceasedSnapshot = await getDocs(deceasedQuery);
-    
-    const deceasedMembers: DeceasedMember[] = deceasedSnapshot.docs.map(doc => {
-      const data = doc.data() as DocumentData;
+    const deceasedSnapshot = await membersCollection.where('status', '==', 'deceased').get();
+
+    const deceasedMembers: DeceasedMember[] = deceasedSnapshot.docs.map((docSnap) => {
+      const data = docSnap.data() as {
+        firstName?: string;
+        lastName?: string;
+        templeOrdinances?: string[];
+        templeWorkCompletedAt?: unknown;
+      };
       return {
-        id: doc.id,
+        id: docSnap.id,
         firstName: data.firstName || '',
         lastName: data.lastName || '',
         templeOrdinances: data.templeOrdinances || [],
@@ -70,8 +88,21 @@ export async function GET() {
       });
     }
     
-    // Send push notifications to all users
-    const result = await sendDeceasedMembersOrdinanceNotifications(membersNeedingOrdinances);
+    const missingCount = membersNeedingOrdinances.length;
+    const memberNames = membersNeedingOrdinances.map((m) => `${m.firstName} ${m.lastName}`).join(', ');
+
+    const title = "⚰️ Miembros Fallecidos Sin Ordenanzas Completas";
+    const body =
+      missingCount === 1
+        ? `Hay ${missingCount} miembro fallecido que necesita ordenanzas del templo: ${memberNames}`
+        : `Hay ${missingCount} miembros fallecidos que necesitan ordenanzas del templo: ${memberNames}`;
+
+    const pushResult = await sendServerSidePushNotification({
+      title,
+      body,
+      url: '/council',
+      tag: 'deceased-ordinances',
+    });
     
     return NextResponse.json({
       success: true,
@@ -80,17 +111,15 @@ export async function GET() {
       members: membersNeedingOrdinances.map(m => ({
         id: m.id,
         name: `${m.firstName} ${m.lastName}`,
-        missingOrdinances: m.templeOrdinances 
-          ? ['baptism', 'confirmation', 'initiatory', 'endowment', 'sealed_to_father', 'sealed_to_mother', 'sealed_to_spouse'].filter(o => !m.templeOrdinances.includes(o))
-          : ['baptism', 'confirmation', 'initiatory', 'endowment', 'sealed_to_father', 'sealed_to_mother', 'sealed_to_spouse']
+        missingOrdinances: getMissingTempleOrdinances(m)
       })),
-      sent: result.sent,
-      skipped: result.skipped,
+      sent: pushResult.sentCount ?? 0,
+      skipped: 0,
       dayOfWeek
     });
     
   } catch (error) {
-    console.error('Error in deceased members ordinances notification:', error);
+    logger.error({ error, message: 'Error in deceased members ordinances notification' });
     return NextResponse.json(
       { 
         success: false, 

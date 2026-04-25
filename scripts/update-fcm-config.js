@@ -32,9 +32,12 @@ const missingEnvVars = Object.entries(config)
   .map(([key]) => key);
 
 if (missingEnvVars.length > 0) {
-  console.error('Missing Firebase environment variables for the messaging service worker:');
-  missingEnvVars.forEach((key) => console.log(`- ${key}`));
-  process.exit(1);
+  if (!process.env.CI) {
+    process.stderr.write('Missing Firebase environment variables for the messaging service worker:\n');
+    missingEnvVars.forEach((key) => process.stderr.write(`- ${key}\n`));
+    process.stderr.write('Skipping firebase-messaging-sw.js generation.\n');
+  }
+  process.exit(0);
 }
 
 const firebaseVersion = getFirebaseVersion();
@@ -114,6 +117,6 @@ self.addEventListener('notificationclick', (event) => {
 
 fs.writeFileSync(swPath, swContent, 'utf8');
 
-console.log('Generated firebase-messaging-sw.js with synced Firebase SDK configuration.');
-console.log(`Firebase SDK version: ${firebaseVersion}`);
-console.log(`Project ID: ${config.projectId}`);
+process.stdout.write('Generated firebase-messaging-sw.js with synced Firebase SDK configuration.\n');
+process.stdout.write(`Firebase SDK version: ${firebaseVersion}\n`);
+process.stdout.write(`Project ID: ${config.projectId}\n`);

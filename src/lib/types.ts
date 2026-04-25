@@ -74,6 +74,7 @@ export type Birthday = {
     photoURL?: string;
     isMember?: boolean;
     memberId?: string;
+    memberStatus?: MemberStatus;
 };
 
 export type Baptism = {

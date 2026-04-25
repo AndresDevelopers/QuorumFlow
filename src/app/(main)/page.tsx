@@ -25,6 +25,7 @@ import { getDeceasedMembers } from "@/lib/members-data";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCallback, useEffect, useState } from "react";
 import { VoiceAnnotations } from "@/components/shared/voice-annotations";
+import { BirthdaysDashboardCard } from "@/components/dashboard/birthdays-dashboard-card";
 import type { Annotation, Member, TempleOrdinance } from "@/lib/types";
 import { TempleOrdinanceLabels } from "@/lib/types";
 import {
@@ -338,6 +339,7 @@ function DashboardPage() {
             description={t("Active action items")}
           />
         </Link>}
+        <BirthdaysDashboardCard />
       </div>
       <div className="grid gap-4 md:gap-8 lg:grid-cols-2">
         <Link href="/reports">

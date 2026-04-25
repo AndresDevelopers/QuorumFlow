@@ -1,23 +1,27 @@
 import { NextResponse } from 'next/server';
 import { unstable_cache, revalidateTag } from 'next/cache';
 import { suggestActivities, type SuggestedActivities } from '@/ai/flows/suggest-activities-flow';
-import { getDocs, query, orderBy } from 'firebase/firestore';
-import { activitiesCollection } from '@/lib/collections';
+import { activitiesCollection } from '@/lib/collections-server';
+import logger from '@/lib/logger';
 import { getYear } from 'date-fns';
-import type { Activity } from '@/lib/types';
+
+type TimestampLike = { toDate(): Date };
+type ActivityDoc = { title?: string; date?: TimestampLike };
+
+async function getCurrentYearActivityTitles(): Promise<string[]> {
+  const snapshot = await activitiesCollection.orderBy('date', 'desc').get();
+  const activities = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as ActivityDoc) }));
+
+  return activities
+    .filter((a) => Boolean(a.date && getYear(a.date.toDate()) === getYear(new Date())))
+    .map((a) => a.title)
+    .filter((title): title is string => Boolean(title));
+}
 
 const getSuggestionsCached = unstable_cache(
   async (): Promise<SuggestedActivities> => {
-    // Get current year activities
-    const activitiesQuery = query(activitiesCollection, orderBy('date', 'desc'));
-    const snapshot = await getDocs(activitiesQuery);
-    const activities: Activity[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity));
-
-    const currentYearActivities = activities
-      .filter(a => getYear(a.date.toDate()) === getYear(new Date()))
-      .map(a => a.title);
-
-    return await suggestActivities({ existingActivities: currentYearActivities });
+    const currentYearActivities = await getCurrentYearActivityTitles();
+    return suggestActivities({ existingActivities: currentYearActivities });
   },
   ['suggestions'],
   {
@@ -37,22 +41,11 @@ export async function GET(request: Request) {
     }
     // Always get fresh data when refresh is requested
     try {
-      const activitiesQuery = query(activitiesCollection, orderBy('date', 'desc'));
-      const snapshot = await getDocs(activitiesQuery);
-      const activities: Activity[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity));
-
-      const currentYearActivities = activities
-        .filter(a => getYear(a.date.toDate()) === getYear(new Date()))
-        .map(a => a.title);
-
+      const currentYearActivities = await getCurrentYearActivityTitles();
       const suggestions = await suggestActivities({ existingActivities: currentYearActivities });
       return NextResponse.json(suggestions);
     } catch (error) {
-      console.error('Error generating fresh suggestions:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-      // Temporary workaround: return mock suggestions when AI fails
-      console.log('Returning mock suggestions due to AI error');
+      logger.error({ error, message: 'Error generating fresh suggestions' });
       const mockSuggestions = {
         spiritual: [
           'Estudio de las Escrituras en grupo',
@@ -73,21 +66,11 @@ export async function GET(request: Request) {
   // Only use cache in production
   if (process.env.NODE_ENV !== 'production') {
     try {
-      const activitiesQuery = query(activitiesCollection, orderBy('date', 'desc'));
-      const snapshot = await getDocs(activitiesQuery);
-      const activities: Activity[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity));
-
-      const currentYearActivities = activities
-        .filter(a => getYear(a.date.toDate()) === getYear(new Date()))
-        .map(a => a.title);
-
+      const currentYearActivities = await getCurrentYearActivityTitles();
       const suggestions = await suggestActivities({ existingActivities: currentYearActivities });
       return NextResponse.json(suggestions);
     } catch (error) {
-      console.error('Error generating suggestions:', error);
-
-      // Temporary workaround: return mock suggestions when AI fails
-      console.log('Returning mock suggestions due to AI error');
+      logger.error({ error, message: 'Error generating suggestions' });
       const mockSuggestions = {
         spiritual: [
           'Estudio de las Escrituras en grupo',
@@ -109,10 +92,7 @@ export async function GET(request: Request) {
     const suggestions = await getSuggestionsCached();
     return NextResponse.json(suggestions);
   } catch (error) {
-    console.error('Error fetching cached suggestions:', error);
-
-    // Temporary workaround: return mock suggestions when AI fails
-    console.log('Returning mock suggestions due to AI error');
+    logger.error({ error, message: 'Error fetching cached suggestions' });
     const mockSuggestions = {
       spiritual: [
         'Estudio de las Escrituras en grupo',
