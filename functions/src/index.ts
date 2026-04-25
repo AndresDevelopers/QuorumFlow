@@ -1323,10 +1323,11 @@ export const onServiceUpdated = functions.firestore
 
 export const onServiceDeleted = functions.firestore
     .document("c_servicios/{serviceId}")
-    .onDelete(async (snapshot) => {
+    .onDelete(async (snapshot, context) => {
         try {
             const svc = snapshot.data() as Service | undefined;
             const title = svc?.title?.trim() || "Servicio";
+            const serviceId = context.params.serviceId as string;
 
             const allUsers = await getAllUsersNotificationData();
             const eligible = getEligibleUsers(allUsers, "service");
@@ -1337,7 +1338,7 @@ export const onServiceDeleted = functions.firestore
                     title: "Servicio Eliminado",
                     body: `El servicio "${title}" ha sido eliminado.`,
                     url: "/service",
-                    tag: `service-deleted`,
+                    tag: `service-deleted-${serviceId}`,
                     context: {
                         contextType: "service",
                         actionUrl: "/service",
@@ -2184,13 +2185,16 @@ export const councilNotifications = functions.pubsub
         if (inCouncil > 0) bodyParts.push(`${inCouncil} en seguimiento de consejo`);
 
         if (bodyParts.length > 0) {
+            const today = getEcuadorToday();
+            const dateParts = getDatePartsInTimeZone(today, ECUADOR_TZ);
+            const dateTag = `${dateParts.year}-${String(dateParts.month).padStart(2, "0")}-${String(dateParts.day).padStart(2, "0")}`;
             await notificationDispatcher.broadcastToUsers(
                 councilEligible.inAppUserIds,
                 {
                     title: "Recordatorio – Consejo de Cuórum",
                     body: bodyParts.join(", ") + ".",
                     url: "/council",
-                    tag: "council-reminder",
+                    tag: `council-reminder-${dateTag}`,
                     context: { contextType: "council", actionUrl: "/council", actionType: "navigate" },
                 },
                 councilEligible.pushUserIds,

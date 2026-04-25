@@ -43,7 +43,6 @@ import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import type { Service } from '@/lib/types';
 import Image from 'next/image';
-import { NotificationCreators } from '@/lib/notification-helpers';
 import { useAuth } from '@/contexts/auth-context';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -197,12 +196,7 @@ export function ServiceForm({ service }: ServiceFormProps) {
 
       if (isEditMode && service) {
         const serviceRef = doc(servicesCollection, service.id);
-        
-        // Ejecutar la actualización del documento y la notificación de forma concurrente
-        await Promise.all([
-          updateDoc(serviceRef, dataToSave),
-          NotificationCreators.updatedService(user.uid, values.title, service.id)
-        ]);
+        await updateDoc(serviceRef, dataToSave);
         
         toast({
           title: 'Servicio Actualizado',

@@ -44,7 +44,6 @@ import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import type { Activity } from '@/lib/types';
 import Image from 'next/image';
-import { NotificationCreators } from '@/lib/notification-helpers';
 import { useAuth } from '@/contexts/auth-context';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -203,10 +202,7 @@ export function ActivityForm({ activity }: ActivityFormProps) {
       if (isEditMode && activity) {
         const activityRef = doc(activitiesCollection, activity.id);
         await updateDoc(activityRef, dataToSave);
-        
-        // Notificar a todos los usuarios sobre la actualización
-        await NotificationCreators.updatedActivity(user.uid, values.title, activity.id);
-        
+
         toast({
           title: 'Actividad Actualizada',
           description: 'La actividad ha sido actualizada exitosamente.',

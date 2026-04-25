@@ -11,7 +11,6 @@ import { addDays, endOfYear, format, getYear, isAfter, isBefore, startOfYear } f
 import { es } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import logger from '@/lib/logger';
-import { NotificationCreators } from '@/lib/notification-helpers';
 import { useAuth } from '@/contexts/auth-context';
 
 import {
@@ -110,9 +109,6 @@ export default function ServicePage() {
   
   const handleDelete = async (serviceId: string, serviceTitle: string) => {
     try {
-      // Notificar a todos los usuarios sobre la eliminación
-      await NotificationCreators.deletedService(user?.uid || '', serviceTitle);
-      
       await deleteDoc(doc(servicesCollection, serviceId));
       toast({
         title: 'Servicio Eliminado',

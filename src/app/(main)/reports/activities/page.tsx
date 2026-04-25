@@ -57,7 +57,6 @@ import { Camera, FileText, Pencil, PlusCircle, RefreshCw, Wand2, Trash2, ArrowRi
 import { endOfYear, format, getYear, startOfYear } from 'date-fns';
 import { es } from 'date-fns/locale';
 import logger from '@/lib/logger';
-import { NotificationCreators } from '@/lib/notification-helpers';
 
 async function getAvailableActivityYears(): Promise<number[]> {
   const snapshot = await getDocs(query(activitiesCollection, orderBy('date', 'desc')));
@@ -129,9 +128,6 @@ export default function ActivitiesPage() {
 
   const handleDelete = async (activityId: string, activityTitle: string) => {
     try {
-      // Notificar a todos los usuarios sobre la eliminación
-      await NotificationCreators.deletedActivity(user?.uid || '', activityTitle);
-      
       await deleteDoc(doc(activitiesCollection, activityId));
       toast({
         title: 'Actividad Eliminada',

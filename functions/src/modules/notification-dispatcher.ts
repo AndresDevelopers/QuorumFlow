@@ -1,5 +1,6 @@
 import type { firestore as FirestoreNamespace } from "firebase-admin";
 import * as admin from "firebase-admin";
+import { createHash } from "crypto";
 
 export type NotificationContextType =
   | "convert"
@@ -87,6 +88,7 @@ interface NotificationRecord {
   actionType?: "navigate" | "external";
   contextType?: NotificationContextType;
   contextId?: string;
+  notificationTag?: string | null;
 }
 
 interface LoggerPort {
@@ -116,8 +118,41 @@ class NotificationRepository {
       return;
     }
 
-    await Promise.all(records.map((record) => this.collection.add(record)));
+    await Promise.all(records.map(async (record) => {
+      const tag = typeof record.notificationTag === "string" ? record.notificationTag : null;
+      if (!tag) {
+        await this.collection.add(record);
+        return;
+      }
+
+      const docId = buildDeterministicNotificationDocId(record.userId, tag);
+      try {
+        await this.collection.doc(docId).create(record);
+      } catch (error) {
+        const code = typeof error === "object" && error && "code" in error ? (error as { code?: unknown }).code : undefined;
+        if (code === 6) {
+          return;
+        }
+        throw error;
+      }
+    }));
   }
+}
+
+function buildDeterministicNotificationDocId(userId: string, tag: string): string {
+  const safeUser = sanitizeDocIdPart(userId);
+  const safeTag = sanitizeDocIdPart(tag);
+  const raw = `${safeUser}__${safeTag}`;
+  if (raw.length <= 1400) {
+    return raw;
+  }
+
+  const hash = createHash("sha256").update(raw).digest("hex");
+  return `${safeUser}__${hash}`;
+}
+
+function sanitizeDocIdPart(input: string): string {
+  return input.replace(/\//g, "_").trim();
 }
 
 class FcmRepository {
@@ -430,6 +465,7 @@ class NotificationRecordFactory {
       ...(actionType ? { actionType } : {}),
       ...(context?.contextType ? { contextType: context.contextType } : {}),
       ...(context?.contextId ? { contextId: context.contextId } : {}),
+      notificationTag: request.tag ?? null,
     };
   }
 }
