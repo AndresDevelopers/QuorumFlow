@@ -8,10 +8,8 @@ const bodySchema = z.object({
   history: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(4000) })).max(20).default([]),
 });
 
-const DEEPSEEK_API_URL = process.env.DEEPSEEK_API_URL ?? 'https://api.deepseek.com/chat/completions';
-const DEEPSEEK_CHAT_MODEL = process.env.DEEPSEEK_CHAT_MODEL ?? 'DeepSeek_chat';
-const resolvedDeepSeekModel =
-  DEEPSEEK_CHAT_MODEL === 'DeepSeek_chat' ? 'deepseek-chat' : DEEPSEEK_CHAT_MODEL;
+const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+const DEEPSEEK_CHAT_MODEL = process.env.DEEPSEEK_CHAT_MODEL ?? 'deepseek-v4-flash';
 
 const systemPrompt = `Eres un asistente especializado exclusivamente en temas de La Iglesia de Jesucristo de los Santos de los Últimos Días.
 
@@ -65,7 +63,7 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`,
       },
       body: JSON.stringify({
-        model: resolvedDeepSeekModel,
+        model: DEEPSEEK_CHAT_MODEL,
         messages,
         temperature: 0.3,
       }),

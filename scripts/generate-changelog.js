@@ -162,7 +162,7 @@ async function callDeepSeek(commits) {
     'Each item must be a complete, friendly sentence describing a user-facing improvement or fix.';
 
   const body = JSON.stringify({
-    model: 'deepseek-chat',
+    model: 'deepseek-v4-flash',
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user',   content: userPrompt   },

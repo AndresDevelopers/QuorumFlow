@@ -25,13 +25,10 @@ Agregar al archivo `.env`:
 # Se reutiliza para changelog + chat
 DEEPSEEK_API_KEY=tu_api_key
 # opcional para endpoint del chat
-DEEPSEEK_CHAT_MODEL=deepseek-chat
-# opcional
-DEEPSEEK_API_URL=https://api.deepseek.com/chat/completions
+DEEPSEEK_CHAT_MODEL=deepseek-v4-flash
 ```
 
-Si `DEEPSEEK_CHAT_MODEL` no está definida, el sistema usa `DeepSeek_chat` como valor por defecto
-de compatibilidad y lo resuelve internamente al modelo `deepseek-chat`.
+Si `DEEPSEEK_CHAT_MODEL` no está definida, el sistema usa `deepseek-v4-flash`.
 
 ## Endpoints
 
