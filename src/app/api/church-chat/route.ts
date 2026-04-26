@@ -13,6 +13,7 @@ const bodySchema = z.object({
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 const DEEPSEEK_CHAT_MODEL = process.env.DEEPSEEK_CHAT_MODEL ?? 'deepseek-v4-flash';
+const FALLBACK_MODELS = ['deepseek-chat'];
 
 const systemPrompt = `Eres un asistente especializado exclusivamente en temas de La Iglesia de Jesucristo de los Santos de los Últimos Días.
 
@@ -52,6 +53,8 @@ export async function POST(request: Request) {
     logger.warn({ error, message: 'No fue posible obtener noticias oficiales para church-chat.' });
   }
 
+  const userText = message?.trim() || 'Analiza esta imagen dentro del contexto oficial de la Iglesia.';
+
   const messages = [
     { role: 'system', content: `${systemPrompt}\n\nCONTEXT_NEWS:\n${contextNews}` },
     ...history.map((item) => ({ role: item.role, content: item.content })),
@@ -59,44 +62,62 @@ export async function POST(request: Request) {
       role: 'user',
       content: imageDataUrl
         ? [
-            { type: 'text', text: message?.trim() || 'Analiza esta imagen dentro del contexto oficial de la Iglesia.' },
+            { type: 'text', text: userText },
             { type: 'image_url', image_url: { url: imageDataUrl } },
           ]
-        : message,
+        : userText,
     },
   ];
 
   try {
-    const response = await fetch(DEEPSEEK_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: DEEPSEEK_CHAT_MODEL,
-        messages,
-        temperature: 0.3,
-      }),
-    });
+    const modelCandidates = Array.from(new Set([DEEPSEEK_CHAT_MODEL, ...FALLBACK_MODELS]));
+    let answer = '';
+    let lastErrorText = '';
+    let lastStatus = 502;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error({ message: 'DeepSeek request failed in church-chat route', status: response.status, errorText });
-      return NextResponse.json(
-        { error: 'No se pudo obtener respuesta de DeepSeek.' },
-        { status: 502 }
-      );
+    for (const model of modelCandidates) {
+      const response = await fetch(DEEPSEEK_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.3,
+        }),
+      });
+
+      if (!response.ok) {
+        lastStatus = response.status;
+        lastErrorText = await response.text();
+        logger.warn({ message: 'DeepSeek request failed for model candidate', model, status: response.status });
+        continue;
+      }
+
+      const data = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }>;
+      };
+      const rawContent = data.choices?.[0]?.message?.content;
+      answer = typeof rawContent === 'string'
+        ? rawContent.trim()
+        : Array.isArray(rawContent)
+          ? rawContent.map((item) => item.text ?? '').join(' ').trim()
+          : '';
+
+      if (answer) {
+        break;
+      }
     }
 
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-
-    const answer = data.choices?.[0]?.message?.content?.trim();
-
     if (!answer) {
-      return NextResponse.json({ error: 'Respuesta vacía de DeepSeek.' }, { status: 502 });
+      logger.error({
+        message: 'DeepSeek request failed in church-chat route after all model candidates',
+        status: lastStatus,
+        errorText: lastErrorText,
+      });
+      return NextResponse.json({ error: 'No se pudo obtener respuesta de DeepSeek.' }, { status: 502 });
     }
 
     return NextResponse.json({ answer, contextNews });

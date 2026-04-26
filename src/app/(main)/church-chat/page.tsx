@@ -244,6 +244,7 @@ export default function ChurchChatPage() {
   const handleSend = async () => {
     const value = input.trim();
     if ((value.length === 0 && !selectedImageDataUrl) || loading || !activeSession) return;
+    const imageForRequest = selectedImageDataUrl;
 
     const messageContent = value.length > 0 ? value : 'Imagen enviada para análisis.';
 
@@ -255,6 +256,8 @@ export default function ChurchChatPage() {
     };
 
     setInput('');
+    setSelectedImageDataUrl(null);
+    setSelectedImageName(null);
     setLoading(true);
 
     let draftMessages: ChatMessage[] = [];
@@ -280,7 +283,7 @@ export default function ChurchChatPage() {
       const response = await fetch('/api/church-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: value || undefined, imageDataUrl: selectedImageDataUrl, history }),
+        body: JSON.stringify({ message: value || undefined, imageDataUrl: imageForRequest ?? undefined, history }),
       });
 
       const payload = (await response.json()) as { answer?: string; error?: string };
@@ -305,8 +308,6 @@ export default function ChurchChatPage() {
           };
         })
       );
-      setSelectedImageDataUrl(null);
-      setSelectedImageName(null);
     } catch (error) {
       toast({
         title: 'No se pudo enviar el mensaje',
