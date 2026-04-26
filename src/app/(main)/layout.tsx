@@ -83,11 +83,12 @@ function PrivateRoute({ children }: { children: ReactNode }) {
           if (snapshot.exists()) {
             const data = snapshot.data() as { visiblePages?: string[] };
             const visiblePages = Array.isArray(data.visiblePages) ? data.visiblePages : [];
+            const effectiveVisiblePages = Array.from(new Set([...visiblePages, '/church-chat']));
             
             // If main page is not in visible pages, redirect to first visible page or fallback to /members
-            if (!visiblePages.includes(mainPage) && visiblePages.length > 0) {
-              router.replace(visiblePages[0]);
-            } else if (visiblePages.length === 0) {
+            if (!effectiveVisiblePages.includes(mainPage) && effectiveVisiblePages.length > 0) {
+              router.replace(effectiveVisiblePages[0]);
+            } else if (effectiveVisiblePages.length === 0) {
               // If no pages are visible, redirect to members as fallback
               router.replace('/members');
             } else {

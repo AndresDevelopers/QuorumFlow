@@ -201,8 +201,9 @@ export function MainLayout({ children }: { children: ReactNode }) {
         const allowed = data.visiblePages;
 
         if (Array.isArray(allowed) && allowed.length > 0) {
+          const effectiveAllowed = Array.from(new Set([...allowed, "/church-chat"]));
           setVisibleNavItems(
-            navigationItems.filter((item) => allowed.includes(item.href))
+            navigationItems.filter((item) => effectiveAllowed.includes(item.href))
           );
         } else {
           setVisibleNavItems(navigationItems);
