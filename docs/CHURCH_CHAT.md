@@ -22,11 +22,16 @@ Este módulo agrega una página de chat enfocada **solo** en contenido oficial d
 Agregar al archivo `.env`:
 
 ```bash
+# Se reutiliza para changelog + chat
 DEEPSEEK_API_KEY=tu_api_key
+# opcional para endpoint del chat
+DEEPSEEK_CHAT_MODEL=deepseek-chat
 # opcional
-DEEPSEEK_MODEL=deepseek-chat
 DEEPSEEK_API_URL=https://api.deepseek.com/chat/completions
 ```
+
+Si `DEEPSEEK_CHAT_MODEL` no está definida, el sistema usa `DeepSeek_chat` como valor por defecto
+de compatibilidad y lo resuelve internamente al modelo `deepseek-chat`.
 
 ## Endpoints
 
