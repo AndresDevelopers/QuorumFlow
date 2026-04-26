@@ -35,6 +35,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationDispatcher = void 0;
 const admin = __importStar(require("firebase-admin"));
+const crypto_1 = require("crypto");
 class UserRepository {
     constructor(db) {
         this.db = db;
@@ -53,8 +54,38 @@ class NotificationRepository {
         if (records.length === 0) {
             return;
         }
-        await Promise.all(records.map((record) => this.collection.add(record)));
+        await Promise.all(records.map(async (record) => {
+            const tag = typeof record.notificationTag === "string" ? record.notificationTag : null;
+            if (!tag) {
+                await this.collection.add(record);
+                return;
+            }
+            const docId = buildDeterministicNotificationDocId(record.userId, tag);
+            try {
+                await this.collection.doc(docId).create(record);
+            }
+            catch (error) {
+                const code = typeof error === "object" && error && "code" in error ? error.code : undefined;
+                if (code === 6) {
+                    return;
+                }
+                throw error;
+            }
+        }));
     }
+}
+function buildDeterministicNotificationDocId(userId, tag) {
+    const safeUser = sanitizeDocIdPart(userId);
+    const safeTag = sanitizeDocIdPart(tag);
+    const raw = `${safeUser}__${safeTag}`;
+    if (raw.length <= 1400) {
+        return raw;
+    }
+    const hash = (0, crypto_1.createHash)("sha256").update(raw).digest("hex");
+    return `${safeUser}__${hash}`;
+}
+function sanitizeDocIdPart(input) {
+    return input.replace(/\//g, "_").trim();
 }
 class FcmRepository {
     constructor(db, messaging, logger) {
@@ -320,6 +351,7 @@ class NotificationRecordFactory {
             ...(actionType ? { actionType } : {}),
             ...(context?.contextType ? { contextType: context.contextType } : {}),
             ...(context?.contextId ? { contextId: context.contextId } : {}),
+            notificationTag: request.tag ?? null,
         };
     }
 }

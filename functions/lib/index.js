@@ -55,6 +55,28 @@ const messaging = admin.messaging();
 const notificationDispatcher = new notification_dispatcher_1.NotificationDispatcher(firestore, messaging, functions.logger);
 // Ecuador timezone (no DST)
 const ECUADOR_TZ = "America/Guayaquil";
+function resolveDateValue(value) {
+    if (!value)
+        return null;
+    if (value instanceof Date)
+        return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value === "object" && value && "toDate" in value && typeof value.toDate === "function") {
+        const date = value.toDate();
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    if (typeof value === "string" || typeof value === "number") {
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    if (typeof value === "object" && value && "seconds" in value) {
+        const seconds = value.seconds;
+        if (typeof seconds === "number") {
+            const date = new Date(seconds * 1000);
+            return Number.isNaN(date.getTime()) ? null : date;
+        }
+    }
+    return null;
+}
 const getBirthdayStatusLabel = (status) => {
     if (!status)
         return null;
@@ -66,6 +88,16 @@ const getBirthdayStatusLabel = (status) => {
     if (s === "active" || s === "activo")
         return "Activo";
     return null;
+};
+const normalizePersonName = (value) => value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+const buildBirthdayDedupKey = (name, memberId) => {
+    const normalizedName = normalizePersonName(name);
+    return memberId ? `member:${memberId}` : `name:${normalizedName}`;
 };
 const MAX_DOC_IMAGE_WIDTH = 450;
 const MAX_DOC_IMAGE_HEIGHT = 300;
@@ -1007,17 +1039,18 @@ exports.onServiceUpdated = functions.firestore
 });
 exports.onServiceDeleted = functions.firestore
     .document("c_servicios/{serviceId}")
-    .onDelete(async (snapshot) => {
+    .onDelete(async (snapshot, context) => {
     try {
         const svc = snapshot.data();
         const title = svc?.title?.trim() || "Servicio";
+        const serviceId = context.params.serviceId;
         const allUsers = await getAllUsersNotificationData();
         const eligible = getEligibleUsers(allUsers, "service");
         await notificationDispatcher.broadcastToUsers(eligible.inAppUserIds, {
             title: "Servicio Eliminado",
             body: `El servicio "${title}" ha sido eliminado.`,
             url: "/service",
-            tag: `service-deleted`,
+            tag: `service-deleted-${serviceId}`,
             context: {
                 contextType: "service",
                 actionUrl: "/service",
@@ -1135,7 +1168,10 @@ function getDatePartsInTimeZone(date, timeZone) {
     return { year, month, day };
 }
 function getBirthdayDateInEcuador(birthDate, year) {
-    const parts = getDatePartsInTimeZone(birthDate.toDate(), ECUADOR_TZ);
+    const date = resolveDateValue(birthDate);
+    if (!date)
+        return null;
+    const parts = getDatePartsInTimeZone(date, ECUADOR_TZ);
     return new Date(year, parts.month - 1, parts.day);
 }
 /**
@@ -1244,6 +1280,7 @@ exports.dailyNotifications = functions.pubsub
         ]);
         const sentBirthdays14 = new Set();
         const sentBirthdaysToday = new Set();
+        const coveredBirthdayKeys = new Set();
         // Build member status map for quick lookup by memberId
         const memberStatusMap = new Map();
         for (const memberDoc of membersForBirthdaySnap.docs) {
@@ -1254,13 +1291,19 @@ exports.dailyNotifications = functions.pubsub
         // Process birthdays from c_cumpleanos collection
         for (const doc of birthdaysSnap.docs) {
             const b = doc.data();
+            const birthdayKey = buildBirthdayDedupKey(b.name, b.memberId);
+            const normalizedNameKey = buildBirthdayDedupKey(b.name);
+            coveredBirthdayKeys.add(birthdayKey);
+            coveredBirthdayKeys.add(normalizedNameKey);
             const nextBirthday = getBirthdayDateInEcuador(b.birthDate, today.getFullYear());
+            if (!nextBirthday)
+                continue;
             // Resolve member status if birthday is linked to a member
             const memberStatus = b.memberId ? memberStatusMap.get(b.memberId) : undefined;
             const statusLabel = getBirthdayStatusLabel(memberStatus);
             const nameWithStatus = statusLabel ? `${b.name} (${statusLabel})` : b.name;
-            if ((0, date_fns_1.isSameDay)(nextBirthday, in14Days) && !sentBirthdays14.has(b.name)) {
-                sentBirthdays14.add(b.name);
+            if ((0, date_fns_1.isSameDay)(nextBirthday, in14Days) && !sentBirthdays14.has(birthdayKey)) {
+                sentBirthdays14.add(birthdayKey);
                 await notificationDispatcher.broadcastToUsers(birthdayEligible.inAppUserIds, {
                     title: "Próximo Cumpleaños",
                     body: `Faltan 14 días para el cumpleaños de ${nameWithStatus}.`,
@@ -1269,8 +1312,8 @@ exports.dailyNotifications = functions.pubsub
                     context: { contextType: "birthday", actionUrl: "/birthdays", actionType: "navigate" },
                 }, birthdayEligible.pushUserIds, birthdayTrace);
             }
-            if ((0, date_fns_1.isSameDay)(nextBirthday, today) && !sentBirthdaysToday.has(b.name)) {
-                sentBirthdaysToday.add(b.name);
+            if ((0, date_fns_1.isSameDay)(nextBirthday, today) && !sentBirthdaysToday.has(birthdayKey)) {
+                sentBirthdaysToday.add(birthdayKey);
                 await notificationDispatcher.broadcastToUsers(birthdayEligible.inAppUserIds, {
                     title: "¡Feliz Cumpleaños!",
                     body: `¡Hoy es el cumpleaños de ${nameWithStatus}! No olvides felicitarle.`,
@@ -1288,14 +1331,18 @@ exports.dailyNotifications = functions.pubsub
             if (m.status === "deceased" || m.status === "fallecido" || m.status === "fallecida")
                 continue;
             const memberName = `${m.firstName} ${m.lastName}`;
-            // Skip if already covered by c_cumpleanos record (deduplication by name)
-            if (sentBirthdays14.has(memberName) && sentBirthdaysToday.has(memberName))
+            const memberBirthdayKey = buildBirthdayDedupKey(memberName, memberDoc.id);
+            const memberNameKey = buildBirthdayDedupKey(memberName);
+            // Skip if already covered by c_cumpleanos record (deduplication by memberId or normalized name)
+            if (coveredBirthdayKeys.has(memberBirthdayKey) || coveredBirthdayKeys.has(memberNameKey))
                 continue;
             const nextBirthday = getBirthdayDateInEcuador(m.birthDate, today.getFullYear());
+            if (!nextBirthday)
+                continue;
             const statusLabel = getBirthdayStatusLabel(m.status);
             const nameWithStatus = statusLabel ? `${memberName} (${statusLabel})` : memberName;
-            if ((0, date_fns_1.isSameDay)(nextBirthday, in14Days) && !sentBirthdays14.has(memberName)) {
-                sentBirthdays14.add(memberName);
+            if ((0, date_fns_1.isSameDay)(nextBirthday, in14Days) && !sentBirthdays14.has(memberBirthdayKey)) {
+                sentBirthdays14.add(memberBirthdayKey);
                 await notificationDispatcher.broadcastToUsers(birthdayEligible.inAppUserIds, {
                     title: "Próximo Cumpleaños",
                     body: `Faltan 14 días para el cumpleaños de ${nameWithStatus}.`,
@@ -1304,8 +1351,8 @@ exports.dailyNotifications = functions.pubsub
                     context: { contextType: "birthday", actionUrl: "/birthdays", actionType: "navigate" },
                 }, birthdayEligible.pushUserIds, birthdayTrace);
             }
-            if ((0, date_fns_1.isSameDay)(nextBirthday, today) && !sentBirthdaysToday.has(memberName)) {
-                sentBirthdaysToday.add(memberName);
+            if ((0, date_fns_1.isSameDay)(nextBirthday, today) && !sentBirthdaysToday.has(memberBirthdayKey)) {
+                sentBirthdaysToday.add(memberBirthdayKey);
                 await notificationDispatcher.broadcastToUsers(birthdayEligible.inAppUserIds, {
                     title: "¡Feliz Cumpleaños!",
                     body: `¡Hoy es el cumpleaños de ${nameWithStatus}! No olvides felicitarle.`,
@@ -1699,11 +1746,14 @@ exports.councilNotifications = functions.pubsub
     if (inCouncil > 0)
         bodyParts.push(`${inCouncil} en seguimiento de consejo`);
     if (bodyParts.length > 0) {
+        const today = getEcuadorToday();
+        const dateParts = getDatePartsInTimeZone(today, ECUADOR_TZ);
+        const dateTag = `${dateParts.year}-${String(dateParts.month).padStart(2, "0")}-${String(dateParts.day).padStart(2, "0")}`;
         await notificationDispatcher.broadcastToUsers(councilEligible.inAppUserIds, {
             title: "Recordatorio – Consejo de Cuórum",
             body: bodyParts.join(", ") + ".",
             url: "/council",
-            tag: "council-reminder",
+            tag: `council-reminder-${dateTag}`,
             context: { contextType: "council", actionUrl: "/council", actionType: "navigate" },
         }, councilEligible.pushUserIds, councilTrace);
     }

@@ -40,6 +40,15 @@ import { firestore } from '@/lib/firebase';
 // Convert info collection for additional data
 const convertInfoCollection = (convertId: string) => doc(firestore, 'c_conversos_info', convertId);
 
+type ConvertAlertStatus = 'inactive' | 'less_active' | null;
+
+const getConvertAlertStatus = (convert: ConvertWithInfo): ConvertAlertStatus => {
+  const memberStatus = convert.memberData?.status;
+  if (memberStatus === 'inactive') return 'inactive';
+  if (memberStatus === 'less_active') return 'less_active';
+  return null;
+};
+
 async function getConvertsWithInfo(): Promise<ConvertWithInfo[]> {
   const twentyFourMonthsAgo = subMonths(new Date(), 24);
 
@@ -371,47 +380,61 @@ export default function ConvertsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              converts.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src={item.photoURL} data-ai-hint="profile picture" />
-                        <AvatarFallback>{item.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <span>{item.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {format(item.baptismDate.toDate(), 'd LLLL yyyy', { locale: es })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" asChild>
-                        <Link href={item.id.startsWith('member_')
-                          ? `/members/${item.id.substring(7)}`
-                          : item.memberId
-                            ? `/members/${item.memberId}`
-                            : `/members?search=${encodeURIComponent(item.name)}`}>
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => openConvertInfo(item)}>
-                        <Info className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" asChild>
-                        <Link href={item.id.startsWith('member_')
-                          ? buildMemberEditUrl(item.id.substring(7), '/converts')
-                          : item.memberId
-                            ? buildMemberEditUrl(item.memberId, '/converts')
-                            : `/members?search=${encodeURIComponent(item.name)}`}>
-                          <Pencil className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+              converts.map((item) => {
+                const convertAlertStatus = getConvertAlertStatus(item);
+                return (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <Avatar>
+                            <AvatarImage src={item.photoURL} data-ai-hint="profile picture" />
+                            <AvatarFallback>{item.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          {convertAlertStatus && (
+                            <span
+                              aria-label={convertAlertStatus === 'inactive' ? 'Converso inactivo' : 'Converso menos activo'}
+                              title={convertAlertStatus === 'inactive' ? 'Inactivo' : 'Menos activo'}
+                              className={`absolute -top-0.5 -right-0.5 block h-0 w-0 border-l-[10px] border-b-[10px] border-l-transparent ${
+                                convertAlertStatus === 'inactive' ? 'border-b-red-500' : 'border-b-yellow-400'
+                              }`}
+                            />
+                          )}
+                        </div>
+                        <span>{item.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {format(item.baptismDate.toDate(), 'd LLLL yyyy', { locale: es })}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" asChild>
+                          <Link href={item.id.startsWith('member_')
+                            ? `/members/${item.id.substring(7)}`
+                            : item.memberId
+                              ? `/members/${item.memberId}`
+                              : `/members?search=${encodeURIComponent(item.name)}`}>
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => openConvertInfo(item)}>
+                          <Info className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" asChild>
+                          <Link href={item.id.startsWith('member_')
+                            ? buildMemberEditUrl(item.id.substring(7), '/converts')
+                            : item.memberId
+                              ? buildMemberEditUrl(item.memberId, '/converts')
+                              : `/members?search=${encodeURIComponent(item.name)}`}>
+                            <Pencil className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
