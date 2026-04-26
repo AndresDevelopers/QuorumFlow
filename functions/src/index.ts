@@ -88,7 +88,7 @@ interface Service {
 interface Birthday {
     id: string;
     name: string;
-    birthDate: admin.firestore.Timestamp;
+    birthDate: admin.firestore.Timestamp | Date | string | number | { seconds: number };
     memberId?: string;
 }
 
@@ -96,7 +96,28 @@ interface MemberBasic {
     status?: string;
     firstName?: string;
     lastName?: string;
-    birthDate?: admin.firestore.Timestamp;
+    birthDate?: admin.firestore.Timestamp | Date | string | number | { seconds: number };
+}
+
+function resolveDateValue(value: unknown): Date | null {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value === "object" && value && "toDate" in value && typeof (value as { toDate?: unknown }).toDate === "function") {
+        const date = (value as { toDate: () => Date }).toDate();
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    if (typeof value === "string" || typeof value === "number") {
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    if (typeof value === "object" && value && "seconds" in value) {
+        const seconds = (value as { seconds?: unknown }).seconds;
+        if (typeof seconds === "number") {
+            const date = new Date(seconds * 1000);
+            return Number.isNaN(date.getTime()) ? null : date;
+        }
+    }
+    return null;
 }
 
 const getBirthdayStatusLabel = (status?: string): string | null => {
@@ -1486,10 +1507,12 @@ function getDatePartsInTimeZone(date: Date, timeZone: string): { year: number; m
 }
 
 function getBirthdayDateInEcuador(
-    birthDate: admin.firestore.Timestamp,
+    birthDate: admin.firestore.Timestamp | Date | string | number | { seconds: number },
     year: number
-): Date {
-    const parts = getDatePartsInTimeZone(birthDate.toDate(), ECUADOR_TZ);
+): Date | null {
+    const date = resolveDateValue(birthDate);
+    if (!date) return null;
+    const parts = getDatePartsInTimeZone(date, ECUADOR_TZ);
     return new Date(year, parts.month - 1, parts.day);
 }
 
@@ -1652,6 +1675,7 @@ export const dailyNotifications = functions.pubsub
             for (const doc of birthdaysSnap.docs) {
                 const b = doc.data() as Birthday;
                 const nextBirthday = getBirthdayDateInEcuador(b.birthDate, today.getFullYear());
+                if (!nextBirthday) continue;
 
                 // Resolve member status if birthday is linked to a member
                 const memberStatus = b.memberId ? memberStatusMap.get(b.memberId) : undefined;
@@ -1702,6 +1726,7 @@ export const dailyNotifications = functions.pubsub
                 if (sentBirthdays14.has(memberName) && sentBirthdaysToday.has(memberName)) continue;
 
                 const nextBirthday = getBirthdayDateInEcuador(m.birthDate, today.getFullYear());
+                if (!nextBirthday) continue;
                 const statusLabel = getBirthdayStatusLabel(m.status);
                 const nameWithStatus = statusLabel ? `${memberName} (${statusLabel})` : memberName;
 

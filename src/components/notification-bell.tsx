@@ -19,6 +19,30 @@ import { formatRelative } from "date-fns";
 import { es } from "date-fns/locale";
 import { Skeleton } from "./ui/skeleton";
 
+function deduplicateNotifications(items: AppNotification[]): AppNotification[] {
+  const grouped = new Map<string, AppNotification>();
+  for (const notification of items) {
+    const key = notification.notificationTag
+      ? `tag:${notification.notificationTag}`
+      : `doc:${notification.id}`;
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, notification);
+      continue;
+    }
+
+    const currentTime = notification.createdAt?.toDate?.().getTime() ?? 0;
+    const existingTime = existing.createdAt?.toDate?.().getTime() ?? 0;
+    if (currentTime > existingTime) {
+      grouped.set(key, notification);
+    }
+  }
+
+  return [...grouped.values()].sort(
+    (a, b) => (b.createdAt?.toDate?.().getTime() ?? 0) - (a.createdAt?.toDate?.().getTime() ?? 0)
+  );
+}
+
 export function NotificationBell() {
   const { user } = useAuth();
   const { t } = useI18n();
@@ -39,8 +63,9 @@ export function NotificationBell() {
       const userNotifications = snapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as AppNotification)
       );
-      setNotifications(userNotifications);
-      setHasUnread(userNotifications.some(n => !n.isRead));
+      const deduplicated = deduplicateNotifications(userNotifications);
+      setNotifications(deduplicated);
+      setHasUnread(deduplicated.some(n => !n.isRead));
     } catch (error) {
       console.error("Error fetching notifications:", error);
     }
