@@ -4,8 +4,11 @@ import logger from '@/lib/logger';
 import { fetchLatestChurchNews } from '@/lib/church-news';
 
 const bodySchema = z.object({
-  message: z.string().min(2).max(3000),
+  message: z.string().min(2).max(3000).optional(),
+  imageDataUrl: z.string().max(6_000_000).regex(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, 'Imagen inválida').optional(),
   history: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(4000) })).max(20).default([]),
+}).refine((data) => Boolean((data.message && data.message.trim().length > 0) || data.imageDataUrl), {
+  message: 'Debe incluir texto o imagen.',
 });
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
@@ -35,7 +38,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Solicitud inválida.' }, { status: 400 });
   }
 
-  const { message, history } = parsed.data;
+  const { message, imageDataUrl, history } = parsed.data;
 
   let contextNews = 'No se pudo verificar noticias oficiales recientes en este momento.';
   try {
@@ -52,7 +55,15 @@ export async function POST(request: Request) {
   const messages = [
     { role: 'system', content: `${systemPrompt}\n\nCONTEXT_NEWS:\n${contextNews}` },
     ...history.map((item) => ({ role: item.role, content: item.content })),
-    { role: 'user', content: message },
+    {
+      role: 'user',
+      content: imageDataUrl
+        ? [
+            { type: 'text', text: message?.trim() || 'Analiza esta imagen dentro del contexto oficial de la Iglesia.' },
+            { type: 'image_url', image_url: { url: imageDataUrl } },
+          ]
+        : message,
+    },
   ];
 
   try {

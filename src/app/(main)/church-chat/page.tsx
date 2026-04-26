@@ -1,9 +1,9 @@
 'use client';
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ChangeEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { History, Loader2, MessageCircle, Plus, Trash2 } from 'lucide-react';
+import { History, ImagePlus, Loader2, MessageCircle, Plus, Trash2, X } from 'lucide-react';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,8 +32,8 @@ type ChatStoreDocument = {
   sessions?: ChatSession[];
 };
 
-const STORAGE_KEY = 'church-chat-sessions-v1';
 const MAX_SESSIONS = 25;
+const MAX_IMAGE_SIZE_BYTES = 4 * 1024 * 1024;
 
 const makeInitialAssistantMessage = (): ChatMessage => ({
   id: crypto.randomUUID(),
@@ -52,11 +52,13 @@ const makeSession = (): ChatSession => ({
 
 const toBoundedSessions = (sessions: ChatSession[]): ChatSession[] => sessions.slice(0, MAX_SESSIONS);
 
-const loadSessionsFromLocal = (): ChatSession[] => {
+const getStorageKey = (userId?: string) => `church-chat-sessions-v1-${userId ?? 'guest'}`;
+
+const loadSessionsFromLocal = (storageKey: string): ChatSession[] => {
   if (typeof window === 'undefined') return [makeSession()];
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return [makeSession()];
 
     const parsed = JSON.parse(raw) as ChatSession[];
@@ -66,9 +68,9 @@ const loadSessionsFromLocal = (): ChatSession[] => {
   }
 };
 
-const saveSessionsToLocal = (sessions: ChatSession[]) => {
+const saveSessionsToLocal = (storageKey: string, sessions: ChatSession[]) => {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(toBoundedSessions(sessions)));
+  localStorage.setItem(storageKey, JSON.stringify(toBoundedSessions(sessions)));
 };
 
 const getInlineNodes = (text: string): ReactNode[] => {
@@ -139,7 +141,10 @@ export default function ChurchChatPage() {
   const [sessions, setSessions] = useState<ChatSession[]>(() => [makeSession()]);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
   const [input, setInput] = useState('');
+  const [selectedImageDataUrl, setSelectedImageDataUrl] = useState<string | null>(null);
+  const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const storageKey = useMemo(() => getStorageKey(user?.uid), [user?.uid]);
 
   const activeSession = useMemo(
     () => sessions.find((session) => session.id === activeSessionId) ?? sessions[0],
@@ -148,7 +153,7 @@ export default function ChurchChatPage() {
 
   const persistSessions = useCallback(async (nextSessions: ChatSession[]) => {
     const bounded = toBoundedSessions(nextSessions);
-    saveSessionsToLocal(bounded);
+    saveSessionsToLocal(storageKey, bounded);
 
     if (!user?.uid) return;
 
@@ -165,7 +170,7 @@ export default function ChurchChatPage() {
     } catch (error) {
       logger.warn({ error, message: 'No fue posible guardar historial de church-chat en Firestore.' });
     }
-  }, [user?.uid]);
+  }, [storageKey, user?.uid]);
 
   const updateSessions = (updater: (current: ChatSession[]) => ChatSession[]) => {
     setSessions((current) => {
@@ -177,7 +182,7 @@ export default function ChurchChatPage() {
 
   useEffect(() => {
     const bootstrap = async () => {
-      const localSessions = loadSessionsFromLocal();
+      const localSessions = loadSessionsFromLocal(storageKey);
       setSessions(localSessions);
 
       if (!user?.uid) {
@@ -197,7 +202,7 @@ export default function ChurchChatPage() {
         if (Array.isArray(payload.sessions) && payload.sessions.length > 0) {
           const cloudSessions = toBoundedSessions(payload.sessions);
           setSessions(cloudSessions);
-          saveSessionsToLocal(cloudSessions);
+          saveSessionsToLocal(storageKey, cloudSessions);
         }
       } catch (error) {
         logger.warn({ error, message: 'Firestore no disponible para church-chat, se mantiene localStorage.' });
@@ -205,7 +210,7 @@ export default function ChurchChatPage() {
     };
 
     void bootstrap();
-  }, [persistSessions, user?.uid]);
+  }, [persistSessions, storageKey, user?.uid]);
 
   useEffect(() => {
     if (!activeSessionId && sessions.length > 0) {
@@ -238,12 +243,14 @@ export default function ChurchChatPage() {
 
   const handleSend = async () => {
     const value = input.trim();
-    if (!value || loading || !activeSession) return;
+    if ((value.length === 0 && !selectedImageDataUrl) || loading || !activeSession) return;
+
+    const messageContent = value.length > 0 ? value : 'Imagen enviada para análisis.';
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: value,
+      content: messageContent,
       createdAt: new Date().toISOString(),
     };
 
@@ -258,7 +265,7 @@ export default function ChurchChatPage() {
         draftMessages = [...session.messages, userMessage];
         return {
           ...session,
-          title: session.messages.length <= 1 ? value.slice(0, 60) : session.title,
+          title: session.messages.length <= 1 ? messageContent.slice(0, 60) : session.title,
           messages: draftMessages,
         };
       })
@@ -273,7 +280,7 @@ export default function ChurchChatPage() {
       const response = await fetch('/api/church-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: value, history }),
+        body: JSON.stringify({ message: value || undefined, imageDataUrl: selectedImageDataUrl, history }),
       });
 
       const payload = (await response.json()) as { answer?: string; error?: string };
@@ -298,6 +305,8 @@ export default function ChurchChatPage() {
           };
         })
       );
+      setSelectedImageDataUrl(null);
+      setSelectedImageName(null);
     } catch (error) {
       toast({
         title: 'No se pudo enviar el mensaje',
@@ -307,6 +316,38 @@ export default function ChurchChatPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleImageSelection = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Archivo no válido',
+        description: 'Selecciona una imagen válida.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      toast({
+        title: 'Imagen demasiado grande',
+        description: 'El tamaño máximo permitido es 4MB.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : null;
+      if (!result) return;
+      setSelectedImageDataUrl(result);
+      setSelectedImageName(file.name);
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -406,10 +447,35 @@ export default function ChurchChatPage() {
               }}
               disabled={loading}
             />
-            <Button onClick={() => void handleSend()} disabled={loading || input.trim().length === 0}>
+            <label className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground">
+              <ImagePlus className="h-4 w-4" />
+              <input type="file" accept="image/*" className="hidden" onChange={(event) => void handleImageSelection(event)} />
+            </label>
+            <Button onClick={() => void handleSend()} disabled={loading || (input.trim().length === 0 && !selectedImageDataUrl)}>
               Enviar
             </Button>
           </div>
+          {selectedImageDataUrl && (
+            <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+              <div className="min-w-0">
+                <p className="truncate font-medium">{selectedImageName ?? 'Imagen seleccionada'}</p>
+                <p className="text-xs text-muted-foreground">Puedes enviar solo la imagen o acompañarla con texto.</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10"
+                onClick={() => {
+                  setSelectedImageDataUrl(null);
+                  setSelectedImageName(null);
+                }}
+                aria-label="Quitar imagen seleccionada"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </section>

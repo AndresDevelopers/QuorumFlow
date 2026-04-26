@@ -13,6 +13,8 @@ Este módulo agrega una página de chat enfocada **solo** en contenido oficial d
 - Eliminación de conversaciones desde el historial.
 - Indicador de "La IA está escribiendo..." mientras se espera la respuesta.
 - Renderizado básico de formato de respuesta para listas y énfasis markdown (`-`, `*`, `**`).
+- Soporte opcional para subir imagen como contexto.
+- Si se envía imagen, el texto se vuelve opcional.
 - Restricción temática por *system prompt*:
   - Manuales y textos oficiales de la Iglesia.
   - Evangelio de Jesucristo y Escrituras (Antiguo/Nuevo Testamento) según interpretación oficial de la Iglesia.
@@ -37,7 +39,7 @@ Si `DEEPSEEK_CHAT_MODEL` no está definida, el sistema usa `deepseek-v4-flash`.
 ## Endpoints
 
 - `POST /api/church-chat`
-  - Entrada: `{ message: string, history: Array<{role, content}> }`
+  - Entrada: `{ message?: string, imageDataUrl?: string, history: Array<{role, content}> }`
   - Salida: `{ answer: string, contextNews: string }`
 
 ## Notas de seguridad
