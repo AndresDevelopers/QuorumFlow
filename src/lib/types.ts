@@ -201,6 +201,7 @@ export type AppNotification = {
     | 'urgent_family'
     | 'missionary_assignment';
     contextId?: string;
+    notificationTag?: string | null;
 }
 
 // Member management types

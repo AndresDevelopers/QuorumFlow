@@ -1,6 +1,7 @@
 
 import { firestoreAdmin, messagingAdmin } from './firebase-admin';
 import { pushSubscriptionsCollection, usersCollection, notificationsCollection } from './collections-server';
+import { createHash } from 'crypto';
 
 // FCM sendEachForMulticast supports max 500 tokens per call
 const FCM_BATCH_LIMIT = 500;
@@ -13,6 +14,27 @@ export interface PushNotificationParams {
   url?: string;
   userId?: string; // If provided, only send to this user. If not, send to all with push enabled.
   tag?: string;
+}
+
+function getEcuadorDateKey(date: Date = new Date()): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Guayaquil',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(date);
+}
+
+function buildDeterministicInAppNotificationDocId(params: {
+  userId: string;
+  tag: string;
+  title: string;
+  body: string;
+  dateKey: string;
+}): string {
+  const base = `${params.userId}__${params.tag}__${params.dateKey}__${params.title}__${params.body}`;
+  return createHash('sha256').update(base).digest('hex');
 }
 
 /**
@@ -138,27 +160,42 @@ export async function sendServerSidePushNotification(params: PushNotificationPar
     await batch.commit();
   }
 
-  // 2. Create In-App Notifications
-  const batchSize = 500;
+  // 2. Create In-App Notifications (idempotent by user+tag+content+Ecuador day)
+  const batchSize = 200;
+  const dateKey = getEcuadorDateKey();
   for (let i = 0; i < targetUserIds.length; i += batchSize) {
-    const batch = firestoreAdmin.batch();
     const chunk = targetUserIds.slice(i, i + batchSize);
-    
-    chunk.forEach(uid => {
-      const notifRef = notificationsCollection.doc();
-      batch.set(notifRef, {
-        userId: uid,
-        title,
-        body,
-        createdAt: new Date(),
-        isRead: false,
-        actionUrl: url ?? '/',
-        actionType: 'navigate',
-        contextType: tag === 'birthday-notification' ? 'birthday' : 'general'
-      });
-    });
-    
-    await batch.commit();
+
+    await Promise.all(chunk.map(async (uid) => {
+      const notifRef = notificationsCollection.doc(
+        buildDeterministicInAppNotificationDocId({
+          userId: uid,
+          tag,
+          title,
+          body,
+          dateKey,
+        })
+      );
+      try {
+        await notifRef.create({
+          userId: uid,
+          title,
+          body,
+          createdAt: new Date(),
+          isRead: false,
+          actionUrl: url ?? '/',
+          actionType: 'navigate',
+          contextType: tag === 'birthday-notification' ? 'birthday' : 'general'
+        });
+      } catch (error) {
+        const code = typeof error === 'object' && error && 'code' in error ? (error as { code?: unknown }).code : undefined;
+        // Already exists (Firestore ALREADY_EXISTS) -> skip to keep idempotency
+        if (code === 6 || code === 'already-exists') {
+          return;
+        }
+        throw error;
+      }
+    }));
   }
 
   return {
