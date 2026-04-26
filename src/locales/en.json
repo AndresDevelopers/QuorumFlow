@@ -1,4 +1,3 @@
-
 {
   "Dashboard": "Dashboard",
   "Members": "Members",
@@ -106,7 +105,6 @@
   "Customize your experience.": "Customize your experience.",
   "activities.pageTitle": "Registered Activities",
   "activities.pageDescription": "Review and manage quorum activities for the selected year.",
-
   "login.title": "Login",
   "login.description": "Enter your email below to login to your account.",
   "login.emailLabel": "Email",
@@ -125,7 +123,6 @@
   "login.toastErrorTooManyRequests": "Too many failed attempts. Please try again later.",
   "login.toastErrorNetwork": "Connection error. Check your internet and try again.",
   "login.toastErrorInvalidEmail": "The email format is invalid.",
-
   "register.title": "Sign Up",
   "register.description": "Enter your information to create an account.",
   "register.nameLabel": "Name",
@@ -143,13 +140,11 @@
   "register.toastErrorTitle": "Registration Error",
   "register.toastErrorUnexpected": "An unexpected error occurred.",
   "register.toastErrorEmailInUse": "This email is already in use.",
-
   "noPermission.title": "Access restricted",
   "noPermission.description": "Your account is active but does not yet have permission to use the application.",
   "noPermission.support": "Please contact the designated secretary, quorum president, or counselors to request access.",
   "noPermission.logout": "Sign out",
   "noPermission.logoutLoading": "Signing out...",
-
   "forgotPassword.title": "Forgot Password?",
   "forgotPassword.description": "Enter your email and we'll send you a link to reset it.",
   "forgotPassword.emailLabel": "Email",
@@ -170,7 +165,6 @@
   "missionaryWork.faq.a3": "Assigning friends (often called \"ministering brothers\" or simply quorum friends) is crucial for retaining new members. A new convert needs support, friendship, and guidance. Assigning one or two quorum members to befriend the new member, visit them, invite them to activities, and answer their questions helps them feel part of the community and strengthens their testimony.",
   "missionaryWork.faq.q4": "What kind of missionary assignments can the quorum have?",
   "missionaryWork.faq.a4": "Assignments can be varied: accompanying the missionaries to a lesson, inviting a friend to a Church activity, sharing a Gospel message on social media, helping an investigator with a move as an act of service, or organizing a home evening open to friends of the Church.",
-
   "converts.title": "Recent Converts",
   "converts.description": "List of members baptized in the last 24 months, including registered converts and baptized members.",
   "converts.name": "Name",
@@ -185,7 +179,6 @@
   "converts.deleteDialogDescription": "This action cannot be undone. Do you want to delete the record for <b>{name}</b>?",
   "converts.cancel": "Cancel",
   "converts.delete": "Delete",
-
   "futureMembers.title": "Future Members",
   "futureMembers.description": "List of people with scheduled baptism date.",
   "futureMembers.name": "Name",
@@ -204,7 +197,6 @@
   "futureMembers.isBaptized": "Is already baptized?",
   "futureMembers.baptizedSuccess": "Future Member marked as baptized",
   "futureMembers.baptizedSuccessDescription": "The record has been updated successfully.",
-
   "ministering.title": "Ministering",
   "ministering.thisMonth": "Ministering This Month",
   "ministering.companionships": "Companionships",
@@ -227,18 +219,17 @@
   "ministering.error": "Error",
   "ministering.loadError": "Could not load ministering data.",
   "ministering.vsLastMonth": "vs. last month",
-   "ministering.districts": "Districts",
-   "ministering.districtDefaultName": "District {number}",
-   "ministering.districtLeader": "District Leader",
-   "ministering.selectLeader": "Select Leader",
-   "ministering.assignedCompanionships": "Assigned Companionships",
-   "ministering.saveDistrict": "Save District",
-   "ministering.savingDistrict": "Saving...",
-   "ministering.districtSavedTitle": "District Saved",
-   "ministering.districtSavedDescription": "The district {name} has been saved successfully.",
-   "ministering.districtSaveErrorTitle": "Save Error",
-   "ministering.districtSaveErrorDescription": "Could not save the district.",
-
+  "ministering.districts": "Districts",
+  "ministering.districtDefaultName": "District {number}",
+  "ministering.districtLeader": "District Leader",
+  "ministering.selectLeader": "Select Leader",
+  "ministering.assignedCompanionships": "Assigned Companionships",
+  "ministering.saveDistrict": "Save District",
+  "ministering.savingDistrict": "Saving...",
+  "ministering.districtSavedTitle": "District Saved",
+  "ministering.districtSavedDescription": "The district {name} has been saved successfully.",
+  "ministering.districtSaveErrorTitle": "Save Error",
+  "ministering.districtSaveErrorDescription": "Could not save the district.",
   "birthdays.upcomingTitle": "Upcoming Birthdays",
   "birthdays.upcomingDescription": "People celebrating birthdays in the next 14 days.",
   "birthdays.noUpcoming": "No birthdays in the next 14 days.",
@@ -275,7 +266,6 @@
   "member.status.less_active": "Less active",
   "member.status.inactive": "Inactive",
   "member.status.deceased": "Deceased",
-
   "birthdayForm.nameRequired": "Name is required.",
   "birthdayForm.birthDateRequired": "Date of birth is required.",
   "birthdayForm.fileTooLarge": "File too large",
@@ -317,15 +307,12 @@
   "birthdayForm.dateFormat": "Enter date in DD/MM/YYYY format (example: 15/03/1990)",
   "birthdayForm.saving": "Saving...",
   "birthdayForm.save": "Save",
-
   "birthdayEdit.notFound": "Birthday not found.",
   "birthdayEdit.loadError": "Error loading data.",
   "birthdayEdit.loading": "Loading",
-
   "birthdays.pageTitle": "Birthdays",
   "birthdays.pageDescription": "Track upcoming birthdays and keep the quorum list current.",
   "birthdays.editMember": "Edit Member",
-
   "memberProfile.title": "Member Profile",
   "memberProfile.personalInfo": "Personal Information",
   "memberProfile.contactInfo": "Contact Information",
@@ -356,13 +343,11 @@
   "memberProfile.backToMembers": "Back to Members",
   "memberProfile.editMember": "Edit Member",
   "memberProfile.viewProfile": "View Profile",
-
   "changelog.title": "Changelog",
   "changelog.description": "Here you can see the latest app updates.",
   "changelog.loading": "Loading changelog...",
   "changelog.error": "Could not load the changelog.",
   "changelog.current": "Current",
-
   "deceased.title": "Deceased Members",
   "deceased.description": "Members who need temple vicarious work.",
   "deceased.needsTempleWork": "Needs Temple Work",
@@ -372,6 +357,6 @@
   "deceased.noDeceasedMembers": "No deceased members requiring attention.",
   "deceased.daysUntilRemoval": "Will be removed in {days} days",
   "deceased.templeWork": "Do Temple Work",
-  "deceased.completed": "Completed"
-
+  "deceased.completed": "Completed",
+  "Church Chat": "Church Chat"
 }

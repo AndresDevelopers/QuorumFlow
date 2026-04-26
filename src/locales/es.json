@@ -1,4 +1,3 @@
-
 {
   "Dashboard": "Tablero",
   "Members": "Miembros",
@@ -104,7 +103,6 @@
   "Customize your experience.": "Personaliza tu experiencia.",
   "activities.pageTitle": "Actividades Registradas",
   "activities.pageDescription": "Revisa y administra las actividades del quórum por año.",
-
   "login.title": "Iniciar Sesión",
   "login.description": "Ingresa tu correo electrónico para acceder a tu cuenta.",
   "login.emailLabel": "Correo Electrónico",
@@ -123,7 +121,6 @@
   "login.toastErrorTooManyRequests": "Demasiados intentos fallidos. Por favor, intenta más tarde.",
   "login.toastErrorNetwork": "Error de conexión. Verifica tu internet e intenta nuevamente.",
   "login.toastErrorInvalidEmail": "El formato del correo electrónico no es válido.",
-
   "register.title": "Regístrate",
   "register.description": "Ingresa tu información para crear una cuenta.",
   "register.nameLabel": "Nombre",
@@ -141,13 +138,11 @@
   "register.toastErrorTitle": "Error en el registro",
   "register.toastErrorUnexpected": "Ocurrió un error inesperado.",
   "register.toastErrorEmailInUse": "Este correo electrónico ya está en uso.",
-
   "noPermission.title": "Acceso restringido",
   "noPermission.description": "Tu cuenta está activa pero aún no tiene permisos para usar la aplicación.",
   "noPermission.support": "Comunícate con el secretario designado, el presidente o los consejeros del cuórum para solicitar acceso.",
   "noPermission.logout": "Cerrar sesión",
   "noPermission.logoutLoading": "Cerrando sesión...",
-
   "forgotPassword.title": "¿Olvidaste tu Contraseña?",
   "forgotPassword.description": "Ingresa tu correo y te enviaremos un enlace para restablecerla.",
   "forgotPassword.emailLabel": "Correo Electrónico",
@@ -160,13 +155,11 @@
   "forgotPassword.toastErrorTitle": "Error",
   "forgotPassword.toastErrorUnexpected": "Ocurrió un error inesperado.",
   "forgotPassword.toastErrorUserNotFound": "No se encontró ningún usuario con este correo electrónico.",
-
   "missionaryWork.title": "Obra Misional",
   "missionaryWork.description": "Coordina y da seguimiento a los esfuerzos misionales del quórum.",
   "missionaryWork.tabs.assignments": "Asignaciones",
   "missionaryWork.tabs.investigators": "Investigadores",
   "missionaryWork.tabs.new_converts": "Nuevos Conversos",
-
   "missionaryWork.assignments.title": "Asignaciones Misionales",
   "missionaryWork.assignments.description": "Tareas y responsabilidades para apoyar la obra en el barrio.",
   "missionaryWork.assignments.addAssignment": "Asignación",
@@ -185,7 +178,6 @@
   "missionaryWork.assignments.successDelete": "Asignación eliminada.",
   "missionaryWork.assignments.errorDelete": "No se pudo eliminar la asignación.",
   "missionaryWork.assignments.validation.min5": "La descripción es requerida (mínimo 5 caracteres).",
-
   "missionaryWork.investigators.title": "Investigadores",
   "missionaryWork.investigators.description": "Personas que están aprendiendo sobre el evangelio.",
   "missionaryWork.investigators.addInvestigator": "Investigador",
@@ -218,7 +210,6 @@
   "missionaryWork.investigators.validation.nameRequired": "El nombre es requerido.",
   "missionaryWork.investigators.validation.missionariesRequired": "El nombre de los misioneros es requerido.",
   "missionaryWork.investigators.validation.convertRequired": "Debe seleccionar un converso.",
-
   "missionaryWork.newConverts.title": "Amigos para Nuevos Conversos",
   "missionaryWork.newConverts.description": "Asigna miembros del quórum para apoyar y fortalecer a los recién bautizados.",
   "missionaryWork.newConverts.noNewConverts": "No hay nuevos conversos para asignar amigos.",
@@ -233,7 +224,6 @@
   "missionaryWork.newConverts.cancelButton": "Cancelar",
   "missionaryWork.newConverts.successDelete": "Asignación de amistad eliminada.",
   "missionaryWork.newConverts.errorDelete": "No se pudo eliminar la asignación de amistad.",
-  
   "missionaryWork.faq.title": "Preguntas Frecuentes",
   "missionaryWork.faq.description": "Respuestas a dudas comunes sobre el rol del quórum en la obra misional.",
   "missionaryWork.faq.q1": "¿Cuál es el rol del Quórum de Élderes en la obra misional?",
@@ -244,7 +234,6 @@
   "missionaryWork.faq.a3": "Asignar amigos (a menudo llamados \"compañeros ministrantes\" o simplemente amigos del quórum) es crucial para la retención de nuevos miembros. Un nuevo converso necesita apoyo, amistad y guía. Asignar a uno o dos hermanos del quórum para que se hagan amigos del nuevo miembro, lo visiten, lo inviten a actividades y respondan sus preguntas, le ayuda a sentirse parte de la comunidad y a fortalecer su testimonio.",
   "missionaryWork.faq.q4": "¿Qué tipo de asignaciones misionales puede tener el quórum?",
   "missionaryWork.faq.a4": "Las asignaciones pueden ser variadas: acompañar a los misioneros a dar una lección, invitar a un amigo a una actividad de la Iglesia, compartir un mensaje del Evangelio en redes sociales, ayudar a un investigador con una mudanza como acto de servicio, u organizar una noche de hogar abierta a amigos de la Iglesia.",
-
   "converts.title": "Conversos Recientes",
   "converts.description": "Lista de miembros bautizados en los últimos 24 meses, incluyendo conversos registrados y miembros bautizados.",
   "converts.name": "Nombre",
@@ -259,7 +248,6 @@
   "converts.deleteDialogDescription": "Esta acción no se puede deshacer. ¿Desea eliminar el registro de <b>{name}</b>?",
   "converts.cancel": "Cancelar",
   "converts.delete": "Eliminar",
-
   "futureMembers.title": "Futuros Miembros",
   "futureMembers.description": "Lista de personas con fecha de bautismo programada.",
   "futureMembers.name": "Nombre",
@@ -278,7 +266,6 @@
   "futureMembers.isBaptized": "¿Ya está bautizado?",
   "futureMembers.baptizedSuccess": "Futuro Miembro marcado como bautizado",
   "futureMembers.baptizedSuccessDescription": "El registro ha sido actualizado exitosamente.",
-
   "ministering.title": "Ministración",
   "ministering.thisMonth": "Ministración este Mes",
   "ministering.companionships": "Compañerismos",
@@ -301,18 +288,17 @@
   "ministering.error": "Error",
   "ministering.loadError": "No se pudieron cargar los datos de ministración.",
   "ministering.vsLastMonth": "vs. el mes pasado",
-   "ministering.districts": "Distritos",
-   "ministering.districtDefaultName": "Distrito {number}",
-   "ministering.districtLeader": "Líder del Distrito",
-   "ministering.selectLeader": "Seleccionar Líder",
-   "ministering.assignedCompanionships": "Compañerismos Asignados",
-   "ministering.saveDistrict": "Guardar Distrito",
-   "ministering.savingDistrict": "Guardando...",
-   "ministering.districtSavedTitle": "Distrito Guardado",
-   "ministering.districtSavedDescription": "El distrito {name} ha sido guardado exitosamente.",
-   "ministering.districtSaveErrorTitle": "Error al Guardar",
-   "ministering.districtSaveErrorDescription": "No se pudo guardar el distrito.",
-
+  "ministering.districts": "Distritos",
+  "ministering.districtDefaultName": "Distrito {number}",
+  "ministering.districtLeader": "Líder del Distrito",
+  "ministering.selectLeader": "Seleccionar Líder",
+  "ministering.assignedCompanionships": "Compañerismos Asignados",
+  "ministering.saveDistrict": "Guardar Distrito",
+  "ministering.savingDistrict": "Guardando...",
+  "ministering.districtSavedTitle": "Distrito Guardado",
+  "ministering.districtSavedDescription": "El distrito {name} ha sido guardado exitosamente.",
+  "ministering.districtSaveErrorTitle": "Error al Guardar",
+  "ministering.districtSaveErrorDescription": "No se pudo guardar el distrito.",
   "birthdays.upcomingTitle": "Próximos Cumpleaños",
   "birthdays.upcomingDescription": "Personas que cumplen años en los próximos 14 días.",
   "birthdays.noUpcoming": "No hay cumpleaños en los próximos 14 días.",
@@ -349,7 +335,6 @@
   "member.status.less_active": "Menos activo",
   "member.status.inactive": "Inactivo",
   "member.status.deceased": "Fallecido",
-
   "birthdayForm.nameRequired": "El nombre es requerido.",
   "birthdayForm.birthDateRequired": "La fecha de nacimiento es requerida.",
   "birthdayForm.fileTooLarge": "Archivo demasiado grande",
@@ -391,15 +376,12 @@
   "birthdayForm.dateFormat": "Ingresa la fecha en formato DD/MM/YYYY (ejemplo: 15/03/1990)",
   "birthdayForm.saving": "Guardando...",
   "birthdayForm.save": "Guardar",
-
   "birthdayEdit.notFound": "Cumpleaños no encontrado.",
   "birthdayEdit.loadError": "Error al cargar los datos.",
   "birthdayEdit.loading": "Cargando",
-
   "birthdays.pageTitle": "Cumpleaños",
   "birthdays.pageDescription": "Monitorea los cumpleaños próximos y mantén la lista del cuórum al día.",
   "birthdays.editMember": "Editar Miembro",
-
   "memberProfile.title": "Perfil del Miembro",
   "memberProfile.personalInfo": "Información Personal",
   "memberProfile.contactInfo": "Información de Contacto",
@@ -430,13 +412,11 @@
   "memberProfile.backToMembers": "Volver a Miembros",
   "memberProfile.editMember": "Editar Miembro",
   "memberProfile.viewProfile": "Ver Perfil",
-
   "changelog.title": "Historial de Cambios",
   "changelog.description": "Aquí puedes ver las últimas actualizaciones de la aplicación.",
   "changelog.loading": "Cargando historial...",
   "changelog.error": "No se pudo cargar el historial de cambios.",
   "changelog.current": "Actual",
-
   "deceased.title": "Miembros Fallecidos",
   "deceased.description": "Miembros que requieren obra vicaria del templo.",
   "deceased.needsTempleWork": "Necesita Obra Vicaria",
@@ -446,6 +426,6 @@
   "deceased.noDeceasedMembers": "No hay miembros fallecidos que requieran atención.",
   "deceased.daysUntilRemoval": "Desaparecerá en {days} días",
   "deceased.templeWork": "Hacer Obra Vicaria",
-  "deceased.completed": "Completado"
-
+  "deceased.completed": "Completado",
+  "Church Chat": "Chat Iglesia"
 }
