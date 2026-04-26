@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { getDocs, query, orderBy, Timestamp, where, deleteDoc, doc, addDoc } from 'firebase/firestore';
@@ -48,9 +48,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { PlusCircle, Trash2, Pencil, Image as ImageIcon, ArrowRightLeft } from 'lucide-react';
+import { PlusCircle, Trash2, Pencil, Image as ImageIcon, ArrowRightLeft, RefreshCw, Wand2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import Image from 'next/image';
+
+type SuggestedServices = {
+  quorumCare: string[];
+  communityImpact: string[];
+};
 
 
 async function getServicesForYear(year: number): Promise<Service[]> {
@@ -79,7 +84,9 @@ export default function ServicePage() {
   const { user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const [services, setServices] = useState<Service[]>([]);
+  const [serviceSuggestions, setServiceSuggestions] = useState<SuggestedServices | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isGeneratingSuggestions, startGeneratingSuggestions] = useTransition();
   const { toast } = useToast();
   
   const currentYear = getYear(new Date());
@@ -106,7 +113,7 @@ export default function ServicePage() {
       queueMicrotask(() => fetchServices());
     }
   }, [authLoading, fetchServices, user]);
-  
+
   const handleDelete = async (serviceId: string, serviceTitle: string) => {
     try {
       await deleteDoc(doc(servicesCollection, serviceId));
@@ -150,6 +157,50 @@ export default function ServicePage() {
     }
   };
 
+  const handleGenerateServiceSuggestions = useCallback((refresh = false) => {
+    startGeneratingSuggestions(async () => {
+      try {
+        const isProduction = typeof window !== 'undefined' && !window.location.hostname.includes('localhost');
+        const cacheKey = 'service_suggestions_cache';
+        const cacheTimestampKey = 'service_suggestions_timestamp';
+
+        if (!refresh && isProduction) {
+          const cachedData = localStorage.getItem(cacheKey);
+          const cachedTimestamp = localStorage.getItem(cacheTimestampKey);
+
+          if (cachedData && cachedTimestamp) {
+            const cacheAge = Date.now() - Number.parseInt(cachedTimestamp, 10);
+            if (!Number.isNaN(cacheAge) && cacheAge < 24 * 60 * 60 * 1000) {
+              setServiceSuggestions(JSON.parse(cachedData) as SuggestedServices);
+              return;
+            }
+          }
+        }
+
+        const response = await fetch(refresh ? '/api/service-suggestions?refresh=true' : '/api/service-suggestions');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch service suggestions: ${response.status} ${response.statusText}`);
+        }
+        const result = (await response.json()) as SuggestedServices;
+        setServiceSuggestions(result);
+
+        if (isProduction) {
+          localStorage.setItem(cacheKey, JSON.stringify(result));
+          localStorage.setItem(cacheTimestampKey, Date.now().toString());
+        }
+      } catch (error) {
+        logger.error({ error, message: 'Error generating service suggestions' });
+        setServiceSuggestions(null);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      queueMicrotask(() => handleGenerateServiceSuggestions());
+    }
+  }, [authLoading, handleGenerateServiceSuggestions, user]);
+
 
   const upcomingServices = services.filter(service => {
     const serviceDate = service.date.toDate();
@@ -162,6 +213,63 @@ export default function ServicePage() {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Wand2 className="h-6 w-6 text-primary" />
+              <CardTitle>Sugerencias de Servicios</CardTitle>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleGenerateServiceSuggestions(true)}
+              disabled={isGeneratingSuggestions}
+            >
+              <RefreshCw className={`h-4 w-4 ${isGeneratingSuggestions ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+          <CardDescription>
+            Ideas generadas por IA para el próximo mes, basadas en servicios y actividades actuales.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isGeneratingSuggestions ? (
+            <div className="space-y-4">
+              <Skeleton className="h-5 w-1/3" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-5 w-1/3 mt-4" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+            </div>
+          ) : serviceSuggestions ? (
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-semibold mb-2">Apoyo al Quórum</h3>
+                <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
+                  {serviceSuggestions.quorumCare.map((service, index) => (
+                    <li key={`qc-${index}`}>{service}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold mb-2">Impacto Comunitario</h3>
+                <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
+                  {serviceSuggestions.communityImpact.map((service, index) => (
+                    <li key={`ci-${index}`}>{service}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-center text-muted-foreground py-8">
+              No se pudieron generar sugerencias de servicios en este momento.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Próximos Servicios</CardTitle>

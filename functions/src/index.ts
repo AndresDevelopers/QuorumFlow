@@ -129,6 +129,19 @@ const getBirthdayStatusLabel = (status?: string): string | null => {
     return null;
 };
 
+const normalizePersonName = (value: string): string =>
+    value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+
+const buildBirthdayDedupKey = (name: string, memberId?: string): string => {
+    const normalizedName = normalizePersonName(name);
+    return memberId ? `member:${memberId}` : `name:${normalizedName}`;
+};
+
 interface Family {
     name: string;
     isUrgent: boolean;
@@ -1663,6 +1676,7 @@ export const dailyNotifications = functions.pubsub
 
             const sentBirthdays14 = new Set<string>();
             const sentBirthdaysToday = new Set<string>();
+            const coveredBirthdayKeys = new Set<string>();
 
             // Build member status map for quick lookup by memberId
             const memberStatusMap = new Map<string, string>();
@@ -1674,6 +1688,11 @@ export const dailyNotifications = functions.pubsub
             // Process birthdays from c_cumpleanos collection
             for (const doc of birthdaysSnap.docs) {
                 const b = doc.data() as Birthday;
+                const birthdayKey = buildBirthdayDedupKey(b.name, b.memberId);
+                const normalizedNameKey = buildBirthdayDedupKey(b.name);
+                coveredBirthdayKeys.add(birthdayKey);
+                coveredBirthdayKeys.add(normalizedNameKey);
+
                 const nextBirthday = getBirthdayDateInEcuador(b.birthDate, today.getFullYear());
                 if (!nextBirthday) continue;
 
@@ -1682,8 +1701,8 @@ export const dailyNotifications = functions.pubsub
                 const statusLabel = getBirthdayStatusLabel(memberStatus);
                 const nameWithStatus = statusLabel ? `${b.name} (${statusLabel})` : b.name;
 
-                if (isSameDay(nextBirthday, in14Days) && !sentBirthdays14.has(b.name)) {
-                    sentBirthdays14.add(b.name);
+                if (isSameDay(nextBirthday, in14Days) && !sentBirthdays14.has(birthdayKey)) {
+                    sentBirthdays14.add(birthdayKey);
                     await notificationDispatcher.broadcastToUsers(
                         birthdayEligible.inAppUserIds,
                         {
@@ -1698,8 +1717,8 @@ export const dailyNotifications = functions.pubsub
                     );
                 }
 
-                if (isSameDay(nextBirthday, today) && !sentBirthdaysToday.has(b.name)) {
-                    sentBirthdaysToday.add(b.name);
+                if (isSameDay(nextBirthday, today) && !sentBirthdaysToday.has(birthdayKey)) {
+                    sentBirthdaysToday.add(birthdayKey);
                     await notificationDispatcher.broadcastToUsers(
                         birthdayEligible.inAppUserIds,
                         {
@@ -1722,16 +1741,18 @@ export const dailyNotifications = functions.pubsub
                 if (m.status === "deceased" || m.status === "fallecido" || m.status === "fallecida") continue;
 
                 const memberName = `${m.firstName} ${m.lastName}`;
-                // Skip if already covered by c_cumpleanos record (deduplication by name)
-                if (sentBirthdays14.has(memberName) && sentBirthdaysToday.has(memberName)) continue;
+                const memberBirthdayKey = buildBirthdayDedupKey(memberName, memberDoc.id);
+                const memberNameKey = buildBirthdayDedupKey(memberName);
+                // Skip if already covered by c_cumpleanos record (deduplication by memberId or normalized name)
+                if (coveredBirthdayKeys.has(memberBirthdayKey) || coveredBirthdayKeys.has(memberNameKey)) continue;
 
                 const nextBirthday = getBirthdayDateInEcuador(m.birthDate, today.getFullYear());
                 if (!nextBirthday) continue;
                 const statusLabel = getBirthdayStatusLabel(m.status);
                 const nameWithStatus = statusLabel ? `${memberName} (${statusLabel})` : memberName;
 
-                if (isSameDay(nextBirthday, in14Days) && !sentBirthdays14.has(memberName)) {
-                    sentBirthdays14.add(memberName);
+                if (isSameDay(nextBirthday, in14Days) && !sentBirthdays14.has(memberBirthdayKey)) {
+                    sentBirthdays14.add(memberBirthdayKey);
                     await notificationDispatcher.broadcastToUsers(
                         birthdayEligible.inAppUserIds,
                         {
@@ -1746,8 +1767,8 @@ export const dailyNotifications = functions.pubsub
                     );
                 }
 
-                if (isSameDay(nextBirthday, today) && !sentBirthdaysToday.has(memberName)) {
-                    sentBirthdaysToday.add(memberName);
+                if (isSameDay(nextBirthday, today) && !sentBirthdaysToday.has(memberBirthdayKey)) {
+                    sentBirthdaysToday.add(memberBirthdayKey);
                     await notificationDispatcher.broadcastToUsers(
                         birthdayEligible.inAppUserIds,
                         {
