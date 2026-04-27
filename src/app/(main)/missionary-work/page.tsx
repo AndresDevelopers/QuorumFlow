@@ -874,8 +874,8 @@ function ImagesTab({
               );
             } catch (error: any) {
               console.error('AI analysis error:', error);
-              const errorMessage = error.message?.includes('API key') || error.message?.includes('GEMINI_API_KEY')
-                ? 'API key de IA no configurada. Configure GEMINI_API_KEY en su archivo .env.local'
+              const errorMessage = error.message?.includes('API key') || error.message?.includes('DEEPSEEK_API_KEY')
+                ? 'API key de IA no configurada. Configure DEEPSEEK_API_KEY en su archivo .env.local'
                 : 'Error al generar descripción automática';
               setUploadedFiles((prev) =>
                 prev.map((item) =>

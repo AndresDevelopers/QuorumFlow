@@ -1,9 +1,9 @@
 'use client';
 
-import { type ChangeEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { History, ImagePlus, Loader2, MessageCircle, Plus, Trash2, X } from 'lucide-react';
+import { History, Loader2, MessageCircle, Plus, Trash2 } from 'lucide-react';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,7 +33,6 @@ type ChatStoreDocument = {
 };
 
 const MAX_SESSIONS = 25;
-const MAX_IMAGE_SIZE_BYTES = 4 * 1024 * 1024;
 
 const makeInitialAssistantMessage = (): ChatMessage => ({
   id: crypto.randomUUID(),
@@ -141,9 +140,9 @@ export default function ChurchChatPage() {
   const [sessions, setSessions] = useState<ChatSession[]>(() => [makeSession()]);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
   const [input, setInput] = useState('');
-  const [selectedImageDataUrl, setSelectedImageDataUrl] = useState<string | null>(null);
-  const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const messagesViewportRef = useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
   const storageKey = useMemo(() => getStorageKey(user?.uid), [user?.uid]);
 
   const activeSession = useMemo(
@@ -218,6 +217,29 @@ export default function ChurchChatPage() {
     }
   }, [activeSessionId, sessions]);
 
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const viewport = messagesViewportRef.current;
+    if (!viewport) return;
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior });
+  }, []);
+
+  const handleMessagesScroll = useCallback(() => {
+    const viewport = messagesViewportRef.current;
+    if (!viewport) return;
+    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom < 80;
+  }, []);
+
+  useEffect(() => {
+    shouldAutoScrollRef.current = true;
+    requestAnimationFrame(() => scrollToBottom('auto'));
+  }, [activeSession?.id, scrollToBottom]);
+
+  useEffect(() => {
+    if (!shouldAutoScrollRef.current) return;
+    requestAnimationFrame(() => scrollToBottom(loading ? 'auto' : 'smooth'));
+  }, [activeSession?.messages.length, loading, scrollToBottom]);
+
   const handleNewChat = () => {
     const next = makeSession();
     updateSessions((current) => [next, ...current]);
@@ -243,10 +265,9 @@ export default function ChurchChatPage() {
 
   const handleSend = async () => {
     const value = input.trim();
-    if ((value.length === 0 && !selectedImageDataUrl) || loading || !activeSession) return;
-    const imageForRequest = selectedImageDataUrl;
+    if (value.length === 0 || loading || !activeSession) return;
 
-    const messageContent = value.length > 0 ? value : 'Imagen enviada para análisis.';
+    const messageContent = value;
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -256,8 +277,6 @@ export default function ChurchChatPage() {
     };
 
     setInput('');
-    setSelectedImageDataUrl(null);
-    setSelectedImageName(null);
     setLoading(true);
 
     let draftMessages: ChatMessage[] = [];
@@ -283,7 +302,7 @@ export default function ChurchChatPage() {
       const response = await fetch('/api/church-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: value || undefined, imageDataUrl: imageForRequest ?? undefined, history }),
+        body: JSON.stringify({ message: value, history }),
       });
 
       const payload = (await response.json()) as { answer?: string; error?: string };
@@ -319,37 +338,7 @@ export default function ChurchChatPage() {
     }
   };
 
-  const handleImageSelection = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: 'Archivo no válido',
-        description: 'Selecciona una imagen válida.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
-      toast({
-        title: 'Imagen demasiado grande',
-        description: 'El tamaño máximo permitido es 4MB.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : null;
-      if (!result) return;
-      setSelectedImageDataUrl(result);
-      setSelectedImageName(file.name);
-    };
-    reader.readAsDataURL(file);
-  };
 
   return (
     <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
@@ -387,7 +376,7 @@ export default function ChurchChatPage() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-11 w-11"
+                    className="h-11 w-11 shrink-0 opacity-100"
                     onClick={() => handleDeleteSession(session.id)}
                     aria-label={`Eliminar conversación ${session.title}`}
                   >
@@ -410,7 +399,7 @@ export default function ChurchChatPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <ScrollArea className="h-[460px] rounded-md border p-3">
+          <div ref={messagesViewportRef} onScroll={handleMessagesScroll} className="h-[460px] overflow-y-auto rounded-md border p-3">
             <div className="space-y-3">
               {activeSession?.messages.map((message) => (
                 <article
@@ -433,7 +422,7 @@ export default function ChurchChatPage() {
                 </article>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           <div className="flex gap-2">
             <Input
@@ -448,35 +437,10 @@ export default function ChurchChatPage() {
               }}
               disabled={loading}
             />
-            <label className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground">
-              <ImagePlus className="h-4 w-4" />
-              <input type="file" accept="image/*" className="hidden" onChange={(event) => void handleImageSelection(event)} />
-            </label>
-            <Button onClick={() => void handleSend()} disabled={loading || (input.trim().length === 0 && !selectedImageDataUrl)}>
+            <Button onClick={() => void handleSend()} disabled={loading || input.trim().length === 0}>
               Enviar
             </Button>
           </div>
-          {selectedImageDataUrl && (
-            <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-              <div className="min-w-0">
-                <p className="truncate font-medium">{selectedImageName ?? 'Imagen seleccionada'}</p>
-                <p className="text-xs text-muted-foreground">Puedes enviar solo la imagen o acompañarla con texto.</p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10"
-                onClick={() => {
-                  setSelectedImageDataUrl(null);
-                  setSelectedImageName(null);
-                }}
-                aria-label="Quitar imagen seleccionada"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
     </section>

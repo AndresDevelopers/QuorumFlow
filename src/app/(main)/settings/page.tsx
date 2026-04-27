@@ -55,7 +55,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import RoleManagement from '@/components/role-management';
-import { PushDeviceDiagnostics } from '@/components/push-device-diagnostics';
 import {
   canManageSettings,
   canViewSettings,
@@ -1153,8 +1152,6 @@ export default function SettingsPage() {
                   )}
                 </div>
               )}
-
-              <PushDeviceDiagnostics />
             </div>
           </CardContent>
         </Card>
@@ -1163,7 +1160,6 @@ export default function SettingsPage() {
             <RoleManagement />
           </div>
         )}
-
         <Card className="border-destructive xl:col-span-full">
           <CardHeader>
             <CardTitle className="text-destructive">Zona de Peligro</CardTitle>
