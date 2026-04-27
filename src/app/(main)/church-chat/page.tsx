@@ -1,6 +1,6 @@
 'use client';
 
-import { type ChangeEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { type ChangeEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { History, ImagePlus, Loader2, MessageCircle, Plus, Trash2, X } from 'lucide-react';
@@ -34,6 +34,8 @@ type ChatStoreDocument = {
 
 const MAX_SESSIONS = 25;
 const MAX_IMAGE_SIZE_BYTES = 4 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 1280;
+const IMAGE_JPEG_QUALITY_STEPS = [0.82, 0.72, 0.62, 0.52];
 
 const makeInitialAssistantMessage = (): ChatMessage => ({
   id: crypto.randomUUID(),
@@ -71,6 +73,57 @@ const loadSessionsFromLocal = (storageKey: string): ChatSession[] => {
 const saveSessionsToLocal = (storageKey: string, sessions: ChatSession[]) => {
   if (typeof window === 'undefined') return;
   localStorage.setItem(storageKey, JSON.stringify(toBoundedSessions(sessions)));
+};
+
+const readFileAsDataUrl = async (file: File): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (typeof reader.result === 'string') {
+      resolve(reader.result);
+      return;
+    }
+    reject(new Error('No fue posible leer la imagen.'));
+  };
+  reader.onerror = () => reject(new Error('No fue posible leer la imagen.'));
+  reader.readAsDataURL(file);
+});
+
+const loadImageElement = async (dataUrl: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
+  const image = new Image();
+  image.onload = () => resolve(image);
+  image.onerror = () => reject(new Error('No fue posible cargar la vista previa de la imagen.'));
+  image.src = dataUrl;
+});
+
+const optimizeImageForChat = async (file: File): Promise<string> => {
+  const sourceDataUrl = await readFileAsDataUrl(file);
+  const image = await loadImageElement(sourceDataUrl);
+
+  const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.width, image.height));
+  const targetWidth = Math.max(1, Math.round(image.width * scale));
+  const targetHeight = Math.max(1, Math.round(image.height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('No se pudo preparar la imagen para enviarla.');
+  }
+
+  ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+  let bestDataUrl = sourceDataUrl;
+  for (const quality of IMAGE_JPEG_QUALITY_STEPS) {
+    const compressed = canvas.toDataURL('image/jpeg', quality);
+    bestDataUrl = compressed;
+    if (compressed.length <= 2_000_000) {
+      break;
+    }
+  }
+
+  return bestDataUrl;
 };
 
 const getInlineNodes = (text: string): ReactNode[] => {
@@ -144,6 +197,8 @@ export default function ChurchChatPage() {
   const [selectedImageDataUrl, setSelectedImageDataUrl] = useState<string | null>(null);
   const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const messagesViewportRef = useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
   const storageKey = useMemo(() => getStorageKey(user?.uid), [user?.uid]);
 
   const activeSession = useMemo(
@@ -217,6 +272,29 @@ export default function ChurchChatPage() {
       setActiveSessionId(sessions[0].id);
     }
   }, [activeSessionId, sessions]);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const viewport = messagesViewportRef.current;
+    if (!viewport) return;
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior });
+  }, []);
+
+  const handleMessagesScroll = useCallback(() => {
+    const viewport = messagesViewportRef.current;
+    if (!viewport) return;
+    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom < 80;
+  }, []);
+
+  useEffect(() => {
+    shouldAutoScrollRef.current = true;
+    requestAnimationFrame(() => scrollToBottom('auto'));
+  }, [activeSession?.id, scrollToBottom]);
+
+  useEffect(() => {
+    if (!shouldAutoScrollRef.current) return;
+    requestAnimationFrame(() => scrollToBottom(loading ? 'auto' : 'smooth'));
+  }, [activeSession?.messages.length, loading, scrollToBottom]);
 
   const handleNewChat = () => {
     const next = makeSession();
@@ -341,14 +419,17 @@ export default function ChurchChatPage() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : null;
-      if (!result) return;
-      setSelectedImageDataUrl(result);
+    try {
+      const optimizedDataUrl = await optimizeImageForChat(file);
+      setSelectedImageDataUrl(optimizedDataUrl);
       setSelectedImageName(file.name);
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      toast({
+        title: 'No se pudo preparar la imagen',
+        description: error instanceof Error ? error.message : 'Error al procesar la imagen.',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -410,7 +491,7 @@ export default function ChurchChatPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <ScrollArea className="h-[460px] rounded-md border p-3">
+          <div ref={messagesViewportRef} onScroll={handleMessagesScroll} className="h-[460px] overflow-y-auto rounded-md border p-3">
             <div className="space-y-3">
               {activeSession?.messages.map((message) => (
                 <article
@@ -433,7 +514,7 @@ export default function ChurchChatPage() {
                 </article>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           <div className="flex gap-2">
             <Input

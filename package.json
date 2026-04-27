@@ -18,7 +18,6 @@
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
-    "@genkit-ai/googleai": "^1.28.0",
     "@genkit-ai/next": "^1.30.1",
     "@google-cloud/functions-framework": "^4.0.1",
     "@hookform/resolvers": "^5.2.2",
