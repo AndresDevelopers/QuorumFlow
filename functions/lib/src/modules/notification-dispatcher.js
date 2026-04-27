@@ -249,7 +249,7 @@ class FcmRepository {
                     const errorCode = resp.error?.code ?? null;
                     const errorMessage = resp.error?.message ?? null;
                     outcomes.push({
-                        token: token,
+                        token,
                         success: resp.success,
                         errorCode,
                         errorMessage,
@@ -287,7 +287,7 @@ class FcmRepository {
                 for (const token of chunk) {
                     const tokenRecords = tokenMap.get(token) ?? [];
                     outcomes.push({
-                        token: token,
+                        token,
                         success: false,
                         errorCode: "messaging/unknown-error",
                         errorMessage: batchErrorMessage,

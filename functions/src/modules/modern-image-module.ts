@@ -220,7 +220,7 @@ class RelationshipManager {
 
     private getExtension(fileName: string): string {
         const match = /\.([a-zA-Z0-9]{2,5})(?:$|[?#])/.exec(fileName);
-        return match ? match[1].toLowerCase() : DEFAULT_IMAGE_EXTENSION;
+        return match ? match[1]!.toLowerCase() : DEFAULT_IMAGE_EXTENSION;
     }
 }
 
@@ -483,7 +483,7 @@ export default class ModernImageModule {
         if (typeof tagValue === "string") {
             const match = /\.([a-zA-Z0-9]{2,5})(?:$|[?#])/.exec(tagValue);
             if (match) {
-                return match[1].toLowerCase();
+                return match[1]!.toLowerCase();
             }
         }
         return DEFAULT_IMAGE_EXTENSION;

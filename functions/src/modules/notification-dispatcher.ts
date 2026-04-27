@@ -330,12 +330,12 @@ class FcmRepository {
 
         response.responses.forEach((resp, idx) => {
           const token = chunk[idx];
-          const tokenRecords = tokenMap.get(token) ?? [];
+          const tokenRecords = tokenMap.get(token!) ?? [];
           const errorCode = resp.error?.code ?? null;
           const errorMessage = resp.error?.message ?? null;
 
           outcomes.push({
-            token,
+            token: token!,
             success: resp.success,
             errorCode,
             errorMessage,
@@ -347,7 +347,7 @@ class FcmRepository {
               errorCode === "messaging/registration-token-not-registered" ||
               errorCode === "messaging/invalid-registration-token"
             ) {
-              failedTokens.push(token);
+              failedTokens.push(token!);
               this.logger.warn(`Invalid FCM token removed: ${token}`);
             } else {
               this.logger.error(`FCM send error for token ${token}: ${errorMessage}`);
@@ -359,12 +359,12 @@ class FcmRepository {
               mode,
               result: resp.success
                 ? "success"
-                : failedTokens.includes(token)
+                : failedTokens.includes(token!)
                   ? "invalid-token"
                   : "failure",
               errorCode,
               notificationTag: payload.tag ?? null,
-              invalidateToken: failedTokens.includes(token),
+              invalidateToken: failedTokens.includes(token!),
             })
           );
         });
@@ -377,9 +377,9 @@ class FcmRepository {
         const batchErrorMessage = error instanceof Error ? error.message : String(error);
         const batchUpdates: Array<Promise<void>> = [];
         for (const token of chunk) {
-          const tokenRecords = tokenMap.get(token) ?? [];
+          const tokenRecords = tokenMap.get(token!) ?? [];
           outcomes.push({
-            token,
+            token: token!,
             success: false,
             errorCode: "messaging/unknown-error",
             errorMessage: batchErrorMessage,

@@ -1507,21 +1507,20 @@ exports.weeklyNotifications = functions.pubsub
             (c.families ?? []).forEach((f) => { if (f.isUrgent)
                 urgentFamilies++; });
         });
+        const healthCount = healthSnap.size;
         const bodyParts = [];
         if (sinInvestidura > 0)
             bodyParts.push(`${sinInvestidura} sin investidura`);
         if (sinOrdenanzaElder > 0)
             bodyParts.push(`${sinOrdenanzaElder} sin ordenanza de élderes`);
-        if (sinSacerdocioMayor > 0)
-            bodyParts.push(`${sinSacerdocioMayor} sin ordenanza de élderes`);
         if (inactivos > 0)
             bodyParts.push(`${inactivos} inactivos`);
         if (menosActivos > 0)
             bodyParts.push(`${menosActivos} menos activos`);
         if (urgentFamilies > 0)
             bodyParts.push(`${urgentFamilies} familias con necesidad urgente`);
-        if (healthSnap.size > 0)
-            bodyParts.push(`${healthSnap.size} con apoyo de salud`);
+        if (healthCount > 0)
+            bodyParts.push(`${healthCount} con apoyo de salud`);
         if (urgentes > 0)
             bodyParts.push(`${urgentes} miembros urgentes`);
         if (enConsejo > 0)

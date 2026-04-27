@@ -331,7 +331,7 @@ const extractStorageLocationFromUrl = (url: string): { bucket: string | null; pa
             if (match) {
                 const bucket = match[1] ?? null;
                 const encodedPath = match[2];
-                const decodedPath = decodeURIComponent(encodedPath);
+                const decodedPath = decodeURIComponent(encodedPath!);
                 if (!decodedPath) return null;
                 functions.logger.debug("Extracted storage location", { bucket, encodedPath, decodedPath });
                 return { bucket, path: decodedPath };
@@ -1963,14 +1963,14 @@ export const weeklyNotifications = functions.pubsub
                 (c.families ?? []).forEach((f) => { if (f.isUrgent) urgentFamilies++; });
             });
 
-            const healthCount = healthSnap.size;
             const bodyParts: string[] = [];
             if (sinInvestidura > 0) bodyParts.push(`${sinInvestidura} sin investidura`);
             if (sinOrdenanzaElder > 0) bodyParts.push(`${sinOrdenanzaElder} sin ordenanza de élderes`);
+            if (sinSacerdocioMayor > 0) bodyParts.push(`${sinSacerdocioMayor} sin ordenanza de élderes`);
             if (inactivos > 0) bodyParts.push(`${inactivos} inactivos`);
             if (menosActivos > 0) bodyParts.push(`${menosActivos} menos activos`);
             if (urgentFamilies > 0) bodyParts.push(`${urgentFamilies} familias con necesidad urgente`);
-            if (healthCount > 0) bodyParts.push(`${healthCount} con apoyo de salud`);
+            if (healthSnap.size > 0) bodyParts.push(`${healthSnap.size} con apoyo de salud`);
             if (urgentes > 0) bodyParts.push(`${urgentes} miembros urgentes`);
             if (enConsejo > 0) bodyParts.push(`${enConsejo} en seguimiento de consejo`);
 
