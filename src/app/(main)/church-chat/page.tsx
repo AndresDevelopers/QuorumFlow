@@ -1,9 +1,9 @@
 'use client';
 
-import { type ChangeEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { History, ImagePlus, Loader2, MessageCircle, Plus, Trash2, X } from 'lucide-react';
+import { History, Loader2, MessageCircle, Plus, Trash2 } from 'lucide-react';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,9 +33,6 @@ type ChatStoreDocument = {
 };
 
 const MAX_SESSIONS = 25;
-const MAX_IMAGE_SIZE_BYTES = 4 * 1024 * 1024;
-const MAX_IMAGE_DIMENSION = 1280;
-const IMAGE_JPEG_QUALITY_STEPS = [0.82, 0.72, 0.62, 0.52];
 
 const makeInitialAssistantMessage = (): ChatMessage => ({
   id: crypto.randomUUID(),
@@ -73,57 +70,6 @@ const loadSessionsFromLocal = (storageKey: string): ChatSession[] => {
 const saveSessionsToLocal = (storageKey: string, sessions: ChatSession[]) => {
   if (typeof window === 'undefined') return;
   localStorage.setItem(storageKey, JSON.stringify(toBoundedSessions(sessions)));
-};
-
-const readFileAsDataUrl = async (file: File): Promise<string> => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.onload = () => {
-    if (typeof reader.result === 'string') {
-      resolve(reader.result);
-      return;
-    }
-    reject(new Error('No fue posible leer la imagen.'));
-  };
-  reader.onerror = () => reject(new Error('No fue posible leer la imagen.'));
-  reader.readAsDataURL(file);
-});
-
-const loadImageElement = async (dataUrl: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
-  const image = new Image();
-  image.onload = () => resolve(image);
-  image.onerror = () => reject(new Error('No fue posible cargar la vista previa de la imagen.'));
-  image.src = dataUrl;
-});
-
-const optimizeImageForChat = async (file: File): Promise<string> => {
-  const sourceDataUrl = await readFileAsDataUrl(file);
-  const image = await loadImageElement(sourceDataUrl);
-
-  const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.width, image.height));
-  const targetWidth = Math.max(1, Math.round(image.width * scale));
-  const targetHeight = Math.max(1, Math.round(image.height * scale));
-
-  const canvas = document.createElement('canvas');
-  canvas.width = targetWidth;
-  canvas.height = targetHeight;
-
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    throw new Error('No se pudo preparar la imagen para enviarla.');
-  }
-
-  ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
-
-  let bestDataUrl = sourceDataUrl;
-  for (const quality of IMAGE_JPEG_QUALITY_STEPS) {
-    const compressed = canvas.toDataURL('image/jpeg', quality);
-    bestDataUrl = compressed;
-    if (compressed.length <= 2_000_000) {
-      break;
-    }
-  }
-
-  return bestDataUrl;
 };
 
 const getInlineNodes = (text: string): ReactNode[] => {
@@ -194,8 +140,6 @@ export default function ChurchChatPage() {
   const [sessions, setSessions] = useState<ChatSession[]>(() => [makeSession()]);
   const [activeSessionId, setActiveSessionId] = useState<string>('');
   const [input, setInput] = useState('');
-  const [selectedImageDataUrl, setSelectedImageDataUrl] = useState<string | null>(null);
-  const [selectedImageName, setSelectedImageName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const messagesViewportRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -321,10 +265,9 @@ export default function ChurchChatPage() {
 
   const handleSend = async () => {
     const value = input.trim();
-    if ((value.length === 0 && !selectedImageDataUrl) || loading || !activeSession) return;
-    const imageForRequest = selectedImageDataUrl;
+    if (value.length === 0 || loading || !activeSession) return;
 
-    const messageContent = value.length > 0 ? value : 'Imagen enviada para análisis.';
+    const messageContent = value;
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -334,8 +277,6 @@ export default function ChurchChatPage() {
     };
 
     setInput('');
-    setSelectedImageDataUrl(null);
-    setSelectedImageName(null);
     setLoading(true);
 
     let draftMessages: ChatMessage[] = [];
@@ -361,7 +302,7 @@ export default function ChurchChatPage() {
       const response = await fetch('/api/church-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: value || undefined, imageDataUrl: imageForRequest ?? undefined, history }),
+        body: JSON.stringify({ message: value, history }),
       });
 
       const payload = (await response.json()) as { answer?: string; error?: string };
@@ -397,40 +338,7 @@ export default function ChurchChatPage() {
     }
   };
 
-  const handleImageSelection = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: 'Archivo no válido',
-        description: 'Selecciona una imagen válida.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
-      toast({
-        title: 'Imagen demasiado grande',
-        description: 'El tamaño máximo permitido es 4MB.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    try {
-      const optimizedDataUrl = await optimizeImageForChat(file);
-      setSelectedImageDataUrl(optimizedDataUrl);
-      setSelectedImageName(file.name);
-    } catch (error) {
-      toast({
-        title: 'No se pudo preparar la imagen',
-        description: error instanceof Error ? error.message : 'Error al procesar la imagen.',
-        variant: 'destructive',
-      });
-    }
-  };
 
   return (
     <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
@@ -468,7 +376,7 @@ export default function ChurchChatPage() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-11 w-11"
+                    className="h-11 w-11 shrink-0 opacity-100"
                     onClick={() => handleDeleteSession(session.id)}
                     aria-label={`Eliminar conversación ${session.title}`}
                   >
@@ -529,35 +437,10 @@ export default function ChurchChatPage() {
               }}
               disabled={loading}
             />
-            <label className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground">
-              <ImagePlus className="h-4 w-4" />
-              <input type="file" accept="image/*" className="hidden" onChange={(event) => void handleImageSelection(event)} />
-            </label>
-            <Button onClick={() => void handleSend()} disabled={loading || (input.trim().length === 0 && !selectedImageDataUrl)}>
+            <Button onClick={() => void handleSend()} disabled={loading || input.trim().length === 0}>
               Enviar
             </Button>
           </div>
-          {selectedImageDataUrl && (
-            <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-              <div className="min-w-0">
-                <p className="truncate font-medium">{selectedImageName ?? 'Imagen seleccionada'}</p>
-                <p className="text-xs text-muted-foreground">Puedes enviar solo la imagen o acompañarla con texto.</p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10"
-                onClick={() => {
-                  setSelectedImageDataUrl(null);
-                  setSelectedImageName(null);
-                }}
-                aria-label="Quitar imagen seleccionada"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
     </section>
