@@ -54,8 +54,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { PushDeviceDiagnostics } from '@/components/push-device-diagnostics';
+import RoleManagement from '@/components/role-management';
 import {
+  canManageSettings,
   canViewSettings,
   normalizeRole,
   type UserRole,
@@ -128,6 +129,7 @@ export default function SettingsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isCheckingRole, setIsCheckingRole] = useState(true);
   const [hasSettingsAccess, setHasSettingsAccess] = useState(false);
+  const [canManageRoles, setCanManageRoles] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('user');
   const [mainPage, setMainPage] = useState<string>('/');
   const [visiblePages, setVisiblePages] = useState<string[]>([]);
@@ -229,6 +231,7 @@ export default function SettingsPage() {
       if (!firebaseUser) {
         setIsCheckingRole(false);
         setHasSettingsAccess(false);
+        setCanManageRoles(false);
         return;
       }
 
@@ -279,6 +282,7 @@ export default function SettingsPage() {
 
         const canView = canViewSettings(normalizedRole);
         setHasSettingsAccess(canView);
+        setCanManageRoles(canManageSettings(normalizedRole));
 
         if (!canView) {
           return;
@@ -286,6 +290,7 @@ export default function SettingsPage() {
       } catch (error) {
         logger.error({ error, message: 'Error loading settings profile data' });
         setHasSettingsAccess(false);
+        setCanManageRoles(false);
         toast({
           title: t('settings.toast.profileLoadErrorTitle'),
           description: t('settings.toast.profileLoadErrorDescription'),
@@ -1147,11 +1152,14 @@ export default function SettingsPage() {
                   )}
                 </div>
               )}
-
-              <PushDeviceDiagnostics />
             </div>
           </CardContent>
         </Card>
+        {canManageRoles && (
+          <div className="xl:col-span-full">
+            <RoleManagement />
+          </div>
+        )}
         <Card className="border-destructive xl:col-span-full">
           <CardHeader>
             <CardTitle className="text-destructive">Zona de Peligro</CardTitle>
