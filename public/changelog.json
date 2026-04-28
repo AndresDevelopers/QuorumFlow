@@ -1,6 +1,18 @@
 {
-  "current": "1.1.17",
+  "current": "1.1.18",
   "entries": [
+    {
+      "version": "1.1.18",
+      "date": "2026-04-28",
+      "changes": {
+        "es": [
+          "Actualización: Bump dependencies to latest versions."
+        ],
+        "en": [
+          "Update: Bump dependencies to latest versions."
+        ]
+      }
+    },
     {
       "version": "1.1.17",
       "date": "2026-04-27",
