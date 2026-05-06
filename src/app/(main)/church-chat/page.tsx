@@ -3,7 +3,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { History, Loader2, MessageCircle, Plus, Trash2 } from 'lucide-react';
+import { Copy, History, Loader2, MessageCircle, Mic, Plus, Trash2, Volume2 } from 'lucide-react';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,45 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/auth-context';
 import { firestore } from '@/lib/firebase';
 import logger from '@/lib/logger';
+
+
+type BrowserSpeechRecognitionResult = {
+  readonly isFinal: boolean;
+  readonly 0: {
+    readonly transcript: string;
+  };
+};
+
+type BrowserSpeechRecognitionEvent = {
+  readonly resultIndex: number;
+  readonly results: {
+    readonly length: number;
+    readonly [index: number]: BrowserSpeechRecognitionResult;
+  };
+};
+
+type BrowserSpeechRecognitionErrorEvent = {
+  readonly error: string;
+};
+
+type BrowserSpeechRecognition = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
+  onerror: ((event: BrowserSpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
+type SpeechRecognitionWindow = Window & {
+  SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+  webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+};
 
 type ChatMessage = {
   id: string;
@@ -33,6 +72,17 @@ type ChatStoreDocument = {
 };
 
 const MAX_SESSIONS = 25;
+const SPEECH_LANGUAGE = 'es-ES';
+
+
+const getSpeechRecognitionConstructor = (): BrowserSpeechRecognitionConstructor | undefined => {
+  if (typeof window === 'undefined') return undefined;
+  const speechWindow = window as SpeechRecognitionWindow;
+  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+};
+
+const canUseSpeechSynthesis = () => typeof window !== 'undefined' && 'speechSynthesis' in window;
+
 
 const makeInitialAssistantMessage = (): ChatMessage => ({
   id: crypto.randomUUID(),
@@ -141,8 +191,12 @@ export default function ChurchChatPage() {
   const [activeSessionId, setActiveSessionId] = useState<string>('');
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const messagesViewportRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const speechInputPrefixRef = useRef('');
   const storageKey = useMemo(() => getStorageKey(user?.uid), [user?.uid]);
 
   const activeSession = useMemo(
@@ -239,6 +293,116 @@ export default function ChurchChatPage() {
     if (!shouldAutoScrollRef.current) return;
     requestAnimationFrame(() => scrollToBottom(loading ? 'auto' : 'smooth'));
   }, [activeSession?.messages.length, loading, scrollToBottom]);
+
+  useEffect(() => () => {
+    recognitionRef.current?.abort();
+    if (canUseSpeechSynthesis()) {
+      window.speechSynthesis.cancel();
+    }
+  }, []);
+
+  const handleVoiceInput = useCallback(() => {
+    if (loading) return;
+
+    const activeRecognition = recognitionRef.current;
+    if (activeRecognition) {
+      activeRecognition.stop();
+      return;
+    }
+
+    const SpeechRecognition = getSpeechRecognitionConstructor();
+    if (!SpeechRecognition) {
+      toast({
+        title: 'Dictado no disponible',
+        description: 'Tu navegador no admite reconocimiento de voz. Prueba con Chrome, Edge o Safari.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = SPEECH_LANGUAGE;
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    speechInputPrefixRef.current = input.trim();
+
+    recognition.onresult = (event) => {
+      const transcriptParts: string[] = [];
+      for (let index = 0; index < event.results.length; index += 1) {
+        transcriptParts.push(event.results[index][0].transcript.trim());
+      }
+
+      const transcript = transcriptParts.filter(Boolean).join(' ').trim();
+      setInput([speechInputPrefixRef.current, transcript].filter(Boolean).join(' '));
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        toast({
+          title: 'No se pudo escuchar',
+          description: 'Revisa el permiso del micrófono e inténtalo de nuevo.',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      setIsListening(false);
+    };
+
+    try {
+      recognitionRef.current = recognition;
+      setIsListening(true);
+      recognition.start();
+    } catch {
+      recognitionRef.current = null;
+      setIsListening(false);
+      toast({
+        title: 'No se pudo iniciar el micrófono',
+        description: 'Revisa los permisos del navegador e inténtalo nuevamente.',
+        variant: 'destructive',
+      });
+    }
+  }, [input, loading, toast]);
+
+  const handleCopyMessage = useCallback(async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      toast({ title: 'Texto copiado', description: 'La respuesta de la IA se copió al portapapeles.' });
+    } catch {
+      toast({
+        title: 'No se pudo copiar',
+        description: 'Tu navegador no permitió acceder al portapapeles.',
+        variant: 'destructive',
+      });
+    }
+  }, [toast]);
+
+  const handleSpeakMessage = useCallback((message: ChatMessage) => {
+    if (!canUseSpeechSynthesis()) {
+      toast({
+        title: 'Lectura no disponible',
+        description: 'Tu navegador no admite lectura de texto en voz alta.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (speakingMessageId === message.id) {
+      window.speechSynthesis.cancel();
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(message.content);
+    utterance.lang = SPEECH_LANGUAGE;
+    utterance.onend = () => setSpeakingMessageId(null);
+    utterance.onerror = () => setSpeakingMessageId(null);
+    setSpeakingMessageId(message.id);
+    window.speechSynthesis.speak(utterance);
+  }, [speakingMessageId, toast]);
 
   const handleNewChat = () => {
     const next = makeSession();
@@ -411,6 +575,32 @@ export default function ChurchChatPage() {
                   }`}
                 >
                   <FormattedMessage content={message.content} />
+                  {message.role === 'assistant' && (
+                    <div className="mt-2 flex justify-end gap-1 border-t border-border/60 pt-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-11 w-11"
+                        onClick={() => void handleCopyMessage(message.content)}
+                        aria-label="Copiar toda la respuesta de la IA"
+                        title="Copiar respuesta"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-11 w-11"
+                        onClick={() => handleSpeakMessage(message)}
+                        aria-label={speakingMessageId === message.id ? 'Detener lectura de la respuesta' : 'Escuchar respuesta de la IA'}
+                        title={speakingMessageId === message.id ? 'Detener lectura' : 'Escuchar respuesta'}
+                      >
+                        <Volume2 className={`h-4 w-4 ${speakingMessageId === message.id ? 'text-primary' : ''}`} />
+                      </Button>
+                    </div>
+                  )}
                 </article>
               ))}
               {loading && (
@@ -426,6 +616,7 @@ export default function ChurchChatPage() {
 
           <div className="flex gap-2">
             <Input
+              className="flex-1"
               value={input}
               onChange={(event) => setInput(event.target.value)}
               placeholder="Escribe una pregunta sobre el evangelio, doctrina, manuales o noticias oficiales..."
@@ -439,6 +630,18 @@ export default function ChurchChatPage() {
             />
             <Button onClick={() => void handleSend()} disabled={loading || input.trim().length === 0}>
               Enviar
+            </Button>
+            <Button
+              type="button"
+              variant={isListening ? 'secondary' : 'outline'}
+              size="icon"
+              className="h-11 w-11 shrink-0"
+              onClick={handleVoiceInput}
+              disabled={loading}
+              aria-label={isListening ? 'Detener dictado por micrófono' : 'Dictar mensaje por micrófono'}
+              title={isListening ? 'Detener dictado' : 'Dictar con micrófono'}
+            >
+              {isListening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
             </Button>
           </div>
         </CardContent>

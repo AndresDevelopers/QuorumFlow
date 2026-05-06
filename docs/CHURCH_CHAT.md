@@ -12,6 +12,8 @@ Este módulo agrega una página de chat enfocada **solo** en contenido oficial d
 - Botón para crear un chat nuevo.
 - Eliminación de conversaciones desde el historial.
 - Indicador de "La IA está escribiendo..." mientras se espera la respuesta.
+- Dictado por micrófono en navegadores compatibles con Web Speech API; el texto reconocido se coloca en la entrada antes de enviar.
+- Acciones por respuesta de la IA para copiar todo el texto al portapapeles o escucharlo mediante síntesis de voz del navegador.
 - Renderizado básico de formato de respuesta para listas y énfasis markdown (`-`, `*`, `**`).
 - Soporte opcional para subir imagen como contexto.
 - Si se envía imagen, el texto se vuelve opcional.
@@ -48,3 +50,4 @@ Si `DEEPSEEK_CHAT_MODEL` no está definida, el sistema usa `deepseek-v4-flash`.
 - No se hardcodean secretos.
 - Validación de entrada con Zod.
 - El backend evita exponer la API key al cliente.
+- Las funciones de micrófono, portapapeles y lectura usan APIs locales del navegador; si no están disponibles, se muestra un mensaje de error sin enviar audio al backend.
