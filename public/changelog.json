@@ -1,6 +1,22 @@
 {
-  "current": "1.1.39",
+  "current": "1.1.40",
   "entries": [
+    {
+      "version": "1.1.40",
+      "date": "2026-07-29",
+      "changes": {
+        "es": {
+          "added": [
+            "Hemos añadido: add demo barrio seed script and update dependencies."
+          ]
+        },
+        "en": {
+          "added": [
+            "We added: add demo barrio seed script and update dependencies."
+          ]
+        }
+      }
+    },
     {
       "version": "1.1.39",
       "date": "2026-07-24",
