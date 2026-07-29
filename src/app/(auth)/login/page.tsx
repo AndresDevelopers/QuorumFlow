@@ -152,7 +152,7 @@ function LoginForm() {
           if (meRes.ok) {
             const me = (await meRes.json()) as { ok?: boolean };
             if (me.ok) {
-              hardNavigate("/app-admin/panel");
+              hardNavigate("/app-admin/panel/usuarios");
               return;
             }
           }
@@ -215,7 +215,7 @@ function LoginForm() {
               title: t("login.toastSuccessTitle"),
               description: "Redirigiendo al panel de admin general…",
             });
-            hardNavigate("/app-admin/panel");
+            hardNavigate("/app-admin/panel/usuarios");
             return;
           }
         }

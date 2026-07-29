@@ -36,4 +36,5 @@ export const syncSignalsCollection = coll('c_sync_signals');
 export const adminAuditCollection = coll('c_admin_audit');
 export const barriosCollection = coll('c_barrios');
 export const organizacionesCollection = coll('c_organizaciones');
+export const newsletterSubscribersCollection = coll('c_newsletter_subscribers');
 // Add other collections here

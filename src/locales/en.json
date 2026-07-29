@@ -1676,6 +1676,7 @@
   "register.validation.passwordMin": "Password must be at least 6 characters.",
   "register.validation.passwordMismatch": "Passwords do not match.",
   "register.validation.passwordRequired": "Password is required.",
+  "register.newsletterLabel": "Subscribe to the newsletter",
   "Reports": "Reports",
   "reports.activities.annotations.deleteError": "Could not delete the annotation.",
   "reports.activities.annotations.deletedDescription": "The annotation was permanently deleted.",

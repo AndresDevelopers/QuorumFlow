@@ -39,14 +39,14 @@ const loginSchema = z.object({
 /** Only allow post-login destinations inside the platform-admin shell. */
 function safeAppAdminNext(next: string | null): string {
   if (!next || !next.startsWith("/") || next.startsWith("//")) {
-    return "/app-admin/panel";
+    return "/app-admin/panel/usuarios";
   }
   const pathOnly = next.split("?")[0]?.split("#")[0] || "";
   if (pathOnly === "/app-admin" || pathOnly.startsWith("/app-admin/")) {
-    if (pathOnly === "/app-admin/login") return "/app-admin/panel";
+    if (pathOnly === "/app-admin/login") return "/app-admin/panel/usuarios";
     return pathOnly;
   }
-  return "/app-admin/panel";
+  return "/app-admin/panel/usuarios";
 }
 
 async function verifyAppAdmin(idToken: string): Promise<boolean> {

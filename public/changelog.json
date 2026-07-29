@@ -7,11 +7,13 @@
       "changes": {
         "es": {
           "added": [
+            "Hemos añadido: add newsletter subscription system and admin tools.",
             "Hemos añadido: add demo barrio seed script and update dependencies."
           ]
         },
         "en": {
           "added": [
+            "We added: add newsletter subscription system and admin tools.",
             "We added: add demo barrio seed script and update dependencies."
           ]
         }

@@ -71,7 +71,7 @@ function PrivateRoute({ children }: { children: ReactNode }) {
   // Super admin: solo panel /app-admin (no app principal ni admin de barrio)
   useEffect(() => {
     if (!loading && profileLoaded && user && isAppAdmin) {
-      router.replace("/app-admin/panel");
+      router.replace("/app-admin/panel/usuarios");
     }
   }, [loading, profileLoaded, user, isAppAdmin, router]);
 

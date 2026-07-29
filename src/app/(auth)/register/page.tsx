@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from '@/lib/utils';
 import { useI18n } from "@/contexts/i18n-context";
@@ -74,6 +75,7 @@ const createRegisterSchema = (t: (key: string, params?: Record<string, string | 
     confirmPassword: z
       .string()
       .min(1, { message: t('register.validation.confirmPasswordRequired') }),
+    newsletter: z.boolean(),
   }).refine((data) => data.password === data.confirmPassword, {
     message: t('register.validation.passwordMismatch'),
     path: ["confirmPassword"],
@@ -101,6 +103,7 @@ export default function RegisterPage() {
     full: false,
     loading: true,
   });
+  const [newsletterEnabled, setNewsletterEnabled] = useState(false);
 
   const form = useForm<z.infer<ReturnType<typeof createRegisterSchema>>>({
     resolver: zodResolver(createRegisterSchema(t)),
@@ -112,6 +115,7 @@ export default function RegisterPage() {
       confirmPassword: "",
       barrio: "Libertad",
       organizacion: "Quórum de Élderes",
+      newsletter: true,
     },
   });
 
@@ -137,7 +141,22 @@ export default function RegisterPage() {
         setOrganizaciones(["Quórum de Élderes"]);
       }
     };
+
+    // Chequear si el boletín está habilitado (Resend configurado)
+    const checkNewsletter = async () => {
+      try {
+        const res = await fetch("/api/newsletter/config");
+        if (res.ok) {
+          const data = await res.json();
+          setNewsletterEnabled(data.enabled === true);
+        }
+      } catch {
+        // Si falla, no mostrar checkbox
+      }
+    };
+
     fetchOptions();
+    checkNewsletter();
   }, []);
 
   useEffect(() => {
@@ -283,6 +302,16 @@ export default function RegisterPage() {
         title: t('register.toastSuccessTitle'),
         description: t('register.toastSuccessDescription'),
       });
+
+      // Suscribir al boletín si el usuario aceptó
+      if (values.newsletter) {
+        fetch("/api/newsletter/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: values.email }),
+        }).catch(() => { /* no bloqueante */ });
+      }
+
       router.push("/login");
     } catch (error: any) {
         console.error("Registration Error:", error);
@@ -492,6 +521,27 @@ export default function RegisterPage() {
                 </FormItem>
               )}
             />
+            {newsletterEnabled && (
+            <FormField
+              control={form.control}
+              name="newsletter"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel className="text-sm font-normal cursor-pointer">
+                      {t('register.newsletterLabel')}
+                    </FormLabel>
+                  </div>
+                </FormItem>
+              )}
+            />
+            )}
             <Button
               type="submit"
               className="w-full"

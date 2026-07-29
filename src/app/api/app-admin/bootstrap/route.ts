@@ -134,7 +134,7 @@ export async function POST(request: Request) {
         barrio: "__system__",
         organizacion: "__app_admin__",
         barrioOrg: APP_ADMIN_BARRIO_ORG,
-        mainPage: "/app-admin/panel",
+        mainPage: "/app-admin/panel/usuarios",
         visiblePages: [],
         theme: "system",
         updatedAt: new Date(),
@@ -162,7 +162,7 @@ export async function POST(request: Request) {
       uid,
       email,
       loginUrl: "/app-admin/login",
-      panelUrl: "/app-admin/panel",
+      panelUrl: "/app-admin/panel/usuarios",
       message: created
         ? "Admin general creado. Inicia sesión en /app-admin/login."
         : allowReset
