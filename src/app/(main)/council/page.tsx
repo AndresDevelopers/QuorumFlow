@@ -315,6 +315,62 @@ function memberToConvertWithInfo(member: Member): ConvertWithInfo {
   } as ConvertWithInfo;
 }
 
+// ── Pagination helpers ──────────────────────────────────────────────────────
+const PAGE_SIZE = 4;
+
+interface PaginatedResult<T> {
+  items: T[];
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+function getPaginatedItems<T>(items: T[], page: number, pageSize: number): PaginatedResult<T> {
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const startIndex = (safePage - 1) * pageSize;
+  return {
+    items: items.slice(startIndex, startIndex + pageSize),
+    totalPages,
+    hasNext: safePage < totalPages,
+    hasPrev: safePage > 1,
+  };
+}
+
+interface PaginationControlsProps {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}
+
+function PaginationControls({ currentPage, totalPages, onPageChange, t }: PaginationControlsProps) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex justify-center items-center gap-2 pt-4">
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={currentPage === 1}
+        onClick={() => onPageChange(currentPage - 1)}
+      >
+        {t("council.pagination.previous")}
+      </Button>
+      <span className="text-sm text-muted-foreground">
+        {t("council.pagination.page", { current: currentPage, total: totalPages })}
+      </span>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={currentPage >= totalPages}
+        onClick={() => onPageChange(currentPage + 1)}
+      >
+        {t("council.pagination.next")}
+      </Button>
+    </div>
+  );
+}
+
 export default function CouncilPage() {
   const { user, loading: authLoading, barrioOrg } = useAuth();
   const { t, language } = useI18n();
@@ -341,6 +397,35 @@ export default function CouncilPage() {
   const [sheetSaving, setSheetSaving] = useState(false);
   const [sheetLoading, setSheetLoading] = useState<string | null>(null); // memberId being loaded
   const [availableMembers, setAvailableMembers] = useState<Member[]>([]);
+
+  // Pagination state — one page number per section, reset on every data fetch
+  const [pages, setPages] = useState({
+    annotations: 1,
+    servicesWeek: 1,
+    servicesFuture: 1,
+    urgentMembers: 1,
+    converts: 1,
+    baptisms: 1,
+    activities: 1,
+    urgentNeeds: 1,
+    lessActive: 1,
+    inactive: 1,
+    deceased: 1,
+  });
+
+  const resetPages = () => setPages({
+    annotations: 1,
+    servicesWeek: 1,
+    servicesFuture: 1,
+    urgentMembers: 1,
+    converts: 1,
+    baptisms: 1,
+    activities: 1,
+    urgentNeeds: 1,
+    lessActive: 1,
+    inactive: 1,
+    deceased: 1,
+  });
 
   const fetchAllData = useCallback(async (opts?: { quiet?: boolean }) => {
     if (!opts?.quiet) setLoading(true);
@@ -369,6 +454,7 @@ export default function CouncilPage() {
       setUpcomingActivities(activities);
       setAvailableMembers(membersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Member)));
       setDeceasedMembers(deceased);
+      resetPages();
 
       // Only on explicit/manual loads — never from CF silent background sync
       if (!opts?.quiet) {
@@ -696,6 +782,19 @@ export default function CouncilPage() {
   const servicesIn7Days = services.filter(s => s.date.toDate() <= sevenDaysFromNow);
   const futureServices = services.filter(s => s.date.toDate() > sevenDaysFromNow);
 
+  // Paginated items — limit 4 per section
+  const paginatedAnnotations = getPaginatedItems(annotations, pages.annotations, PAGE_SIZE);
+  const paginatedServicesWeek = getPaginatedItems(servicesIn7Days, pages.servicesWeek, PAGE_SIZE);
+  const paginatedServicesFuture = getPaginatedItems(futureServices, pages.servicesFuture, PAGE_SIZE);
+  const paginatedUrgentMembers = getPaginatedItems(urgentMembers, pages.urgentMembers, PAGE_SIZE);
+  const paginatedConverts = getPaginatedItems(councilConverts, pages.converts, PAGE_SIZE);
+  const paginatedBaptisms = getPaginatedItems(upcomingBaptisms, pages.baptisms, PAGE_SIZE);
+  const paginatedActivities = getPaginatedItems(upcomingActivities, pages.activities, PAGE_SIZE);
+  const paginatedUrgentNeeds = getPaginatedItems(urgentNeeds, pages.urgentNeeds, PAGE_SIZE);
+  const paginatedLessActive = getPaginatedItems(lessActiveMembers, pages.lessActive, PAGE_SIZE);
+  const paginatedInactive = getPaginatedItems(inactiveMembers, pages.inactive, PAGE_SIZE);
+  const paginatedDeceased = getPaginatedItems(deceasedMembers, pages.deceased, PAGE_SIZE);
+
 
       return (
     <div className="space-y-8">
@@ -705,7 +804,7 @@ export default function CouncilPage() {
             title={t("council.voiceAnnotations.title")}
             description={t("council.voiceAnnotations.description")}
             source="council"
-            annotations={annotations}
+            annotations={paginatedAnnotations.items}
             isLoading={loading}
             onAnnotationAdded={fetchAllData}
             onAnnotationToggled={fetchAllData}
@@ -713,6 +812,12 @@ export default function CouncilPage() {
             onResolveAnnotation={handleResolveAnnotation}
             onDeleteAnnotation={handleDeleteAnnotation}
             currentUserId={user?.uid}
+          />
+          <PaginationControls
+            currentPage={pages.annotations}
+            totalPages={paginatedAnnotations.totalPages}
+            onPageChange={(page) => setPages(p => ({ ...p, annotations: page }))}
+            t={t}
           />
         </CardContent>
       </Card>
@@ -743,14 +848,14 @@ export default function CouncilPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {servicesIn7Days.length === 0 ? (
+                  {paginatedServicesWeek.items.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={3} className="h-24 text-center">
                         {t("council.services.emptyWeek")}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    servicesIn7Days.map((item) => (
+                    paginatedServicesWeek.items.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.title}</TableCell>
                         <TableCell>{format(item.date.toDate(), dateFmtLong, { locale: getDateFnsLocale() })}</TableCell>
@@ -767,6 +872,12 @@ export default function CouncilPage() {
               </Table>
               </div>
             )}
+            <PaginationControls
+              currentPage={pages.servicesWeek}
+              totalPages={paginatedServicesWeek.totalPages}
+              onPageChange={(page) => setPages(p => ({ ...p, servicesWeek: page }))}
+              t={t}
+            />
           </div>
           <div>
             <h3 className="mb-2 font-semibold">{t("council.services.future")}</h3>
@@ -780,14 +891,14 @@ export default function CouncilPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {futureServices.length === 0 ? (
+                  {paginatedServicesFuture.items.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={2} className="h-24 text-center">
                         {t("council.services.emptyFuture")}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    futureServices.map((item) => (
+                    paginatedServicesFuture.items.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.title}</TableCell>
                         <TableCell>{format(item.date.toDate(), dateFmtMedium, { locale: getDateFnsLocale() })}</TableCell>
@@ -798,6 +909,12 @@ export default function CouncilPage() {
               </Table>
               </div>
             )}
+            <PaginationControls
+              currentPage={pages.servicesFuture}
+              totalPages={paginatedServicesFuture.totalPages}
+              onPageChange={(page) => setPages(p => ({ ...p, servicesFuture: page }))}
+              t={t}
+            />
           </div>
         </CardContent>
       </Card>
@@ -815,13 +932,14 @@ export default function CouncilPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? <Skeleton className="h-24 w-full" /> : urgentMembers.length === 0 ? (
+          {loading ? <Skeleton className="h-24 w-full" /> : paginatedUrgentMembers.items.length === 0 ? (
             <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
               {t("council.urgentMembers.empty")}
             </p>
           ) : (
+            <>
             <Accordion type="single" collapsible className="w-full">
-              {urgentMembers.map((member, index) => (
+              {paginatedUrgentMembers.items.map((member, index) => (
                 <AccordionItem value={`urgent-${index}`} key={member.id}>
                   <AccordionTrigger>
                     <div className="flex flex-wrap items-center justify-between w-full pr-4 gap-2">
@@ -866,6 +984,13 @@ export default function CouncilPage() {
                 </AccordionItem>
               ))}
             </Accordion>
+            <PaginationControls
+              currentPage={pages.urgentMembers}
+              totalPages={paginatedUrgentMembers.totalPages}
+              onPageChange={(page) => setPages(p => ({ ...p, urgentMembers: page }))}
+              t={t}
+            />
+            </>
           )}
         </CardContent>
       </Card>
@@ -883,7 +1008,7 @@ export default function CouncilPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? <Skeleton className="h-24 w-full" /> : councilConverts.length === 0 ? (
+          {loading ? <Skeleton className="h-24 w-full" /> : paginatedConverts.items.length === 0 ? (
             <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
               {t("council.converts.empty")}
             </p>
@@ -900,7 +1025,7 @@ export default function CouncilPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {councilConverts.map((item) => (
+                    {paginatedConverts.items.map((item) => (
                       <TableRow key={item.id} className={item.councilCompleted ? 'bg-green-500/10' : ''}>
                         <TableCell>
                           {item.photoURL ? (
@@ -959,7 +1084,7 @@ export default function CouncilPage() {
 
               {/* Mobile Cards */}
               <div className="md:hidden space-y-4">
-                {councilConverts.map((item) => (
+                {paginatedConverts.items.map((item) => (
                   <Card key={item.id} className={item.councilCompleted ? 'bg-green-500/10' : ''}>
                     <CardContent className="pt-4 space-y-4">
                       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
@@ -1015,6 +1140,12 @@ export default function CouncilPage() {
                   </Card>
                 ))}
               </div>
+              <PaginationControls
+                currentPage={pages.converts}
+                totalPages={paginatedConverts.totalPages}
+                onPageChange={(page) => setPages(p => ({ ...p, converts: page }))}
+                t={t}
+              />
             </>
           )}
         </CardContent>
@@ -1056,14 +1187,14 @@ export default function CouncilPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {upcomingBaptisms.length === 0 ? (
+                {paginatedBaptisms.items.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={2} className="h-24 text-center">
                       {t("council.baptisms.empty")}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  upcomingBaptisms.map((item) => (
+                  paginatedBaptisms.items.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>
@@ -1076,6 +1207,12 @@ export default function CouncilPage() {
             </Table>
             </div>
           )}
+          <PaginationControls
+            currentPage={pages.baptisms}
+            totalPages={paginatedBaptisms.totalPages}
+            onPageChange={(page) => setPages(p => ({ ...p, baptisms: page }))}
+            t={t}
+          />
         </CardContent>
       </Card>
 
@@ -1092,13 +1229,13 @@ export default function CouncilPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? <Skeleton className="h-24 w-full" /> : upcomingActivities.length === 0 ? (
+          {loading ? <Skeleton className="h-24 w-full" /> : paginatedActivities.items.length === 0 ? (
             <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
               {t("council.activities.empty")}
             </p>
           ) : (
             <div className="space-y-4">
-              {upcomingActivities.map((activity) => (
+              {paginatedActivities.items.map((activity) => (
                 <div key={activity.id} className="p-4 border rounded-lg space-y-2">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
@@ -1130,6 +1267,12 @@ export default function CouncilPage() {
               ))}
             </div>
           )}
+          <PaginationControls
+            currentPage={pages.activities}
+            totalPages={paginatedActivities.totalPages}
+            onPageChange={(page) => setPages(p => ({ ...p, activities: page }))}
+            t={t}
+          />
         </CardContent>
       </Card>
 
@@ -1146,13 +1289,14 @@ export default function CouncilPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? <Skeleton className="h-24 w-full" /> : urgentNeeds.length === 0 ? (
+          {loading ? <Skeleton className="h-24 w-full" /> : paginatedUrgentNeeds.items.length === 0 ? (
             <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
               {t("council.ministeringUrgent.empty")}
             </p>
           ) : (
+            <>
             <Accordion type="single" collapsible className="w-full">
-              {urgentNeeds.map((item, index) => (
+              {paginatedUrgentNeeds.items.map((item, index) => (
                 <AccordionItem value={`item-${index}`} key={`${item.companionshipId}-${item.name}`}>
                   <AccordionTrigger>
                     <div className='flex flex-wrap items-center justify-between w-full pr-4 gap-2'>
@@ -1177,6 +1321,13 @@ export default function CouncilPage() {
                 </AccordionItem>
               ))}
             </Accordion>
+            <PaginationControls
+              currentPage={pages.urgentNeeds}
+              totalPages={paginatedUrgentNeeds.totalPages}
+              onPageChange={(page) => setPages(p => ({ ...p, urgentNeeds: page }))}
+              t={t}
+            />
+            </>
           )}
         </CardContent>
       </Card>
@@ -1194,7 +1345,7 @@ export default function CouncilPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? <Skeleton className="h-24 w-full" /> : lessActiveMembers.length === 0 ? (
+          {loading ? <Skeleton className="h-24 w-full" /> : paginatedLessActive.items.length === 0 ? (
             <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
               {t("council.lessActive.empty")}
             </p>
@@ -1213,7 +1364,7 @@ export default function CouncilPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {lessActiveMembers.map((member) => (
+                    {paginatedLessActive.items.map((member) => (
                       <TableRow key={member.id} className={member.councilCompleted ? 'bg-green-500/10' : ''}>
                         <TableCell className="font-medium">{member.firstName} {member.lastName}</TableCell>
                         <TableCell>
@@ -1249,7 +1400,7 @@ export default function CouncilPage() {
 
               {/* Mobile Cards */}
               <div className="md:hidden space-y-4">
-                {lessActiveMembers.map((member) => (
+                {paginatedLessActive.items.map((member) => (
                   <Card key={member.id} className={member.councilCompleted ? 'bg-green-500/10' : ''}>
                     <CardContent className="pt-4 space-y-4">
                       <div className="flex justify-between items-start">
@@ -1290,6 +1441,12 @@ export default function CouncilPage() {
                   </Card>
                 ))}
               </div>
+              <PaginationControls
+                currentPage={pages.lessActive}
+                totalPages={paginatedLessActive.totalPages}
+                onPageChange={(page) => setPages(p => ({ ...p, lessActive: page }))}
+                t={t}
+              />
             </>
           )}
         </CardContent>
@@ -1309,7 +1466,7 @@ export default function CouncilPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? <Skeleton className="h-24 w-full" /> : inactiveMembers.length === 0 ? (
+          {loading ? <Skeleton className="h-24 w-full" /> : paginatedInactive.items.length === 0 ? (
             <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
               {t("council.inactive.empty")}
             </p>
@@ -1327,7 +1484,7 @@ export default function CouncilPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {inactiveMembers.map((member) => (
+                    {paginatedInactive.items.map((member) => (
                       <TableRow key={member.id}>
                         <TableCell className="font-medium">{member.firstName} {member.lastName}</TableCell>
                         <TableCell>
@@ -1351,7 +1508,7 @@ export default function CouncilPage() {
 
               {/* Mobile Cards */}
               <div className="md:hidden space-y-4">
-                {inactiveMembers.map((member) => (
+                {paginatedInactive.items.map((member) => (
                   <Card key={member.id}>
                     <CardContent className="pt-4 space-y-4">
                       <div>
@@ -1376,6 +1533,12 @@ export default function CouncilPage() {
                   </Card>
                 ))}
               </div>
+              <PaginationControls
+                currentPage={pages.inactive}
+                totalPages={paginatedInactive.totalPages}
+                onPageChange={(page) => setPages(p => ({ ...p, inactive: page }))}
+                t={t}
+              />
             </>
           )}
         </CardContent>
@@ -1395,13 +1558,14 @@ export default function CouncilPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? <Skeleton className="h-24 w-full" /> : deceasedMembers.length === 0 ? (
+          {loading ? <Skeleton className="h-24 w-full" /> : paginatedDeceased.items.length === 0 ? (
             <p className="text-sm text-center text-muted-foreground h-24 flex items-center justify-center">
               {t("council.deceased.empty")}
             </p>
           ) : (
+            <>
             <Accordion type="single" collapsible className="w-full">
-              {deceasedMembers.map((member, index) => {
+              {paginatedDeceased.items.map((member, index) => {
                 const allComplete = hasAllTempleOrdinances(member);
                 const missingOrdinances = getMissingTempleOrdinances(member);
                 const daysUntilRemoval = getDaysUntilRemoval(member);
@@ -1481,6 +1645,13 @@ export default function CouncilPage() {
                 );
               })}
             </Accordion>
+            <PaginationControls
+              currentPage={pages.deceased}
+              totalPages={paginatedDeceased.totalPages}
+              onPageChange={(page) => setPages(p => ({ ...p, deceased: page }))}
+              t={t}
+            />
+            </>
           )}
         </CardContent>
       </Card>

@@ -93,6 +93,8 @@ const statusConfig = {
   }
 };
 
+const PAGE_SIZE = 10;
+
 export default function MembersPage() {
   const { toast } = useToast();
   const { barrioOrg, firebaseUser } = useAuth();
@@ -121,6 +123,8 @@ export default function MembersPage() {
   const [urgentReason, setUrgentReason] = useState('');
   const [returnTo, setReturnTo] = useState<string | null>(null);
   const editingRef = useRef(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
 
 
 
@@ -321,6 +325,57 @@ export default function MembersPage() {
 
     return matchesSearch && matchesStatus && matchesBaptism && matchesUrgent && matchesLds && matchesFamilySearch;
   });
+
+  const visibleMembers = useMemo(
+    () => filteredMembers.slice(0, visibleCount),
+    [filteredMembers, visibleCount],
+  );
+
+  const filterSignature = `${searchTerm}|${statusFilter}|${baptismFilter}|${urgentFilter}|${ldsAccountFilter}|${familySearchFilter}`;
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [filterSignature]);
+
+  useEffect(() => {
+    if (filteredMembers.length === 0) {
+      setVisibleCount(0);
+      return;
+    }
+    setVisibleCount((prev) => {
+      const next = Math.max(prev, PAGE_SIZE);
+      return Math.min(next, filteredMembers.length);
+    });
+  }, [filteredMembers]);
+
+  useEffect(() => {
+    const node = loadMoreTriggerRef.current;
+    if (!node) return;
+    if (loading) return;
+    if (visibleCount >= filteredMembers.length) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setVisibleCount((prev) => {
+        const next = Math.min(prev + PAGE_SIZE, filteredMembers.length);
+        return next === prev ? prev : next;
+      });
+      return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          setVisibleCount((prev) => {
+            const next = Math.min(prev + PAGE_SIZE, filteredMembers.length);
+            return next === prev ? prev : next;
+          });
+        }
+      });
+    }, { rootMargin: '0px 0px 200px 0px' });
+
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, [loading, visibleCount, filteredMembers.length]);
 
   const memberCounts = {
     active: members.filter(m => m.status === 'active').length,
@@ -608,7 +663,7 @@ export default function MembersPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredMembers.map((member) => {
+                  visibleMembers.map((member) => {
                     const statusInfo = statusConfig[member.status] ?? statusConfig.active;
                     const isDeceased = member.status === 'deceased';
                     const StatusIcon = statusInfo.icon;
@@ -834,7 +889,7 @@ export default function MembersPage() {
                 </p>
               </div>
             ) : (
-              filteredMembers.map((member) => {
+              visibleMembers.map((member) => {
                 const statusInfo = statusConfig[member.status] ?? statusConfig.active;
                 const isDeceased = member.status === 'deceased';
                 const StatusIcon = statusInfo.icon;
@@ -1085,6 +1140,15 @@ export default function MembersPage() {
               })
             )}
           </div>
+
+          {/* Infinite Scroll Trigger */}
+          <div ref={loadMoreTriggerRef} className="h-1" aria-hidden="true" />
+
+          {!loading && filteredMembers.length > 0 && visibleCount >= filteredMembers.length && (
+            <div className="text-center py-4 text-sm text-muted-foreground">
+              {t('members.empty.endOfList')}
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -1,6 +1,22 @@
 {
-  "current": "1.1.40",
+  "current": "1.1.41",
   "entries": [
+    {
+      "version": "1.1.41",
+      "date": "2026-07-30",
+      "changes": {
+        "es": {
+          "added": [
+            "Hemos añadido: add pagination, infinite scroll, and locale updates."
+          ]
+        },
+        "en": {
+          "added": [
+            "We added: add pagination, infinite scroll, and locale updates."
+          ]
+        }
+      }
+    },
     {
       "version": "1.1.40",
       "date": "2026-07-29",

@@ -51,15 +51,28 @@ import { getAppName } from "@/lib/app-config";
 
 const appName = getAppName();
 
-const navItems = [
+const baseNavItems = [
   { href: "/app-admin/panel/usuarios", label: "Usuarios", icon: Users },
   { href: "/app-admin/panel/barrios", label: "Barrios", icon: MapPin },
-  { href: "/app-admin/panel/boletin", label: "Boletín", icon: Mail },
 ];
 
 function PanelSidebar() {
   const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
+  const [newsletterEnabled, setNewsletterEnabled] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/newsletter/config")
+      .then((res) => res.ok && res.json())
+      .then((data) => {
+        if (data?.enabled) setNewsletterEnabled(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  const navItems = newsletterEnabled
+    ? [...baseNavItems, { href: "/app-admin/panel/boletin", label: "Boletín", icon: Mail }]
+    : baseNavItems;
 
   return (
     <Sidebar collapsible="icon">
