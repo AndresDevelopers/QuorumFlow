@@ -275,6 +275,11 @@ export default function ObservationsPage() {
 
   const [gettingLocation, setGettingLocation] = useState(false);
 
+  /** Pre-creation popup: choose an existing member or add manually */
+  const [healthPickerOpen, setHealthPickerOpen] = useState(false);
+
+  const [healthPickerStep, setHealthPickerStep] = useState<'options' | 'memberList'>('options');
+
 
 
   const healthConcernsRef = useRef<HTMLDivElement>(null);
@@ -738,6 +743,74 @@ export default function ObservationsPage() {
 
   };
 
+  const handleSelectExistingMember = (member: Member) => {
+
+    if (photoPreview && photoPreview.startsWith('blob:')) {
+
+      URL.revokeObjectURL(photoPreview);
+
+    }
+
+    setEditingHealthConcern(null);
+
+    healthForm.reset({
+
+      firstName: member.firstName,
+
+      lastName: member.lastName,
+
+      address: member.address ?? '',
+
+      observation: '',
+
+      helperIds: [],
+
+      helperNamesText: '',
+
+    });
+
+    setPhotoPreview(member.photoURL ?? null);
+
+    setPhotoFile(null);
+
+    setRemoveExistingPhoto(false);
+
+    setHelperPickerOpen(false);
+
+    setUseLocationCode(false);
+
+    setLocationCode('');
+
+    setResolvingCode(false);
+
+    setGettingLocation(false);
+
+    if (photoInputRef.current) {
+
+      photoInputRef.current.value = '';
+
+    }
+
+    setHealthPickerOpen(false);
+
+    setHealthPickerStep('options');
+
+    setHealthDialogOpen(true);
+
+  };
+
+  const handleManualAdd = () => {
+
+    resetHealthForm();
+
+    setHealthPickerOpen(false);
+
+    setHealthPickerStep('options');
+
+    setHealthDialogOpen(true);
+
+  };
+
 
 
   const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -1018,6 +1091,7 @@ export default function ObservationsPage() {
           createdBy: user.uid,
           barrioOrg,
           photoFile,
+          photoURL: photoPreview && !photoFile ? photoPreview : undefined,
 
         });
 
@@ -1543,7 +1617,14 @@ export default function ObservationsPage() {
               {t('observations.health.sectionHint')}
             </p>
             {canWrite && (
-            <Button onClick={() => handleOpenHealthDialog()} disabled={savingHealthConcern} size="sm">
+            <Button
+              onClick={() => {
+                setHealthPickerStep('options');
+                setHealthPickerOpen(true);
+              }}
+              disabled={savingHealthConcern}
+              size="sm"
+            >
               <Plus className="mr-2 h-4 w-4" />
               {t('observations.health.addPerson')}
             </Button>
@@ -4236,6 +4317,106 @@ export default function ObservationsPage() {
       </Card>
 
 
+
+      <Dialog
+        open={healthPickerOpen}
+        onOpenChange={(open) => {
+          setHealthPickerOpen(open);
+          if (!open) {
+            setHealthPickerStep('options');
+          }
+        }}
+      >
+        <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto overscroll-contain">
+          <DialogHeader>
+            <DialogTitle>{t('observations.health.picker.title')}</DialogTitle>
+            <DialogDescription>
+              {t('observations.health.picker.description')}
+            </DialogDescription>
+          </DialogHeader>
+          {healthPickerStep === 'options' ? (
+            <div className="grid gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex h-auto min-w-0 items-center justify-start gap-3 whitespace-normal py-4"
+                onClick={() => setHealthPickerStep('memberList')}
+              >
+                <UserCheck className="h-5 w-5 shrink-0 text-green-600" />
+                <span className="min-w-0 text-left">
+                  <span className="block font-medium">{t('observations.health.picker.existing')}</span>
+                  <span className="block text-sm text-muted-foreground">
+                    {t('observations.health.picker.existingHint')}
+                  </span>
+                </span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex h-auto min-w-0 items-center justify-start gap-3 whitespace-normal py-4"
+                onClick={handleManualAdd}
+              >
+                <Plus className="h-5 w-5 shrink-0 text-primary" />
+                <span className="min-w-0 text-left">
+                  <span className="block font-medium">{t('observations.health.picker.manual')}</span>
+                  <span className="block text-sm text-muted-foreground">
+                    {t('observations.health.picker.manualHint')}
+                  </span>
+                </span>
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col overflow-hidden">
+              <div className="mb-2 flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setHealthPickerStep('options')}
+                >
+                  <ChevronUp className="mr-1 h-4 w-4 rotate-180" />
+                  {t('observations.health.picker.back')}
+                </Button>
+              </div>
+              {loading ? (
+                <div className="px-3 py-6 text-sm text-muted-foreground">{t('observations.health.loadingMembers')}</div>
+              ) : members.length === 0 ? (
+                <div className="px-3 py-6 text-sm text-muted-foreground">{t('observations.health.noMembersAvailable')}</div>
+              ) : (
+                <Command className="max-h-[min(50vh,360px)]">
+                  <CommandInput placeholder={t('observations.health.searchMember')} />
+                  <CommandList className="max-h-[min(42vh,300px)] overflow-y-auto overscroll-contain">
+                    <CommandEmpty>{t('observations.health.noMembersFound')}</CommandEmpty>
+                    <CommandGroup>
+                      {members.map((member) => {
+                        const statusInfo = statusConfig[member.status];
+                        return (
+                          <CommandItem
+                            key={member.id}
+                            value={`${member.firstName} ${member.lastName}`}
+                            onSelect={() => handleSelectExistingMember(member)}
+                          >
+                            <div className="flex items-center gap-2 w-full min-w-0">
+                              <Avatar className="h-6 w-6 shrink-0">
+                                <AvatarImage src={member.photoURL || undefined} alt={`${member.firstName} ${member.lastName}`} />
+                                <AvatarFallback>{getInitials(member.firstName, member.lastName)}</AvatarFallback>
+                              </Avatar>
+                              <span className="flex-1 truncate">{member.firstName} {member.lastName}</span>
+                              <Badge variant={statusInfo.variant} className="text-[10px] shrink-0">
+                                {t(`member.status.${member.status}`)}
+                              </Badge>
+                            </div>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={healthDialogOpen}

@@ -1,6 +1,22 @@
 {
-  "current": "1.1.41",
+  "current": "1.1.42",
   "entries": [
+    {
+      "version": "1.1.42",
+      "date": "2026-08-03",
+      "changes": {
+        "es": {
+          "added": [
+            "Hemos añadido: add member picker for health concerns."
+          ]
+        },
+        "en": {
+          "added": [
+            "We added: add member picker for health concerns."
+          ]
+        }
+      }
+    },
     {
       "version": "1.1.41",
       "date": "2026-07-30",

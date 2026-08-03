@@ -30,6 +30,8 @@ export type HealthConcernInput = {
   createdBy: string;
   barrioOrg: string;
   photoFile?: File | null;
+  /** Existing photo to reuse (e.g. from a member profile) instead of uploading. */
+  photoURL?: string | null;
 };
 
 export type HealthConcernUpdateInput = {
@@ -99,6 +101,8 @@ export const createHealthConcern = async (
   if (uploadResult) {
     data.photoURL = uploadResult.photoURL;
     data.photoPath = uploadResult.photoPath;
+  } else if (input.photoURL) {
+    data.photoURL = input.photoURL;
   }
 
   const docRef = await addDoc(healthConcernsCollection, data);
@@ -114,7 +118,7 @@ export const createHealthConcern = async (
     createdBy: input.createdBy,
     createdAt: now,
     updatedAt: now,
-    photoURL: uploadResult?.photoURL,
+    photoURL: uploadResult?.photoURL ?? input.photoURL ?? undefined,
     photoPath: uploadResult?.photoPath,
   };
 };

@@ -275,8 +275,9 @@ const nextConfig: NextConfig = {
   // Webpack configuration for source maps
   webpack: (config, { dev, isServer }) => {
     if (dev && !isServer) {
-      // Disable source maps in development to avoid conflicts
-      config.devtool = false;
+      config.devtool = 'eval-cheap-module-source-map';
+    } else if (dev && isServer) {
+      config.devtool = 'cheap-module-source-map';
     }
     config.ignoreWarnings = [
       ...(config.ignoreWarnings ?? []),
