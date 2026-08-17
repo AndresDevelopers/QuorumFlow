@@ -53,7 +53,7 @@ const createServiceSchema = (t: (key: string, params?: Record<string, string | n
     title: z.string().min(3, t('service.form.titleRequired')),
     description: z.string().min(10, t('service.form.descriptionRequired')),
     date: z.date({
-      required_error: t('service.form.dateRequired'),
+      error: t('service.form.dateRequired'),
     }),
     time: z.string().optional(),
   });

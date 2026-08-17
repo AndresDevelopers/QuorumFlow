@@ -69,7 +69,7 @@ export function ActivityForm({ activity }: ActivityFormProps) {
         message: t('reports.activityForm.titleRequired'),
       }),
     date: z.date({
-      required_error: t('reports.activityForm.dateRequired'),
+      error: t('reports.activityForm.dateRequired'),
     }),
     time: z.string().optional(),
     description: z.string().min(10, {

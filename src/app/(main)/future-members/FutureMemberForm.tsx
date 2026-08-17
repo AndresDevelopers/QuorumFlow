@@ -54,7 +54,7 @@ const createFutureMemberSchema = (t: (key: string, params?: Record<string, strin
   z.object({
     name: z.string().min(2, { message: t('futureMembers.validation.nameRequired') }),
     baptismDate: z.date({
-      required_error: t('futureMembers.validation.baptismDateRequired'),
+      error: t('futureMembers.validation.baptismDateRequired'),
     }),
     isBaptized: z.boolean(),
   });

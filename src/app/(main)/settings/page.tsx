@@ -96,7 +96,7 @@ const createProfileSchema = (t: TranslateFn) =>
     name: z.string().min(2, { message: t('settings.profile.validation.name') }),
     lastName: z.string().min(1, { message: t('settings.profile.validation.lastName') }),
     birthDate: z.date({
-      required_error: t('settings.profile.validation.birthDate'),
+      error: t('settings.profile.validation.birthDate'),
     }),
     memberId: z.string().trim().optional(),
   });

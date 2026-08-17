@@ -393,7 +393,7 @@ export default function FamilySearchPage() {
         const validated = trainingSchema.safeParse(data);
 
         if (!validated.success) {
-            toast({ title: t("familySearch.validation.error"), description: validated.error.errors[0].message, variant: 'destructive' });
+            toast({ title: t("familySearch.validation.error"), description: validated.error.issues[0].message, variant: 'destructive' });
             return;
         }
 
@@ -430,7 +430,7 @@ export default function FamilySearchPage() {
         const validated = taskSchema.safeParse({ task });
 
         if (!validated.success) {
-            toast({ title: t("familySearch.validation.error"), description: validated.error.errors[0].message, variant: 'destructive' });
+            toast({ title: t("familySearch.validation.error"), description: validated.error.issues[0].message, variant: 'destructive' });
             return;
         }
 

@@ -57,7 +57,7 @@ import { useI18n } from '@/contexts/i18n-context';
 const birthdaySchema = z.object({
   name: z.string().min(2, { message: 'birthdayForm.nameRequired' }),
   birthDate: z.date({
-    required_error: 'birthdayForm.birthDateRequired',
+    error: 'birthdayForm.birthDateRequired',
   }),
   entryMode: z.enum(['manual', 'automatic']),
   selectedMemberId: z.string().optional(),

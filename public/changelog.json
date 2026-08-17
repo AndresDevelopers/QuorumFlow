@@ -1,6 +1,22 @@
 {
-  "current": "1.1.43",
+  "current": "1.1.44",
   "entries": [
+    {
+      "version": "1.1.44",
+      "date": "2026-08-17",
+      "changes": {
+        "es": {
+          "fixed": [
+            "Hemos corregido: adapt code to Zod v4 and bump dependencies."
+          ]
+        },
+        "en": {
+          "fixed": [
+            "We fixed: adapt code to Zod v4 and bump dependencies."
+          ]
+        }
+      }
+    },
     {
       "version": "1.1.43",
       "date": "2026-08-04",

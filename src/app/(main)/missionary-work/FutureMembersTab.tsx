@@ -81,7 +81,7 @@ const createFutureMemberSchema = (t: (key: string) => string) =>
     lastName: z.string().min(1, { message: t('futureMembers.validation.lastNameRequired') }),
     baptismDate: z
       .date({
-        required_error: t('futureMembers.validation.baptismDateRequired'),
+        error: t('futureMembers.validation.baptismDateRequired'),
       })
       .refine(
         (date) => {
