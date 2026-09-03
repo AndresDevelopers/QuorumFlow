@@ -652,6 +652,8 @@
   "donate.scanQR": "Scan this QR code to donate:",
   "donate.suggestedNote": "We suggest a $2 monthly donation to help cover operating costs. Please note that donations are not automatic: each time you wish to contribute, you must do so manually, as all contributions are entirely voluntary.",
   "donate.title": "Support {appName}",
+  "donate.openSource": "This project is open source, check it out on GitHub:",
+  "donate.sponsoredBy": "Sponsored by",
   "errorBoundary.appErrorDescription": "An unexpected error occurred in the app. Our team has been notified.",
   "errorBoundary.appErrorDetails": "Error details:",
   "errorBoundary.appErrorTitle": "Oops! Something went wrong",

@@ -5,7 +5,7 @@ import { doc } from 'firebase/firestore';
 import { getDoc } from '@/lib/firestore-query';
 import { firestore } from "@/lib/firebase";
 import { useI18n } from "@/contexts/i18n-context";
-import { Heart, ExternalLink, Download } from "lucide-react";
+import { Heart, ExternalLink, Download, CodeXml } from "lucide-react";
 import Image from "next/image";
 import { getAppName } from "@/lib/app-config";
 
@@ -128,6 +128,32 @@ export default function DonatePage() {
           </div>
         )
       )}
+
+      <div className="flex flex-col items-center space-y-3 rounded-lg border bg-card p-6 text-center shadow-sm">
+        <p className="text-sm text-muted-foreground">
+          {t("donate.openSource")}
+        </p>
+        <a
+          href="https://github.com/AndresDevelopers/Sionflow"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors break-all"
+        >
+          <CodeXml className="h-4 w-4 shrink-0" />
+          github.com/AndresDevelopers/Sionflow
+        </a>
+        <p className="text-sm text-muted-foreground">
+          {t("donate.sponsoredBy")}{" "}
+          <a
+            href="https://kvtemplate.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-primary hover:underline"
+          >
+            KVTemplate
+          </a>
+        </p>
+      </div>
     </div>
   );
 }
